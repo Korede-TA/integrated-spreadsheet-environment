@@ -1,0 +1,13 @@
+[package]
+name = "integrated-spreadsheet-environment"
+version = "0.1.0"
+authors = ["Korede Aderele <kaderele@gmail.com>"]
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+seed = "^0.4.1"
+wasm-bindgen = "^0.2.50"
+yew = { git = "https://github.com/yewstack/yew", features = ["toml", "yaml", "msgpack", "cbor"] }
