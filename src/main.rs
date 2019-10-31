@@ -1,69 +1,8 @@
 use yew::{html, Component, ComponentLink, Html, ShouldRender};
-use std::collections::HashMap;
-
-#[derive(Hash, Eq, PartialEq, Debug)]
-struct Coordinate {
-    row_column_pairs: Vec<(i32, i32)>
-    plain_coordinate: (i32, i32)
-}
-
-impl Coordinate {
-    fn show(&self) -> String {
-        fn show_col(col : i32) -> String {
-            let mut col_str = String::new();
-            for i in (col..0).step_by(26) {
-                let alphaOffset = 64;
-                let normalizedI = if col == 26 {
-                    26 
-                } else {
-                    i % 26
-                };
-                let baseChar = (normalizedI + alphaOffset) as char;
-                col_str.push(baseChar);
-            }
-            col_str
-        }
-
-        let mut coord_str = String::new();
-        for (row, col) in self.row_column_pairs {
-            coord_str.push_str(row.to_string());
-            let col_letter = (96 + col) as char;
-            coord_str.push(show_col(col));
-            coord_str.push_str("-");
-        }
-        coord_str.pop(); // remove trailing "-"
-        coord_str
-    }
-
-    fn parent(&self) -> Option<Self> {
-        match self.row_column_pairs.as_slice().split_last() {
-            Some(_, first_elements) => Some(first_elements),
-            _ => None,
-        }
-    }
-
-    fn row(&self) -> Option<i32> {
-        match self.row_column_pairs.as_slice().split_last() {
-            Some((row, _), _) => Some(row),
-            _ => None,
-        }
-    }
-
-    fn col(&self) -> Option<i32> {
-        match self.row_column_pairs.as_slice().split_last() {
-            Some((_, col), _) => Some(col),
-            _ => None,
-        }
-    }
-}
-
-struct Span(i32, i32);
-
-// grammars===tables, encapsulates the rows/columns and spans of a table
+use yew::virtual_dom::{VList};
 
 type Color = String;
 
-#[derive(Hash, Eq, PartialEq, Debug)]
 struct Borders {
     top: (Color, bool),
     right: (Color, bool),
@@ -73,7 +12,7 @@ struct Borders {
 }
 
 impl Borders {
-    pub fn all(color : Color) -> Borders {
+    fn all(color : Color) -> Borders {
         Borders {
             top: (color, true),
             right: (color, true),
@@ -82,26 +21,13 @@ impl Borders {
             collapse: false,
         }
     }
-
-    fn none() -> Borders {
-        Borders {
-            top: ("none", true),
-            right: ("none", true),
-            left: ("none", true),
-            bottom: ("none", true),
-            collapse: false,
-        }
-        TS
 }
 
-#[derive(Hash, Eq, PartialEq, Debug)]
 struct Font {
     weight: i32, 
     color: Color, 
-    // family : String,
 }
 
-#[derive(Hash, Eq, PartialEq, Debug)]
 struct Style {
     borders: Borders, 
     font: Font,
@@ -110,32 +36,43 @@ struct Style {
 impl Style {
     fn default() -> Style {
         Style {
-            borders: Borders::all("black"),
+            borders: Borders::all("black".to_string()),
             font: Font {
                 weight: 400,
-                color: "black",
+                color: "black".to_string(),
             }
         }
+    }
+
+    fn to_string(&self) -> String {
+        // TODO: fill this out
+        "".to_string()
     }
 }
 
 // Kinds of grammars in the system
-#[derive(Hash, Eq, PartialEq, Debug)]
 enum Kind {
-    // Text is a static piece of text that is displayed
     Text(String),
-    // Input is a html input that can be modified by the user 
     Input(String),
-    // Button(String),
     Table(Vec<Vec<Grammar>>),
 }
 
-#[derive(Hash, Eq, PartialEq, Debug)]
+#[derive(Debug, Copy)]
 struct Grammar {
     name: String,
-    coord: (i32, i32),
     style: Style,
     kind: Kind,
+}
+
+impl Grammar {
+    fn default() -> Grammar {
+        Grammar {
+            name: "".to_string(),
+            style: Style::default(),
+            kind: Kind::Text("".to_string()),
+        }
+    }
+
 }
 
 // Model
@@ -143,11 +80,12 @@ struct Model {
     root: Grammar,
 }
 
+type Coordinate = Vec<(i32, i32)>;
+
 enum Msg {
-  ChangeCellData(Coordinate, String),
+  ChangeCellValue(Coordinate, String),
   SelectBelow(Coordinate),
-  AddNestedTable(Coordinate, Grid),
-  // SelectCells(selection),
+  AddNestedTable(Coordinate),
   AutoCompeleteGrammar(Coordinate, Grammar),
   ToggleContextMenu(Coordinate, bool),
   ActivateCell(Coordinate),
@@ -159,24 +97,16 @@ impl Component for Model {
     type Properties = ();
 
     fn create(_: Self::Properties, _: ComponentLink<Self>) -> Self {
-        let root = Grammar {
-            name: "root",
-            coordinate: [(1,1)],
-            Style: Style::default(),
-            mode: Mode::Table(Grid {
-                rows: 3, cols: 3
-            }),
-        };
-
-        /* let children : Vec<grammar::Grammar> = 
-            (1..(3*3)).map(|i| -> grammar::Grammar {
-                name: ""
-                coordinate: [(1,1)]
-            }); */
-
         Model {
-            root: root,
-            grammar: vec![],
+            root: Grammar {
+                name: "root".to_string(),
+                style: Style::default(),
+                kind: Kind::Table(vec! [
+                    vec! [ Grammar::default(), Grammar::default(), Grammar::default(),],
+                    vec! [ Grammar::default(), Grammar::default(), Grammar::default(),],
+                    vec! [ Grammar::default(), Grammar::default(), Grammar::default(),],
+                ]),
+            },
         }
     }
 
@@ -190,38 +120,54 @@ impl Component for Model {
         }
     }
 
-    /*fn view_row() -> Html<Self> {
-        <tr>
-            { 
-            }
-        </tr>
-    }
-
-    fn view_grammar(&self, g : Grammar) -> Html<Self> {
-
-        html! {
-            <td id={ format!("cell-{}", g.coordinate.show()) } class={ format!("cell dropdown row- col-", ) }>
-                /*
-                [ classes
-                    [ "cell"
-                    ; "dropdown"
-                    ; "row-" ^ C.showPrefix coord ^ (coord |> C.row |> C.showRow)
-                    ; "col-" ^ C.showPrefix coord ^ (coord |> C.col |> C.showCol) ]
-                ; id ("cell-" ^ C.show coord) ]
-                (*; onWithOptions "click" opts (SelectCells coord) ]*)
-                [viewGrammar m coord]
-                */
-            </td>
-        }
-    } */
-
     fn view(&self) -> Html<Self> {
-        html! {
-            <button onclick=|_| Msg::Noop>{ "Click me!" }</button>
+        fn view_row(row : Vec<Grammar>) -> Html<Model> {
+            let cell_nodes = VList::new();
+            for grammar in row {
+                cell_nodes.add_child(view_grammar(grammar));
+            }
 
-                
+            html!{
+                <div style="display: table-row;">
+                    { cell_nodes }
+                </div>
+            }
         }
+
+        fn view_grammar(grammar : Grammar) -> Html<Model> {
+            html! {
+                <div>
+                    <button onclick=|_| Msg::Noop>{ "Click me!" }</button>
+                    
+                    { 
+                        match grammar.kind {
+                            Kind::Text(value) => {
+                                <div style="display: table-cell;">
+                                    
+                                </div>
+                            }
+
+                            Kind::Table(table) => {
+                                let row_nodes = VList::new();
+                                for row in table {
+                                    row_nodes.add_child(view_row(row));
+                                }
+                                <div style="display: table;">
+                                    { row_nodes } 
+                                </div>
+                            }
+
+                            _ => html! { <td>{"Empty Cell"}</td> }
+                        }
+                    }
+                </div>
+            }
+        }
+        
+        view_grammar(self.root)
     }
+
+
 }
 
 fn main() {
