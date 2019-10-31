@@ -72,7 +72,7 @@ impl Grammar {
         Grammar {
             name: "".to_string(),
             style: Style::default(),
-            kind: Kind::Input("".to_string()),
+            kind: Kind::Input("default input val".to_string()),
         }
     }
 
@@ -135,6 +135,42 @@ impl Component for Model {
     }
 
     fn view(&self) -> Html<Self> {
+        let mut grammar_nodes = VList::<Model>::new();
+        grammar_nodes.add_child(html! {
+            <div style="border: 1px solid black;">{"ROOT"}</div>
+        });
+        match &self.root.kind {
+            Kind::Table(rows) => {
+                for row in rows {
+                    for grammar in row {
+                        grammar_nodes.add_child(
+                            match &grammar.kind {
+                                Kind::Text(_) => {
+                                    html! {
+                                        <div style="border: 1px solid black;">{"TEXT GRAMMAR"}</div>
+                                    }
+                                }
+                                Kind::Input(value) => {
+                                    html! {
+                                        <input 
+                                            style="border: 1px solid black;" 
+                                            value=value
+                                            oninput=|e| Msg::ChangeCellValue(e.value)></input>
+                                    }
+                                }
+                                Kind::Table(_) => {
+                                    html! {
+                                        <div style="border: 1px solid black;">{"NESTED GRAMMAR"}</div>
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+            _ => () 
+        }
+
         html! {
             <div>
                 <h1>{ "Integrated Spreasheet Environment!" }</h1>
@@ -146,6 +182,9 @@ impl Component for Model {
                 </input>
                 <p>{ self.value.clone() }</p>
 
+                <div id="grammars">
+                    { grammar_nodes }
+                </div>
             </div>
         }
     }
