@@ -3,31 +3,33 @@ use yew::virtual_dom::{VList};
 
 type Color = String;
 
+// #[derive(Debug)]
+#[derive(Debug)]
 struct Borders {
-    top: (Color, bool),
-    right: (Color, bool),
-    left: (Color, bool),
-    bottom: (Color, bool),
+    color : Color,
     collapse: bool
 }
 
 impl Borders {
     fn all(color : Color) -> Borders {
         Borders {
-            top: (color, true),
-            right: (color, true),
-            left: (color, true),
-            bottom: (color, true),
+            color: color,
             collapse: false,
         }
     }
+
+    fn set_color(&mut self, color : Color) {
+        self.color = color;
+    }
 }
 
+#[derive(Debug)]
 struct Font {
     weight: i32, 
     color: Color, 
 }
 
+#[derive(Debug)]
 struct Style {
     borders: Borders, 
     font: Font,
@@ -51,13 +53,14 @@ impl Style {
 }
 
 // Kinds of grammars in the system
+#[derive(Debug)]
 enum Kind {
     Text(String),
     Input(String),
     Table(Vec<Vec<Grammar>>),
 }
 
-#[derive(Debug, Copy)]
+#[derive(Debug)]
 struct Grammar {
     name: String,
     style: Style,
@@ -69,7 +72,7 @@ impl Grammar {
         Grammar {
             name: "".to_string(),
             style: Style::default(),
-            kind: Kind::Text("".to_string()),
+            kind: Kind::Input("".to_string()),
         }
     }
 
@@ -78,18 +81,19 @@ impl Grammar {
 // Model
 struct Model {
     root: Grammar,
+    count: i32,
+    value: String,
 }
 
 type Coordinate = Vec<(i32, i32)>;
 
 enum Msg {
-  ChangeCellValue(Coordinate, String),
-  SelectBelow(Coordinate),
+  ChangeCellValue(String),
   AddNestedTable(Coordinate),
   AutoCompeleteGrammar(Coordinate, Grammar),
   ToggleContextMenu(Coordinate, bool),
-  ActivateCell(Coordinate),
   Noop,
+  Increment,
 }
 
 impl Component for Model {
@@ -102,11 +106,13 @@ impl Component for Model {
                 name: "root".to_string(),
                 style: Style::default(),
                 kind: Kind::Table(vec! [
-                    vec! [ Grammar::default(), Grammar::default(), Grammar::default(),],
-                    vec! [ Grammar::default(), Grammar::default(), Grammar::default(),],
-                    vec! [ Grammar::default(), Grammar::default(), Grammar::default(),],
+                    vec! [ Grammar::default(), Grammar::default(), Grammar::default(), ],
+                    vec! [ Grammar::default(), Grammar::default(), Grammar::default(), ],
+                    vec! [ Grammar::default(), Grammar::default(), Grammar::default(), ],
                 ]),
             },
+            count: 0,
+            value: String::new(),
         }
     }
 
@@ -116,55 +122,32 @@ impl Component for Model {
                 // Update your model on events
                 true
             }
+            Msg::Increment => {
+                self.count+=1;
+                true
+            }
+            Msg::ChangeCellValue(value) => {
+                self.value = value.clone();
+                true
+            }
             _ => false
         }
     }
 
     fn view(&self) -> Html<Self> {
-        fn view_row(row : Vec<Grammar>) -> Html<Model> {
-            let cell_nodes = VList::new();
-            for grammar in row {
-                cell_nodes.add_child(view_grammar(grammar));
-            }
+        html! {
+            <div>
+                <h1>{ "Integrated Spreasheet Environment!" }</h1>
+                // Render your model here
+                <button onclick=|_| Msg::Increment>{ "Increment!" }</button>
+                <p>{ self.count }</p>
 
-            html!{
-                <div style="display: table-row;">
-                    { cell_nodes }
-                </div>
-            }
+                <input oninput=|e| Msg::ChangeCellValue(e.value)>
+                </input>
+                <p>{ self.value.clone() }</p>
+
+            </div>
         }
-
-        fn view_grammar(grammar : Grammar) -> Html<Model> {
-            html! {
-                <div>
-                    <button onclick=|_| Msg::Noop>{ "Click me!" }</button>
-                    
-                    { 
-                        match grammar.kind {
-                            Kind::Text(value) => {
-                                <div style="display: table-cell;">
-                                    
-                                </div>
-                            }
-
-                            Kind::Table(table) => {
-                                let row_nodes = VList::new();
-                                for row in table {
-                                    row_nodes.add_child(view_row(row));
-                                }
-                                <div style="display: table;">
-                                    { row_nodes } 
-                                </div>
-                            }
-
-                            _ => html! { <td>{"Empty Cell"}</td> }
-                        }
-                    }
-                </div>
-            }
-        }
-        
-        view_grammar(self.root)
     }
 
 
