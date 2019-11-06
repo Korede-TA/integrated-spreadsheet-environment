@@ -6,3 +6,4 @@ edition = "2018"
 
 [dependencies]
 yew = { git = "https://github.com/yewstack/yew", features = ["toml", "yaml", "msgpack", "cbor"] }
+maplit = "1.0.2"
