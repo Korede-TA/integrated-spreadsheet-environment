@@ -2,6 +2,7 @@ use yew::{html, Component, ComponentLink, Html, ShouldRender};
 use yew::virtual_dom::{VList};
 use std::collections::HashMap;
 use std::num::NonZeroU32;
+#[macro_use] extern crate maplit;
 
 type Color = String;
 

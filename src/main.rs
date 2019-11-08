@@ -1,36 +1,32 @@
 extern crate cargo_web;
+extern crate env_logger;
+#[macro_use]
+extern crate log;
 
+extern crate simple_server;
+
+use simple_server::Server;
 use cargo_web::{CargoWebOpts, StartOpts};
 use structopt::StructOpt;
 use failure::{bail};
 
 fn main() {
     let res = cargo_web::run(CargoWebOpts::Start(
-        StartOpts::from_iter_safe(&["--target=wasm32-unknown-unknown"])
-            .expect("expected hardcoded cargo-web args to be valid"),
+        StartOpts::from_iter_safe(&[
+            "--target=wasm32-unknown-unknown",
+            "--package=frontend",
+        ]).expect("expected hardcoded cargo-web args to be valid"),
     ));
 
-    /* run(CargoWebOpts::Start(StartOpts {
-        build_args: Build {
-            package: None,
-            features: None,
-            all_features: false,
-            no_default_features: false,
-            use_system_emscripten: false,
-            release: false,
-            target: Backend::WebAssembly,
-            verbose: false,
-        },
-        build_target: Target {
-            lib: false,
-            bin: None,
-            example: None,
-            test: None,
-            bench: None,
-        },
-        auto_reload: true,
-        open: true,
-        host: IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
-        port: 8000,
-    })); */
+    env_logger::init().unwrap();
+
+    let host = "127.0.0.1";
+    let port = "7878";
+
+    let server = Server::new(|request, mut response| {
+        info!("Request received. {} {}", request.method(), request.uri());
+        Ok(response.body("Hello Rust!".as_bytes().to_vec())?)
+    });
+
+    server.listen(host, port);
 }
