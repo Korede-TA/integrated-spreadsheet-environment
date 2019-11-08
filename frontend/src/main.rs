@@ -333,7 +333,7 @@ impl Component for Model {
 
         html! {
             <div>
-                <h1>{ "Integrated Spreasheet Environment!" }</h1>
+                <h1>{ "integrated spreasheet environment" }</h1>
                 // Render your model here
                 <button onclick=|_| EventType::Increment>{ "Increment!" }</button>
                 <p>{ self.count }</p>

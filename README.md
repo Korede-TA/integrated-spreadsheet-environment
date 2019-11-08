@@ -4,22 +4,18 @@ Experimental speadsheet-based interface for structured programming based on "str
 
 # Developing
 
-install dependencies using:
-```
-cargo install cargo-web
-```
-
 build and release:
 ```
-cargo web build
+cargo build
 ```
 
 run:
 ```
-cargo web start
-
-cargo web start --release
+cargo run
 ```
+
+`api_proxy` runs at localhost:7878
+`frontend_builder` runs at localhost:8000
 
 # Documentation
 
