@@ -1,15 +1,17 @@
-mod frontend;
-#[macro_use] extern crate maplit;
 extern crate cargo_web;
 
-use cargo_web::{run, CargoWebOpts, StartOpts, Target};
-use std::net::{IpAddr, Ipv4Addr};
+use cargo_web::{CargoWebOpts, StartOpts};
+use structopt::StructOpt;
+use failure::{bail};
 
 fn main() {
-    frontend::run();
+    let res = cargo_web::run(CargoWebOpts::Start(
+        StartOpts::from_iter_safe(&["--target=wasm32-unknown-unknown"])
+            .expect("expected hardcoded cargo-web args to be valid"),
+    ));
 
-    cargo_web::run(CargoWebOpts::Start(StartOpts {
-        build_args: {
+    /* run(CargoWebOpts::Start(StartOpts {
+        build_args: Build {
             package: None,
             features: None,
             all_features: false,
@@ -19,7 +21,7 @@ fn main() {
             target: Backend::WebAssembly,
             verbose: false,
         },
-        build_target: {
+        build_target: Target {
             lib: false,
             bin: None,
             example: None,
@@ -30,10 +32,5 @@ fn main() {
         open: true,
         host: IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
         port: 8000,
-    }));
-
-    // if let Err(error) = run(CargoWebOpts::from_iter(argv)) {
-    //     eprintln!("error: {}", error);
-    //     exit(101);
-    // }
+    })); */
 }

@@ -8,9 +8,5 @@ edition = "2018"
 yew = { git = "https://github.com/yewstack/yew", features = ["toml", "yaml", "msgpack", "cbor"] }
 maplit = "1.0.2"
 cargo-web = "0.6.26"
-
-[workspace]
-members = [
-  "frontend",
-  "backend",
-]
+structopt = "0.2"
+failure = "0.1"
