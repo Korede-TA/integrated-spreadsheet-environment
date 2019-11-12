@@ -5,22 +5,24 @@ use std::num::NonZeroU32;
 #[macro_use] extern crate maplit;
 
 type Color = String;
+type Width = i64;
 
 // #[derive(Debug)]
 #[derive(Debug, Clone)]
 struct Borders {
     color : Color,
-    collapse: bool
+    collapse: bool,
     // Add width for the border
-    // width: 
+    width: Width
     
 }
 
 impl Borders {
-    fn all(color : Color) -> Borders {
+    fn all(color : Color, width : Width) -> Borders {
         Borders {
             color: color,
             collapse: false,
+            width: width,
         }
     }
 
@@ -29,13 +31,13 @@ impl Borders {
     }
 
     // Will get and return actual width
-    // fn get_width(arg: Type) -> RetType {
-    //     unimplemented!();
-    // }
+    fn get_width(&mut self) -> i64 {
+        return self.width;
+    }
     // Will update the current width of the borders
-    // fn set_width(arg: Type) -> RetType {
-    //     unimplemented!();
-    // }
+    fn set_width(&mut self, width : Width) {
+        self.width = width;
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -53,7 +55,13 @@ struct Style {
 impl Style {
     fn default() -> Style {
         Style {
-            borders: Borders::all("black".to_string()),
+            borders: Borders{
+                color: ("black".to_string()),
+                collapse: false,
+                // Will have to chech the width initial
+                width: 20,
+
+            },
             font: Font {
                 weight: 400,
                 color: "black".to_string(),
