@@ -11,6 +11,9 @@ type Color = String;
 struct Borders {
     color : Color,
     collapse: bool
+    // Add width for the border
+    // width: 
+    
 }
 
 impl Borders {
@@ -24,6 +27,15 @@ impl Borders {
     fn set_color(&mut self, color : Color) {
         self.color = color;
     }
+
+    // Will get and return actual width
+    // fn get_width(arg: Type) -> RetType {
+    //     unimplemented!();
+    // }
+    // Will update the current width of the borders
+    // fn set_width(arg: Type) -> RetType {
+    //     unimplemented!();
+    // }
 }
 
 #[derive(Debug, Clone)]
@@ -53,9 +65,9 @@ impl Style {
         // TODO: fill this out
         format!{
         "border: 1px solid {};
-border-collapse: {};
-font-weight: {};
-color: {};",
+        border-collapse: {};
+        font-weight: {};
+        color: {};",
         self.borders.color,
         self.borders.collapse,
         self.font.weight,
@@ -174,6 +186,7 @@ type GrammarMap = HashMap<Coordinate, Grammar>;
 
 enum NavEvent {
    ScrollTo(Coordinate),
+   
 }
 
 enum SelectEvent {
