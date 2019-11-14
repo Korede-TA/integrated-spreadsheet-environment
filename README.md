@@ -1,9 +1,10 @@
-# Integrated Spreadshee Environment
+# Integrated Spreadsheet Environment
 
 Experimental speadsheet-based interface for structured programming based on "structured grammars".
 
 # Developing
 
+## 
 build and release:
 ```
 cargo build

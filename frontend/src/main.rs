@@ -1,51 +1,51 @@
 use yew::{html, Component, ComponentLink, Html, ShouldRender};
-use yew::virtual_dom::{VList};
+use yew::virtual_dom::{VNode, VList, VText};
 use std::collections::HashMap;
 use std::num::NonZeroU32;
+use yew::services::{ConsoleService};
+use stdweb::web;
 #[macro_use] extern crate maplit;
 
-type Color = String;
+/*
+ * DATA MODEL:
+ *
+ *
+ */
 
-// #[derive(Debug)]
-#[derive(Debug, Clone)]
-struct Borders {
-    color : Color,
-    collapse: bool
-}
+/*
+ * # Other Notes:
+ *
+ * Enums vs Structs: 
+ * Structs are just a basic collection of fields like in a class.
+ * Enums are used to represent a value that can take multiple forms.
+ * For instance, 
+ *
+ * `#[derive()]`:
+ * These is a macro provided in the Rust standard library for generating code 
+ * to automatically implement certain traits (interfaces) in Rust
+ *
+ * NonZeroU32:
+ * In a number of places in the application, we make use of integers that can be neither
+ * negative (unsigned) nor zero, such as the coordinate values. We adapt the standard rust 
+ * data type NonZeroU32 (non-zero unsigned 32-bit integer) as a type for such values
+ */
 
-impl Borders {
-    fn all(color : Color) -> Borders {
-        Borders {
-            color: color,
-            collapse: false,
-        }
-    }
-
-    fn set_color(&mut self, color : Color) {
-        self.color = color;
-    }
-}
-
-#[derive(Debug, Clone)]
-struct Font {
-    weight: i32, 
-    color: Color, 
-}
-
+// Style contains both the 
 #[derive(Debug, Clone)]
 struct Style {
-    borders: Borders, 
-    font: Font,
+    border_color: String,  // CSS: border-color
+    border_collapse: bool, // CSS: border-collapse
+    font_weight: i32,      // CSS: font-weight
+    font_color: String,    // CSS: font-color
 }
 
 impl Style {
     fn default() -> Style {
         Style {
-            borders: Borders::all("black".to_string()),
-            font: Font {
-                weight: 400,
-                color: "black".to_string(),
-            }
+            border_color: "black".to_string(),
+            border_collapse: true,
+            font_weight: 400,
+            font_color: "black".to_string(),
         }
     }
 
@@ -56,15 +56,17 @@ impl Style {
 border-collapse: {};
 font-weight: {};
 color: {};",
-        self.borders.color,
-        self.borders.collapse,
-        self.font.weight,
-        self.font.color,
+        self.border_color,
+        self.border_collapse,
+        self.font_weight,
+        self.font_color,
         }
     }
 }
 
-// Kinds of grammars in the system
+// Kinds of grammars in the system.
+// Since this is an Enum, a Grammar's kind field
+// can only be set to one these variants at a time
 #[derive(Debug, Clone)]
 enum Kind {
     Text(String),
@@ -72,6 +74,7 @@ enum Kind {
     Grid(Vec<(NonZeroU32, NonZeroU32)>),
 }
 
+// Grammar is the main data-type representing
 #[derive(Debug, Clone)]
 struct Grammar {
     name: String,
@@ -104,19 +107,28 @@ impl Grammar {
     }
 }
 
-// Model
+// Model contains the entire state of the application
 struct Model {
     root: Grammar,
-    grammars: GrammarMap,
-    count: i32,
+    grammars: HashMap</*Key*/ Coordinate, /*Value*/ Grammar>,
     value: String,
+    suggestions: Vec<String>,
+    console: ConsoleService,
 }
 
+// Coordinate specifies the nested coordinate structure
 #[derive(PartialEq, Eq, Debug, Hash, Clone)]
 struct Coordinate {
-    row_cols: Vec<(NonZeroU32, NonZeroU32)>,
+    row_cols: Vec<(NonZeroU32, NonZeroU32)>, // should never be empty list
 }
 
+fn non_zero_u32_tuple(val: (u32, u32)) -> (NonZeroU32, NonZeroU32) {
+    let (row, col) = val;
+    (NonZeroU32::new(row).unwrap(), NonZeroU32::new(col).unwrap())
+}
+
+// macro for easily defining a vector of non-zero tuples
+// used in Coordinate::root() below
 macro_rules! row_col_vec {
     ( $( $x:expr ), * ) => {
         {
@@ -129,23 +141,8 @@ macro_rules! row_col_vec {
     };
 }
 
-impl Coordinate {
-    fn root() -> Coordinate {
-        Coordinate{ row_cols: row_col_vec![(1, 1)] }
-    }
-
-    fn child_of(parent: &Self, child_coord: (NonZeroU32, NonZeroU32)) -> Coordinate {
-        let mut new_row_col = parent.clone().row_cols;
-        new_row_col.push(child_coord);
-        Coordinate{ row_cols: new_row_col }
-    }
-}
-
-fn non_zero_u32_tuple(val: (u32, u32)) -> (NonZeroU32, NonZeroU32) {
-    let (row, col) = val;
-    (NonZeroU32::new(row).unwrap(), NonZeroU32::new(col).unwrap())
-}
-
+// macro for easily defining a coordinate
+// either absolutely or relative to it's parent coordinate
 macro_rules! coord {
     ( $( $x:expr ), + ) => {
         {
@@ -162,6 +159,7 @@ macro_rules! coord {
     ( $parent:expr ; $x:expr ) => ( Coordinate::child_of(&$parent.clone(), non_zero_u32_tuple($x)) );
 }
 
+// macros defining the ROOT and META coordinates
 macro_rules! ROOT {
     () => ( coord!{ (1,1) } );
 }
@@ -170,79 +168,34 @@ macro_rules! META {
     () => ( coord!{ (1,2) } );
 }
 
-type GrammarMap = HashMap<Coordinate, Grammar>;
+// Methods for interacting with coordinate struct
+impl Coordinate {
+    fn root() -> Coordinate {
+        ROOT!{}
+    }
 
-enum NavEvent {
-   ScrollTo(Coordinate),
-}
-
-enum SelectEvent {
-    SelectRange(Coordinate /* top-left */ , Coordinate /* bottom-right */),
-}
-
-enum DataEvent {
-    ChangeInput(Coordinate, String /* new value */),
-}
-
-enum StructureEvent {
-    AddNestedTable(Coordinate, Vec<(NonZeroU32, NonZeroU32)>),
-    InsertGrammar(Coordinate, Grammar),
-}
-
-enum CompleteEvent {
-    ShowDropdown(Coordinate),
-    RefineSearch(String),
-    HideDropdown,
-}
-
-enum AdminEvent {
-    ShowDropdown(Coordinate),
-    HideDropdown,
-}
-
-enum EventType {
-    Nav(NavEvent),
-    Select(SelectEvent),
-    Data(DataEvent),
-    Structure(StructureEvent),
-    Complete(CompleteEvent),
-    Admin(AdminEvent),
-    Noop,
-    Increment 
-}
-
-fn update_nav(model: &mut Model, nav_event: NavEvent) -> ShouldRender {
-    false
-}
-
-fn update_select(model: &mut Model, select_event: SelectEvent) -> ShouldRender {
-    false
-}
-
-fn update_data(model: &mut Model, data_event: DataEvent) -> ShouldRender {
-    match data_event {
-        DataEvent::ChangeInput(_coord, value) => {
-            model.value = value.clone();
-            true
-        }
-        _ => false
+    fn child_of(parent: &Self, child_coord: (NonZeroU32, NonZeroU32)) -> Coordinate {
+        let mut new_row_col = parent.clone().row_cols;
+        new_row_col.push(child_coord);
+        Coordinate{ row_cols: new_row_col }
     }
 }
 
-fn update_structure(model: &mut Model, structure_event: StructureEvent) -> ShouldRender {
-    false
-}
+// ACTIONS
+// Triggered in the view, sent to update function
+enum Action {
+    // Do nothing
+    Noop,
 
-fn update_complete(model: &mut Model, complete_event: CompleteEvent) -> ShouldRender {
-    false
-}
+    // Change string value of Input grammar
+    ChangeInput(Coordinate, /* new_value: */ String),
 
-fn update_admin(model: &mut Model, admin_event: AdminEvent) -> ShouldRender {
-    false
+    // Show suggestions dropdown at Coordinate based on query
+    ShowSuggestions(Coordinate, /* query: */ String),
 }
 
 impl Component for Model {
-    type Message = EventType;
+    type Message = Action;
     type Properties = ();
 
     fn create(_: Self::Properties, _: ComponentLink<Self>) -> Self {
@@ -260,27 +213,35 @@ impl Component for Model {
                 coord!{ ROOT!{}; (2,1) } => Grammar::default(),
                 coord!{ ROOT!{}; (2,2) } => Grammar::default(),
             },
-            count: 0,
             value: String::new(),
+            suggestions: vec![ "JS Module".to_string(), "Java Module".to_string() ],
+            console: ConsoleService::new(),
         }
     }
 
+    // The update function is split into sub-update functions that 
+    // are specifc to each EventType
     fn update(&mut self, event_type: Self::Message) -> ShouldRender {
-        match event_type{
-            EventType::Noop => {
+        match event_type {
+            Action::Noop => {
                 // Update your model on events
-                true
+                false
             }
-            EventType::Increment => {
-                self.count+=1;
-                true
+            Action::ChangeInput(coord, new_value) => {
+                let old_grammar = self.grammars.get_mut(&coord);
+                match old_grammar {
+                    Some(g @ Grammar { kind: Kind::Text(_), .. }) => {
+                        self.console.log(&new_value);
+                        g.kind = Kind::Text(new_value);
+                    },
+                    _ => ()
+                }
+                false
             }
-            EventType::Nav(nav_event) => { update_nav(self, nav_event) }
-            EventType::Select(select_event) => { update_select(self, select_event) }
-            EventType::Data(data_event) => { update_data(self, data_event) }
-            EventType::Structure(structure_event) => { update_structure(self, structure_event) }
-            EventType::Complete(complete_event) => { update_complete(self, complete_event) }
-            EventType::Admin(admin_event) => { update_admin(self, admin_event) }
+            Action::ShowSuggestions(coord, query) => {
+                false
+            }
+            _ => false
         }
     }
 
@@ -304,17 +265,24 @@ impl Component for Model {
                             }
                         }
                         Some(Kind::Input(value)) => {
+                            let mut suggestion_nodes = VList::<Model>::new();
+                            for s in &self.suggestions {
+                                suggestion_nodes.add_child(VNode::VText(VText::new(s.to_string())));
+                            }
                             html! {
-                                <input 
-                                    style=&grammar.map(|g| g.style.to_string()).unwrap_or_default()
-                                    value=value
-                                    oninput=|e| {
-                                        EventType::Data(DataEvent::ChangeInput(
-                                                full_coord.clone(),
-                                                e.value,
-                                        ))
-                                    }>
-                                </input>
+                                <div class="cell suggestion">
+                                    <input 
+                                        class="cell-data"
+                                        style=&grammar.map(|g| g.style.to_string()).unwrap_or_default()
+                                        value=value
+                                        oninput=|e| {
+                                            Action::ChangeInput(full_coord.clone(), e.value)
+                                        }>
+                                    </input>
+                                    <div class="suggestion-content">
+                                        { suggestion_nodes }
+                                    </div>
+                                </div>
                             }
                         }
                         Some(Kind::Grid(_)) => {
@@ -334,12 +302,7 @@ impl Component for Model {
         html! {
             <div>
                 <h1>{ "integrated spreasheet environment" }</h1>
-                // Render your model here
-                <button onclick=|_| EventType::Increment>{ "Increment!" }</button>
-                <p>{ self.count }</p>
 
-                // <input oninput=|e| Msg::ChangeCellValue(e.value)>
-                // </input>
                 <p>{ self.value.clone() }</p>
 
                 <div id="grammars">
