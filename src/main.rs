@@ -12,7 +12,7 @@ fn main() {
             StartOpts::from_iter_safe(&[
                 "--target=wasm32-unknown-unknown",
                 "--package=frontend",
-                "--port=9000",
+                "--port=8000",
             ]).expect("expected hardcoded cargo-web args to be valid"),
         ));
     }).unwrap();
