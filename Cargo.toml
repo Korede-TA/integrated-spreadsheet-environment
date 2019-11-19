@@ -7,10 +7,5 @@ edition = "2018"
 [dependencies]
 yew = { git = "https://github.com/yewstack/yew", features = ["toml", "yaml", "msgpack", "cbor"] }
 maplit = "1.0.2"
-cargo-web = "0.6.26"
-structopt = "0.2"
-failure = "0.1"
-simple-server = "0.4.0" 
-
-[workspace]
-members = ["frontend",]
+# cargo-web = "0.6.26"
+stdweb = "0.4.20"
