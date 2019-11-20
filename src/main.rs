@@ -1,13 +1,16 @@
-use yew::{html, Component, ComponentLink, Html, ShouldRender};
-use yew::virtual_dom::{VNode, VList, VText};
 use std::collections::HashMap;
 use std::num::NonZeroU32;
+use serde::{Serialize, Deserialize};
+use yew::{html, Component, ComponentLink, Html, ShouldRender};
 use yew::services::{ConsoleService};
-use stdweb::web;
+use yew::virtual_dom::{VNode, VList, VText};
+
 #[macro_use] extern crate maplit;
+#[macro_use] extern crate stdweb;
 
 /*
  * DATA MODEL:
+ * is centered around the "grammars" map: HashMap<Coordinate, Grammar>
  *
  *
  */
@@ -31,13 +34,15 @@ use stdweb::web;
  */
 
 // Style contains both the 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct Style {
     border_color: String,  // CSS: border-color
     border_collapse: bool, // CSS: border-collapse
     font_weight: i32,      // CSS: font-weight
     font_color: String,    // CSS: font-color
 }
+js_serializable!( Style );
+js_deserializable!( Style );
 
 impl Style {
     fn default() -> Style {
@@ -67,20 +72,24 @@ color: {};",
 // Kinds of grammars in the system.
 // Since this is an Enum, a Grammar's kind field
 // can only be set to one these variants at a time
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 enum Kind {
     Text(String),
     Input(String),
     Grid(Vec<(NonZeroU32, NonZeroU32)>),
 }
+js_serializable!( Kind );
+js_deserializable!( Kind );
 
 // Grammar is the main data-type representing
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct Grammar {
     name: String,
     style: Style,
     kind: Kind,
 }
+js_serializable!( Grammar );
+js_deserializable!( Grammar );
 
 impl Grammar {
     fn default() -> Grammar {
