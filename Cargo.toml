@@ -9,3 +9,16 @@ yew = { git = "https://github.com/yewstack/yew", features = ["toml", "yaml", "ms
 maplit = "1.0.2"
 # cargo-web = "0.6.26"
 stdweb = "0.4.20"
+wasm-bindgen = "0.2.47"
+serde = "1.0.102"
+
+[dependencies.web-sys]
+version = "0.3.24"
+features = [
+  'Document',
+  'Element',
+  'HtmlElement',
+  'Node',
+  'Window',
+]
+
