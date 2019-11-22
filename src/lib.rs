@@ -1,12 +1,17 @@
 use std::collections::HashMap;
 use std::num::NonZeroU32;
 use serde::{Serialize, Deserialize};
-use yew::{html, Component, ComponentLink, Html, ShouldRender};
+use yew::{html, App, Component, ComponentLink, Html, ShouldRender};
 use yew::services::{ConsoleService};
 use yew::virtual_dom::{VNode, VList, VText};
+use wasm_bindgen::prelude::*;
+use stdweb::web::{document, Element, INode, IParentNode};
+use log::trace;
 
 #[macro_use] extern crate maplit;
 #[macro_use] extern crate stdweb;
+#[macro_use] extern crate log;
+extern crate web_logger;
 
 /*
  * DATA MODEL:
@@ -344,6 +349,66 @@ impl Component for Model {
 
 }
 
-pub fn main() {
-    yew::start_app::<Model>();
+/* JS Export Macros
+ *
+ * In order to export Rust functions to JS via Wasm, we have two options
+ *
+ * 1. Using stdweb, there's a `#[js_export]` macro that let's us call
+ *    rust functions like so:
+ *    - In Rust:
+ *    ```
+ *    #[js_export]
+ *    fn hash( string: String ) -> String {
+ *    ```
+ *    - In the browser:
+ *    ```
+ *    <script src="hasher.js"></script>
+ *    <script>
+ *      Rust.hasher.then( function( hasher ) {
+ *          console.log( hasher.hash( "Hello world!" ) );
+ *      });
+ *      </script>
+ *    ```
+ *    See more info here: https://github.com/koute/stdweb/tree/master/examples/hasher
+ *
+ * 2. Using wasm_bindgen and web_sys:
+ *
+ */
+
+#[js_export]
+pub fn yew_start() {
+    // yew::start_app::<Model>();
+
+    trace!("Initializing yew...");
+    yew::initialize();
+
+    trace!("Creating an application instance...");
+    let app: App<Model> = App::new();
+
+    trace!("Mount the App to the body of the page...");
+    let body = document()
+            .query_selector("body")
+            .expect("can't get body node for rendering")
+            .expect("can't unwrap body node");
+    app.mount(body);
+
+    trace!("Run");
+    yew::run_loop();
+}
+
+#[wasm_bindgen]
+pub fn bind_gen_ex() -> Result<(), JsValue> {
+    // Use `web_sys`'s global `window` function to get a handle on the global
+    // window object.
+    let window = web_sys::window().expect("no global `window` exists");
+    let document = window.document().expect("should have a document on window");
+    let body = document.body().expect("document should have a body");
+
+    // Manufacture the element we're gonna append
+    let val = document.create_element("p")?;
+    val.set_inner_html("Hello from Rust!");
+
+    body.append_child(&val)?;
+
+    Ok(())
 }

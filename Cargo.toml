@@ -11,6 +11,11 @@ maplit = "1.0.2"
 stdweb = "0.4.20"
 wasm-bindgen = "0.2.47"
 serde = "1.0.102"
+log = "0.4"
+web_logger = "0.2"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies.web-sys]
 version = "0.3.24"
