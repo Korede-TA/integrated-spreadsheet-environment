@@ -4,19 +4,10 @@ Experimental speadsheet-based interface for structured programming based on "str
 
 # Developing
 
-## 
-build and release:
+starting electron app
 ```
-cargo build
+npm run start
 ```
-
-run:
-```
-cargo run
-```
-
-`api_proxy` runs at localhost:7878
-`frontend_builder` runs at localhost:8000
 
 # Documentation
 
