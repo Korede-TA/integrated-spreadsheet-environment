@@ -7,7 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start-cargo": "cargo watch -w src/ -s './scripts/build.sh && electron .'",
     "build": "webpack --config ./webpack.config.js",
-    "start": "npm run build && electron dist/bundle.js"
+    "start": "npm run build && electron dist/index.html"
   },
   "repository": {
     "type": "git",
