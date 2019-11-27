@@ -384,27 +384,6 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
  *
  */
 
-#[js_export]
-pub fn yew_start() {
-    // yew::start_app::<Model>();
-
-    trace!("Initializing yew...");
-    yew::initialize();
-
-    trace!("Creating an application instance...");
-    let app: App<Model> = App::new();
-
-    trace!("Mount the App to the body of the page...");
-    let body = document()
-            .query_selector("body")
-            .expect("can't get body node for rendering")
-            .expect("can't unwrap body node");
-    app.mount(body);
-
-    trace!("Run");
-    yew::run_loop();
-}
-
 #[wasm_bindgen]
 pub fn run_app() -> Result<(), JsValue> {
     web_logger::init();
