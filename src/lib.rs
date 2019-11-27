@@ -1,3 +1,5 @@
+#![recursion_limit = "512"]
+
 use std::collections::HashMap;
 use std::num::NonZeroU32;
 use serde::{Serialize, Deserialize};
@@ -349,6 +351,13 @@ impl Component for Model {
 
 }
 
+
+// When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
+// allocator. (see Cargo.toml for why we use optimixed allocator)
+#[cfg(feature = "wee_alloc")]
+#[global_allocator]
+static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+
 /* JS Export Macros
  *
  * In order to export Rust functions to JS via Wasm, we have two options
@@ -397,18 +406,8 @@ pub fn yew_start() {
 }
 
 #[wasm_bindgen]
-pub fn bind_gen_ex() -> Result<(), JsValue> {
-    // Use `web_sys`'s global `window` function to get a handle on the global
-    // window object.
-    let window = web_sys::window().expect("no global `window` exists");
-    let document = window.document().expect("should have a document on window");
-    let body = document.body().expect("document should have a body");
-
-    // Manufacture the element we're gonna append
-    let val = document.create_element("p")?;
-    val.set_inner_html("Hello from Rust!");
-
-    body.append_child(&val)?;
-
+pub fn run_app() -> Result<(), JsValue> {
+    web_logger::init();
+    yew::start_app::<Model>();
     Ok(())
 }
