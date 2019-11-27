@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::num::NonZeroU32;
 use serde::{Serialize, Deserialize};
 use yew::{html, App, Component, ComponentLink, Html, ShouldRender};
+use yew::events::IKeyboardEvent;
 use yew::services::{ConsoleService};
 use yew::virtual_dom::{VNode, VList, VText};
 use wasm_bindgen::prelude::*;
@@ -107,6 +108,14 @@ impl Grammar {
         }
     }
 
+    fn suggestion(alias : String, value: String) -> Grammar {
+        Grammar {
+            name: alias,
+            style: Style::default(),
+            kind: Kind::Text(value),
+        }
+    }
+
     fn as_grid(rows: NonZeroU32, cols: NonZeroU32) -> Grammar {
         let mut grid : Vec<(NonZeroU32, NonZeroU32)> = Vec::new();
         for i in 1..rows.get() {
@@ -134,14 +143,9 @@ struct Model {
     view_root: Coordinate,
 
     grammars: HashMap</*Key*/ Coordinate, /*Value*/ Grammar>,
-
-    // list of suggestions that are available to a cell at some point in time
-    // TODO: change this to be Vec<Coordinates>
-    suggestions: Vec<String>,
-
-    // utility fields: 
-    // - Yew Services for accessing browser APIs 
-    //   (https://github.com/yewstack/yew#services), 
+    value: String,
+    active_cell: Option<Coordinate>,
+    suggestions: Vec<Coordinate>,
     console: ConsoleService,
 
 }
@@ -222,6 +226,10 @@ enum Action {
 
     // Show suggestions dropdown at Coordinate based on query
     ShowSuggestions(Coordinate, /* query: */ String),
+
+    SetActiveCell(Coordinate),
+
+    DoCompletion(/* source: */ Coordinate, /* destination */ Coordinate),
 }
 
 impl Component for Model {
@@ -249,10 +257,14 @@ impl Component for Model {
                 coord!{ ROOT!{}; (1,2) } => Grammar::default(),
                 coord!{ ROOT!{}; (2,1) } => Grammar::default(),
                 coord!{ ROOT!{}; (2,2) } => Grammar::default(),
-                coord!{ META!{}; (1,1) } => Grammar::default(),
-                coord!{ META!{}; (1,2) } => Grammar::default(),
+                coord!{ META!{}; (1,1) } => Grammar::suggestion("js grammar".to_string(), "This is js".to_string()),
+                coord!{ META!{}; (1,2) } => Grammar::suggestion("java grammar".to_string(), "This is java".to_string()),
             },
-            suggestions: vec![ "JS Module".to_string(), "Java Module".to_string() ],
+            value: String::new(),
+            active_cell: Some(coord!{ ROOT!{}; (1,1) }),
+            suggestions: vec![ coord!{ META!{}; (1,1) }, coord!{ META!{}; (1,1) } ],
+            // suggestions: vec![],
+
             console: ConsoleService::new(),
         }
     }
@@ -279,6 +291,23 @@ impl Component for Model {
             Action::ShowSuggestions(coord, query) => {
                 false
             }
+
+            Action::SetActiveCell(coord) => {
+                self.active_cell = Some(coord);
+                true
+            }
+
+            Action::DoCompletion(source_coord, dest_coord) => {
+                let source_grammar = self.grammars.get(&source_coord);
+                match source_grammar.clone() {
+                    Some(g) => {
+                        self.grammars.insert(dest_coord, g.clone());
+                    }
+                    None => ()
+                }
+                true
+            }
+
             _ => false
         }
     }
@@ -304,22 +333,54 @@ impl Component for Model {
                         }
                         Some(Kind::Input(value)) => {
                             let mut suggestion_nodes = VList::<Model>::new();
-                            for s in &self.suggestions {
-                                suggestion_nodes.add_child(VNode::VText(VText::new(s.to_string())));
+                            let mut active_cell_class = "cell-inactive";
+                            if self.active_cell.clone().map(|coord| coord == full_coord).unwrap_or(false) {
+                                active_cell_class = "cell-active";
+                                for s in &self.suggestions {
+                                    // suggestion_nodes.add_child(VNode::VText(VText::new(s.to_string())));
+                                    let suggested_grammar = &self.grammars.get(&s);
+                                    let source_coord = s.clone();
+                                    let dest_coord = full_coord.clone();
+                                    suggestion_nodes.add_child(html! {
+                                        <a 
+                                            tabindex=-1
+                                            onclick=|e| {
+                                                //if e.key() == "Enter"  {
+                                                    Action::DoCompletion(source_coord.clone(), dest_coord.clone())
+                                                //} else {
+                                                //    Action::Noop
+                                                //}
+                                            }>
+                                            {&suggested_grammar.map(|g| g.name.clone()).unwrap_or_default()}
+                                        </a>
+                                    })
+                                    
+                                }
                             }
+                            let suggestions = html!{
+                                <div class="suggestion-content">
+                                    { suggestion_nodes }
+                                </div>
+                            };
+
+                            let new_active_cell = full_coord.clone();
+
                             html! {
                                 <div class="cell suggestion">
                                     <input 
-                                        class="cell-data"
+                                        class={ format!{ "cell-data {}", active_cell_class } }
                                         style=&grammar.map(|g| g.style.to_string()).unwrap_or_default()
                                         value=value
                                         oninput=|e| {
                                             Action::ChangeInput(full_coord.clone(), e.value)
-                                        }>
+                                        }
+                                        onclick=|e| {
+                                            Action::SetActiveCell(new_active_cell.clone())
+                                        }
+                                        >
                                     </input>
-                                    <div class="suggestion-content">
-                                        { suggestion_nodes }
-                                    </div>
+                                    
+                                    { suggestions }
                                 </div>
                             }
                         }
