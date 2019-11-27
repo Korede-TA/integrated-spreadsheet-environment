@@ -1,0 +1,33 @@
+{
+  "name": "integrated-spreadsheet-environment",
+  "version": "1.0.0",
+  "description": "Experimental speadsheet-based interface for structured programming based on \"structured grammars\".",
+  "main": "dist/main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start-cargo": "cargo watch -w src/ -s './scripts/build.sh && electron .'",
+    "build": "webpack --config ./webpack.config.js",
+    "start": "npm run build && electron dist/bundle.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Korede-TA/integrated-spreadsheet-environment.git"
+  },
+  "author": "Korede Aderele",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Korede-TA/integrated-spreadsheet-environment/issues"
+  },
+  "homepage": "https://github.com/Korede-TA/integrated-spreadsheet-environment#readme",
+  "dependencies": {
+    "electron": "^7.1.2"
+  },
+  "devDependencies": {
+    "@wasm-tool/wasm-pack-plugin": "^1.0.1",
+    "copy-webpack-plugin": "^5.0.5",
+    "html-webpack-plugin": "^3.2.0",
+    "webpack": "^4.41.2",
+    "webpack-cli": "^3.3.10",
+    "webpack-dev-server": "^3.9.0"
+  }
+}
