@@ -3,10 +3,9 @@
 use std::collections::HashMap;
 use std::num::NonZeroU32;
 use serde::{Serialize, Deserialize};
-use yew::{html, App, Component, ComponentLink, Html, ShouldRender};
-use yew::events::IKeyboardEvent;
+use yew::{html, Component, ComponentLink, Html, ShouldRender};
 use yew::services::{ConsoleService};
-use yew::virtual_dom::{VNode, VList, VText};
+use yew::virtual_dom::{VList};
 use wasm_bindgen::prelude::*;
 use stdweb::web::{document, Element, INode, IParentNode};
 use log::trace;
@@ -322,10 +321,11 @@ impl Component for Model {
                 for coord in child_coords {
                     let full_coord = Coordinate::child_of(&(ROOT!{}), *coord);
                     let grammar = &self.grammars.get(&full_coord);
+                    let style = &grammar.map(|g| g.style.to_string()).unwrap_or_default();
                     grammar_nodes.add_child(match &grammar.map(|g| g.kind.clone()) {
                         Some(Kind::Text(value)) => {
                             html! {
-                                <div style=&grammar.map(|g| g.style.to_string()).unwrap_or_default()
+                                <div style={ style.clone() }
                                 >
                                     { value }
                                 </div>
@@ -366,10 +366,9 @@ impl Component for Model {
                             let new_active_cell = full_coord.clone();
 
                             html! {
-                                <div class="cell suggestion">
+                                <div class="cell suggestion" style={ style.clone() }>
                                     <input 
                                         class={ format!{ "cell-data {}", active_cell_class } }
-                                        style=&grammar.map(|g| g.style.to_string()).unwrap_or_default()
                                         value=value
                                         oninput=|e| {
                                             Action::ChangeInput(full_coord.clone(), e.value)
@@ -386,7 +385,7 @@ impl Component for Model {
                         }
                         Some(Kind::Grid(_)) => {
                             html! {
-                                <div style=&grammar.map(|g| g.style.to_string()).unwrap_or_default()>
+                                <div style={ style.clone() }>
                                     {"NESTED GRAMMAR"}
                                 </div>
                             }
@@ -400,15 +399,37 @@ impl Component for Model {
 
         html! {
             <div>
-                <h1>{ "integrated spreasheet environment" }</h1>
 
-                <div id="grammars">
-                    { grammar_nodes }
+                <div class="sidenav">
+                    <a href="#">
+                        <img src="assets/logo.png" width="40px"></img>
+                    </a>
+                    <a href="#">
+                        <img src="assets/folder_icon.png" width="40px"></img>
+                    </a>
+                    <a href="#">
+                        <img src="assets/settings_icon.png" width="40px"></img>
+                    </a>
+                    <a href="#">
+                        <img src="assets/info_icon.png" width="40px"></img>
+                    </a>
                 </div>
+
+                <main>
+                    <div class="tab">
+                        <button class="tablinks">{ "London" }</button>
+                        <button class="newtab-btn">{ "+" }</button>
+                    </div>
+
+                    <h1>{ "integrated spreasheet environment" }</h1>
+
+                    <div id="grammars" style="display: grid;">
+                        { grammar_nodes }
+                    </div>
+                </main>
             </div>
         }
     }
-
 
 }
 

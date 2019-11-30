@@ -32,5 +32,5 @@ module.exports = {
       crateDirectory: path.resolve(__dirname, "."),
       extraArgs: "--no-typescript",
     }),
-  ]
+  ],
 };
