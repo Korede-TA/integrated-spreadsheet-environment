@@ -312,90 +312,6 @@ impl Component for Model {
     }
 
     fn view(&self) -> Html<Self> {
-        let mut grammar_nodes = VList::<Model>::new();
-        grammar_nodes.add_child(html! {
-            <div style=self.root.style.to_string()>{"ROOT"}</div>
-        });
-        match &self.root.kind {
-            Kind::Grid(child_coords) => {
-                for coord in child_coords {
-                    let full_coord = Coordinate::child_of(&(ROOT!{}), *coord);
-                    let grammar = &self.grammars.get(&full_coord);
-                    let style = &grammar.map(|g| g.style.to_string()).unwrap_or_default();
-                    grammar_nodes.add_child(match &grammar.map(|g| g.kind.clone()) {
-                        Some(Kind::Text(value)) => {
-                            html! {
-                                <div style={ style.clone() }
-                                >
-                                    { value }
-                                </div>
-                            }
-                        }
-                        Some(Kind::Input(value)) => {
-                            let mut suggestion_nodes = VList::<Model>::new();
-                            let mut active_cell_class = "cell-inactive";
-                            if self.active_cell.clone().map(|coord| coord == full_coord).unwrap_or(false) {
-                                active_cell_class = "cell-active";
-                                for s in &self.suggestions {
-                                    // suggestion_nodes.add_child(VNode::VText(VText::new(s.to_string())));
-                                    let suggested_grammar = &self.grammars.get(&s);
-                                    let source_coord = s.clone();
-                                    let dest_coord = full_coord.clone();
-                                    suggestion_nodes.add_child(html! {
-                                        <a 
-                                            tabindex=-1
-                                            onclick=|e| {
-                                                //if e.key() == "Enter"  {
-                                                    Action::DoCompletion(source_coord.clone(), dest_coord.clone())
-                                                //} else {
-                                                //    Action::Noop
-                                                //}
-                                            }>
-                                            {&suggested_grammar.map(|g| g.name.clone()).unwrap_or_default()}
-                                        </a>
-                                    })
-                                    
-                                }
-                            }
-                            let suggestions = html!{
-                                <div class="suggestion-content">
-                                    { suggestion_nodes }
-                                </div>
-                            };
-
-                            let new_active_cell = full_coord.clone();
-
-                            html! {
-                                <div class="cell suggestion" style={ style.clone() }>
-                                    <input 
-                                        class={ format!{ "cell-data {}", active_cell_class } }
-                                        value=value
-                                        oninput=|e| {
-                                            Action::ChangeInput(full_coord.clone(), e.value)
-                                        }
-                                        onclick=|e| {
-                                            Action::SetActiveCell(new_active_cell.clone())
-                                        }
-                                        >
-                                    </input>
-                                    
-                                    { suggestions }
-                                </div>
-                            }
-                        }
-                        Some(Kind::Grid(_)) => {
-                            html! {
-                                <div style={ style.clone() }>
-                                    {"NESTED GRAMMAR"}
-                                </div>
-                            }
-                        }
-                        None => html! { <></> }
-                    })
-                }
-            }
-            _ => () 
-        }
 
         html! {
             <div>
@@ -415,24 +331,126 @@ impl Component for Model {
                     </a>
                 </div>
 
-                <main>
+                <div class="main">
                     <div class="tab">
-                        <button class="tablinks">{ "London" }</button>
+                        <button class="tablinks">{ "Session 1" }</button>
                         <button class="newtab-btn">{ "+" }</button>
                     </div>
 
                     <h1>{ "integrated spreasheet environment" }</h1>
 
                     <div id="grammars" style="display: grid;">
-                        { grammar_nodes }
+                        { view_grammars(&self) }
                     </div>
-                </main>
+                </div>
             </div>
         }
     }
-
 }
 
+fn view_grammars(m: &Model) -> VList<Model> {
+    let mut grammar_nodes = VList::<Model>::new();
+    grammar_nodes.add_child(html! {
+        <div style=m.root.style.to_string()>{"ROOT"}</div>
+    });
+    match m.root.kind.clone() {
+        Kind::Grid(child_coords) => {
+            for coord in child_coords {
+                let full_coord = Coordinate::child_of(&ROOT!{}, coord.clone());
+                grammar_nodes.add_child(view_grammar(m, full_coord));
+            }
+        }
+        _ => () 
+    }
+
+    grammar_nodes
+}
+
+fn view_grammar(m: &Model, coord: Coordinate) -> Html<Model> {
+    let grammar = m.grammars.get(&coord);
+    let style = &grammar.map(|g| g.style.to_string()).unwrap_or_default();
+    grammar.map(|g| match g.kind.clone() {
+        Kind::Text(value) => {
+            view_text_grammar(g.clone(), value)
+        }
+        Kind::Input(value) => {
+            let is_active = m.active_cell.clone().map(|c| c == coord).unwrap_or(false);
+            let suggestions = m.suggestions.iter().filter_map(|s_coord| {
+                m.grammars.get(&s_coord).map(|g| (s_coord.clone(), g.clone()))
+            }).collect();
+            view_input_grammar(g.clone(), coord, suggestions, value, is_active)
+        }
+        Kind::Grid(_) => {
+            view_grid_grammar(g.clone())
+        }
+    }).unwrap_or(html! { <></> })
+}
+
+fn view_input_grammar(grammar: Grammar, coord: Coordinate, suggestions: Vec<(Coordinate, Grammar)>, value: String, is_active: bool) -> Html<Model> {
+    let mut suggestion_nodes = VList::<Model>::new();
+    let mut active_cell_class = "cell-inactive";
+    if is_active {
+        active_cell_class = "cell-active";
+        for (s_coord, s_grammar) in suggestions {
+            let c = coord.clone();
+            suggestion_nodes.add_child(html! {
+                <a 
+                    tabindex=-1
+                    onclick=|e| {
+                        //if e.key() == "Enter"  {
+                            Action::DoCompletion(s_coord.clone(), c.clone())
+                        //} else {
+                        //    Action::Noop
+                        //}
+                    }>
+                    {&s_grammar.name}
+                </a>
+            })
+            
+        }
+    }
+    let suggestions = html!{
+        <div class="suggestion-content">
+            { suggestion_nodes }
+        </div>
+    };
+
+    let new_active_cell = coord.clone();
+
+    html! {
+        <div class="cell suggestion" style={ grammar.style.clone() }>
+            <input 
+                class={ format!{ "cell-data {}", active_cell_class } }
+                value=value
+                oninput=|e| {
+                    Action::ChangeInput(coord.clone(), e.value)
+                }
+                onclick=|e| {
+                    Action::SetActiveCell(new_active_cell.clone())
+                }
+                >
+            </input>
+            
+            { suggestions }
+        </div>
+    }
+}
+
+fn view_text_grammar(grammar: Grammar, value : String) -> Html<Model> {
+    html! {
+        <div style={ grammar.style.clone() }>
+            { value }
+        </div>
+    }
+}
+
+fn view_grid_grammar(grammar: Grammar) -> Html<Model> {
+    html! {
+        <div style={ grammar.style.clone() }>
+            {"NESTED GRAMMAR"}
+        </div>
+    }
+}
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator. (see Cargo.toml for why we use optimixed allocator)
