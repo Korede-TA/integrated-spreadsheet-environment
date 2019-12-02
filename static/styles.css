@@ -3,6 +3,11 @@
   --cell-num-cells: 26;
 }
 
+.main {
+  margin-left: 80px; /* Same as the width of the sidebar */
+  padding: 0px 10px;
+}
+
 .sheet {
   display: table;
   /* border: 1px solid grey; */
@@ -154,18 +159,6 @@ input.cell-data {
 /* When you mouse over the navigation links, change their color */
 .sidenav a:hover {
   color: #f1f1f1;
-
-
-/* Style page content */
-main {
-  margin-left: 80px; /* Same as the width of the sidebar */
-  padding: 0px 10px;
-}
-
-/* On smaller screens, where height is less than 450px, change the style of the sidebar (less padding and a smaller font size) */
-@media screen and (max-height: 450px) {
-  .sidenav {padding-top: 15px;}
-  .sidenav a {font-size: 18px;}
 }
 
 .tab {
@@ -199,4 +192,15 @@ main {
   border-radius: 20px;
   color: white;
   background-color: black;
+}
+
+/* On smaller screens, where height is less than 450px, change the style of the sidebar (less padding and a smaller font size) */
+@media screen and (max-height: 450px) {
+  .sidenav {
+    padding-top: 15px;
+  }
+
+  .sidenav a {
+    font-size: 18px;
+  }
 }
