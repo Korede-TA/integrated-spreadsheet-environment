@@ -6,8 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start-cargo": "cargo watch -w src/ -s './scripts/build.sh && electron .'",
-    "build": "webpack --config ./webpack.config.js",
-    "start": "npm run build && electron dist/index.html",
+    "prestart": "alias wasm-pack='rustup run nightly $HOME/.cargo/bin/wasm-pack \"$@\"'",
+    "start": "webpack --config ./webpack.config.js && electron dist/index.html",
     "watch": "cargo watch -w src/ -s 'npm run start'"
   },
   "repository": {
