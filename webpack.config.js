@@ -7,6 +7,7 @@ const distPath = path.resolve(__dirname, "dist");
 
 module.exports = {
   target: 'electron-renderer',
+  mode: 'development',
   entry: {
     app: `${distPath}/bootstrap.js`,
     background: `${distPath}/main.js`,
