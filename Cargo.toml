@@ -13,6 +13,7 @@ wasm-bindgen = "0.2.47"
 serde = "1.0.102"
 log = "0.4"
 web_logger = "0.2"
+itertools = "0.8.2"
 
 # The `console_error_panic_hook` crate provides better debugging of panics by
 # logging them with `console.error`. This is great for development, but requires
