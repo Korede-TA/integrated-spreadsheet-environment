@@ -1,7 +1,15 @@
 #![recursion_limit = "512"]
 
+// When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
+// allocator. (see Cargo.toml for why we use optimixed allocator)
+#[cfg(feature = "wee_alloc")]
+#[global_allocator]
+static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+
 use std::collections::HashMap;
 use std::num::NonZeroU32;
+use std::ops::Deref;
+use std::cmp::Ordering;
 use serde::{Serialize, Deserialize};
 use yew::{html, Component, ComponentLink, Html, ShouldRender};
 use yew::services::{ConsoleService};
@@ -9,6 +17,7 @@ use yew::virtual_dom::{VList};
 use wasm_bindgen::prelude::*;
 use stdweb::web::{document, Element, INode, IParentNode};
 use log::trace;
+use itertools::Itertools;
 
 #[macro_use] extern crate maplit;
 #[macro_use] extern crate stdweb;
@@ -18,7 +27,8 @@ extern crate web_logger;
 /*
  * DATA MODEL:
  * is centered around the "grammars" map: HashMap<Coordinate, Grammar>
- *
+ * this is a linear-time accessible directory of every grammar in the system
+ * as indexed by the grammar coordinate
  *
  */
 
@@ -146,8 +156,142 @@ struct Model {
     active_cell: Option<Coordinate>,
     suggestions: Vec<Coordinate>,
     console: ConsoleService,
-
 }
+
+// based on CSS grid template rows and columns
+enum GridLine {
+    Start(Coordinate, /*width*/ Option<f64>),
+    End(Coordinate),
+}
+
+enum GridLineType {
+    Row, Column,
+}
+
+// cmp_gridlines compares two gridlines of a certain line_type (Row or Column)
+fn cmp_gridlines(line1: &GridLine, line2: &GridLine, line_type: GridLineType) -> Ordering {
+    match (line1.clone(), line2.clone()) {
+        // start and end lines of the same cell:
+        (GridLine::Start(coord1, _), GridLine::End(coord2)) if coord1 == coord2 => Ordering::Greater,
+        (GridLine::End(coord1), GridLine::Start(coord2, _)) if coord1 == coord2 => Ordering::Less,
+        // start and end lines of sibling cells (in the same sub-table)
+        (GridLine::Start(coord1, _), GridLine::End(coord2)) => {
+            match coord1.is_n_parent(&coord2) {
+                Some(n) if n > 0 => Ordering::Greater,
+                _ =>
+                    match line_type {
+                        // compare rows
+                        GridLineType::Row => coord1.row_cols.last().unwrap().0.cmp(&coord2.row_cols.last().unwrap().0),
+                        // compare columns
+                        GridLineType::Column => coord1.row_cols.last().unwrap().1.cmp(&coord2.row_cols.last().unwrap().1),
+                    },
+            }
+        },
+        (GridLine::End(coord1), GridLine::Start(coord2, _)) => {
+            match coord1.is_n_parent(&coord2) {
+                Some(n) if n > 0 => Ordering::Less,
+                _ =>
+                    match line_type {
+                        // compare rows
+                        GridLineType::Row => coord1.row_cols.last().unwrap().0.cmp(&coord2.row_cols.last().unwrap().0),
+                        // compare columns
+                        GridLineType::Column => coord1.row_cols.last().unwrap().1.cmp(&coord2.row_cols.last().unwrap().1),
+                    },
+            }
+        },
+        (GridLine::Start(coord1, _), GridLine::Start(coord2, _)) => {
+            // coord1.row_cols.last().unwrap().0.cmp(&coord2.row_cols.last().unwrap().0)
+            if let Some(_) = coord1.is_n_parent(&coord2) {
+                Ordering::Less
+            } else {
+                coord1.row_cols.last().unwrap().0.cmp(&coord2.row_cols.last().unwrap().0)
+            }
+        }
+        (GridLine::End(coord1), GridLine::End(coord2)) => {
+            if let Some(_) = coord1.is_n_parent(&coord2) {
+                Ordering::Less
+            } else {
+                coord1.row_cols.last().unwrap().1.cmp(&coord2.row_cols.last().unwrap().1)
+            }
+        }
+    }
+}
+
+struct Grid {
+    template_rows: Vec<GridLine>,
+    template_cols: Vec<GridLine>,
+}
+
+const MAX_GRID_DEPTH: i32 = 20;
+const DEFAULT_CELL_WIDTH: f64 = 30.0;
+
+// we will utilize CSS grid's `grid-template-rows` and `grid-template-cols`
+// properties to define the explicit gridlines for nested grid.
+// (see: https://gridbyexample.com/examples/example10/)
+//
+// the individual grammar cells will use `grid-row-start`, `grid-row-end` and
+// `grid-col-start` and `grid-col-end` to define the row and column gridlines where
+// they start and stop.
+fn compute_grid(
+    coord: Coordinate,
+    grammars: &HashMap<Coordinate, Grammar>,
+    template_rows: &mut Vec<GridLine>,
+    template_cols: &mut Vec<GridLine>,
+    // gridlines: &mut HashMap<Coordinate, (i32 /* start */ , f64 /* width */, i32 /* stop */)>,
+    depth: i32,
+) {
+
+    if depth == MAX_GRID_DEPTH {
+        return;
+    }
+
+    let grammar = grammars.get(&coord).unwrap();
+
+    match &grammar.kind {
+        Kind::Grid(sub_coords) => {
+            // to account for merged cells, index is based on rows with most columns
+            // and column with most rows
+            let mut row_to_col_count : HashMap<i32, i32> = HashMap::new();
+            for (row, _col) in sub_coords.iter() {
+                row_to_col_count.get_mut(&(row.get() as i32)).map(|val| *val += 1);
+            };
+
+            template_rows.push(GridLine::Start(coord.clone(), None));
+            for sub_coord_fragment in sub_coords {
+                let sub_coord = Coordinate::child_of(&coord, *sub_coord_fragment);
+                template_rows.push(GridLine::Start(sub_coord.clone(), None));
+                template_cols.push(GridLine::Start(sub_coord.clone(), None));
+                compute_grid(sub_coord.clone(), grammars, template_rows, template_cols, depth+1);
+                template_rows.push(GridLine::End(sub_coord.clone()));
+                template_cols.push(GridLine::End(sub_coord.clone()));
+            }
+            template_rows.push(GridLine::End(coord.clone()));
+        }
+        _ => {
+            template_rows.push(GridLine::Start(coord.clone(), Some(DEFAULT_CELL_WIDTH)));
+            template_rows.push(GridLine::End(coord.clone()));
+        }
+    }
+}
+
+impl Grid {
+    fn new(grammars: &HashMap<Coordinate, Grammar>, grid_root: Coordinate) -> Self {
+        let mut template_rows = Vec::new();
+        let mut template_cols = Vec::new();
+        compute_grid(grid_root, grammars, &mut template_rows, &mut template_cols, 0);
+        template_rows.sort_by(|a, b| cmp_gridlines(a, b, GridLineType::Row));
+        template_cols.sort_by(|a, b| cmp_gridlines(a, b, GridLineType::Column));
+        Grid {
+            template_rows: template_rows,
+            template_cols: template_cols,
+        }
+    }
+
+    fn to_string() -> String {
+        String::new()
+    }
+}
+
 
 // Coordinate specifies the nested coordinate structure
 #[derive(PartialEq, Eq, Debug, Hash, Clone)]
@@ -201,6 +345,48 @@ macro_rules! META {
     () => ( coord!{ (1,2) } );
 }
 
+// helper methods
+fn col_to_string(col : i32) -> String {
+    const alpha_offset : i32 = 64;
+    let normalized_col = if col == 26 { 26 } else { col % 26 };
+    let mut base_str = js! { 
+        return String.fromCharCode(@{normalized_col + alpha_offset});
+    }.into_string().unwrap();
+    if col > 26 {
+        base_str.push_str(col_to_string(col - 26).deref());
+    }
+    base_str
+}
+
+fn row_col_to_string((row, col): (i32, i32)) -> String {
+    let row_str = row.to_string();
+    let col_str = col_to_string(col);
+    format!{"{}{}", col_str, row_str} 
+}
+
+fn coord_show(row_cols: Vec<(i32, i32)>) -> Option<String> {
+    match row_cols.split_first() {
+        Some((&(1,1), rest)) => {
+            let mut output = "root".to_string();
+            for rc in rest.iter() {
+                output.push('-');
+                output.push_str(row_col_to_string(*rc).deref());
+            }
+            Some(output)
+        }
+        Some((&(1,2), rest)) => {
+            let mut output = "meta".to_string();
+            for rc in rest.iter() {
+                output.push('-');
+                output.push_str(row_col_to_string(*rc).deref());
+            }
+            Some(output)
+        }
+        _ => None
+    } 
+}
+
+
 // Methods for interacting with coordinate struct
 impl Coordinate {
     fn root() -> Coordinate {
@@ -212,6 +398,79 @@ impl Coordinate {
         new_row_col.push(child_coord);
         Coordinate{ row_cols: new_row_col }
     }
+
+    fn to_string(&self) -> String {
+        coord_show(self.row_cols.iter()
+             .map(|(r, c)| (r.get() as i32, c.get() as i32)).collect()).unwrap()
+    }
+
+
+    // if a cell is the parent, grandparent,..., (great xN)-grandparent of another
+    // Optinoally returns: Some(N) if true (including N=0 if sibling),
+    // or None if false
+    fn is_n_parent(&self, other: &Self) -> Option<i32> {
+        if self.row_cols.len() > other.row_cols.len() {
+            return None
+        }
+
+        let mut n = 0;
+        for (a, b) in self.row_cols.iter().zip(other.row_cols.iter()) {
+           if a != b {
+               break;
+           }
+            n += 1;
+        }
+        Some(n)
+    }
+
+    fn neighbor_above(&self) -> Option<Coordinate> {
+        let mut new_row_col = self.clone().row_cols;
+        
+        if let Some(last) = new_row_col.last_mut() {
+            if last.0.get() > 1 {
+                *last = (/* row */ NonZeroU32::new(last.0.get() - 1).unwrap(), /* column */ last.1);
+                return Some(Coordinate { row_cols: new_row_col })
+            }
+        }
+
+        None
+    }
+
+    fn neighbor_below(&self) -> Option<Coordinate> {
+        let mut new_row_col = self.clone().row_cols;
+        
+        if let Some(last) = new_row_col.last_mut() {
+            *last = (/* row */ NonZeroU32::new(last.0.get() + 1).unwrap(), /* column */ last.1);
+            return Some(Coordinate { row_cols: new_row_col })
+        }
+
+        None
+    }
+
+    fn neighbor_left(&self) -> Option<Coordinate> {
+        let mut new_row_col = self.clone().row_cols;
+        
+        if let Some(last) = new_row_col.last_mut() {
+            if last.1.get() > 1 {
+                *last = (/* row */ last.0, /* column */ NonZeroU32::new(last.1.get() - 1).unwrap());
+                return Some(Coordinate { row_cols: new_row_col })
+            }
+        }
+
+        None
+    }
+
+    fn neighbor_right(&self) -> Option<Coordinate> {
+        let mut new_row_col = self.clone().row_cols;
+        
+        if let Some(last) = new_row_col.last_mut() {
+            *last = (/* row */ last.0, /* column */ NonZeroU32::new(last.1.get() + 1).unwrap());
+            return Some(Coordinate { row_cols: new_row_col })
+        }
+
+        None
+    }
+
 }
 
 // ACTIONS
@@ -451,38 +710,6 @@ fn view_grid_grammar(grammar: Grammar) -> Html<Model> {
         </div>
     }
 }
-
-// When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
-// allocator. (see Cargo.toml for why we use optimixed allocator)
-#[cfg(feature = "wee_alloc")]
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
-/* JS Export Macros
- *
- * In order to export Rust functions to JS via Wasm, we have two options
- *
- * 1. Using stdweb, there's a `#[js_export]` macro that let's us call
- *    rust functions like so:
- *    - In Rust:
- *    ```
- *    #[js_export]
- *    fn hash( string: String ) -> String {
- *    ```
- *    - In the browser:
- *    ```
- *    <script src="hasher.js"></script>
- *    <script>
- *      Rust.hasher.then( function( hasher ) {
- *          console.log( hasher.hash( "Hello world!" ) );
- *      });
- *      </script>
- *    ```
- *    See more info here: https://github.com/koute/stdweb/tree/master/examples/hasher
- *
- * 2. Using wasm_bindgen and web_sys:
- *
- */
 
 #[wasm_bindgen]
 pub fn run_app() -> Result<(), JsValue> {
