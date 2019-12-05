@@ -148,27 +148,65 @@ input.cell-data {
 }
 
 /* The navigation menu links */
-.sidenav a {
+.sidenav button {
   padding: 6px 8px 6px 16px;
   text-decoration: none;
   font-size: 25px;
   color: #818181;
   display: block;
+  background-color: transparent;
+  border-width: 0px;
 }
+
+.sidenav .active-menu {
+  background-color: grey;
+}
+
+.side-menu-section {
+  height: 100%; /* Full-height: remove this if you want "auto" height */
+  width: 50%; /* Set the width of the sidebar */
+  position: fixed; /* Fixed Sidebar (stay in place on scroll) */
+  z-index: 2; /* Stay on top */
+  top: 0; /* Stay at the top */
+  left: 80px;
+  overflow-x: hidden; /* Disable horizontal scroll */
+  padding-top: 20px;
+  background-color: white; /* Black */
+  box-shadow: 5px 5px 10px grey;
+}
+
 
 /* When you mouse over the navigation links, change their color */
 .sidenav a:hover {
   color: #f1f1f1;
 }
 
-.tab {
+.horizontal-bar {
   overflow: hidden;
   border: 1px solid #ccc;
-  background-color: #f1f1f1;
+  position: fixed;
+  z-index: 1;
+  left: 80px;
+  overflow-x: hidden;
+  padding: 5px;
+  background-color: white;
+  width: 100%
+}
+
+.menu-bar {
+  top: 0px;
+  height: 30px;
+}
+
+.tab-bar {
+  top: 40px;
+  box-shadow: 5px 5px 10px grey;
+  width: 100%;
+  height: 30px;
 }
 
 /* Style the buttons that are used to open the tab content */
-.tab button {
+.tab-bar button {
   background-color: inherit;
   float: left;
   border: none;
@@ -179,16 +217,20 @@ input.cell-data {
 }
 
 /* Change background color of buttons on hover */
-.tab button:hover {
+.tab-bar .tab:hover {
   background-color: #ddd;
 }
 
 /* Create an active/current tablink class */
-.tab button.active {
+.tab-bar .tab {
   background-color: #ccc;
 }
 
-.tab .newtab-btn {
+.tab-bar .tab.active-tab {
+  font-weight: bold;
+}
+
+.tab-bar .newtab-btn {
   border-radius: 20px;
   color: white;
   background-color: black;

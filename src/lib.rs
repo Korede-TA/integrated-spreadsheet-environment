@@ -77,7 +77,7 @@ impl Style {
         "border: 1px solid {};
 border-collapse: {};
 font-weight: {};
-color: {};",
+color: {};\n",
         self.border_color,
         self.border_collapse,
         self.font_weight,
@@ -488,6 +488,8 @@ enum Action {
     SetActiveCell(Coordinate),
 
     DoCompletion(/* source: */ Coordinate, /* destination */ Coordinate),
+
+    SetActiveMenu(Option<i32>),
 }
 
 impl Component for Model {
@@ -524,6 +526,35 @@ impl Component for Model {
             // suggestions: vec![],
 
             console: ConsoleService::new(),
+
+            tabs: vec![
+               "Session 1".to_string(),
+               "My Session".to_string(),
+               "Session 100".to_string(),
+            ],
+
+            current_tab: 0,
+
+
+            side_menus: vec![
+                SideMenu {
+                    name: "Home".to_string(),
+                    icon_path: "assets/logo.png".to_string(),
+                },
+                SideMenu {
+                    name: "File Explorer".to_string(),
+                    icon_path: "assets/folder_icon.png".to_string(),
+                },
+                SideMenu {
+                    name: "Settings".to_string(),
+                    icon_path: "assets/settings_icon.png".to_string(),
+                },
+                SideMenu {
+                    name: "Info".to_string(),
+                    icon_path: "assets/info_icon.png".to_string(),
+                },
+            ],
+            open_side_menu: None,
         }
     }
 
@@ -566,44 +597,168 @@ impl Component for Model {
                 true
             }
 
+            Action::SetActiveMenu(activeMenu) => {
+                
+                self.open_side_menu = activeMenu;
+                true
+
+            }
+
             _ => false
         }
     }
 
     fn view(&self) -> Html<Self> {
+        let grid = Grid::new(&self.grammars, ROOT!{});
 
         html! {
             <div>
 
-                <div class="sidenav">
-                    <a href="#">
-                        <img src="assets/logo.png" width="40px"></img>
-                    </a>
-                    <a href="#">
-                        <img src="assets/folder_icon.png" width="40px"></img>
-                    </a>
-                    <a href="#">
-                        <img src="assets/settings_icon.png" width="40px"></img>
-                    </a>
-                    <a href="#">
-                        <img src="assets/info_icon.png" width="40px"></img>
-                    </a>
-                </div>
+                { view_side_nav(&self) }
+
+                { view_menu_bar(&self) }
+
+                { view_tab_bar(&self) }
+
 
                 <div class="main">
-                    <div class="tab">
-                        <button class="tablinks">{ "Session 1" }</button>
-                        <button class="newtab-btn">{ "+" }</button>
-                    </div>
-
                     <h1>{ "integrated spreasheet environment" }</h1>
 
-                    <div id="grammars" style="display: grid;">
+                    <div id="grammars" class="grid" style={ grid.to_string() }>
                         { view_grammars(&self) }
                     </div>
                 </div>
             </div>
         }
+    }
+}
+
+fn view_side_nav(m: &Model) -> Html<Model> {
+    let mut side_menu_nodes = VList::<Model>::new();
+    let mut side_menu_section = html! { <></> };
+    for (index, side_menu) in m.side_menus.iter().enumerate() {
+        if Some(index as i32) == m.open_side_menu {
+            side_menu_nodes.add_child(html! {
+                <button class="active-menu" onclick=|e| {
+                            Action::SetActiveMenu(None)
+                    }>
+                    <img 
+                        src={side_menu.icon_path.clone()} 
+                        width="40px" alt={side_menu.name.clone()}>
+                    </img>
+                </button>
+            });
+
+            side_menu_section = view_side_menu(m, side_menu);
+        } else {
+            side_menu_nodes.add_child(html! {
+                <button onclick=|e| {
+                            Action::SetActiveMenu(Some(index as i32))
+                    }>
+                    <img 
+                        src={side_menu.icon_path.clone()} 
+                        width="40px" alt={side_menu.name.clone()}>
+                    </img>
+                </button>
+            });
+        }
+    }
+
+    html! {
+        <div class="sidenav">
+            { side_menu_nodes }
+
+            { side_menu_section }
+        </div>
+    }
+}
+
+fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html<Model> {
+    match side_menu.name.deref(){
+        "Home" => {
+            html! {
+                <div class="side-menu-section">
+                    {"THIS IS Home MENU"}
+                </div>
+            } 
+        },
+        "File Explorer" => {
+            html! {
+                <div class="side-menu-section">
+                    {"THIS IS File Explorer MENU"}
+                </div>
+            } 
+        },
+        "Settings" => {
+            html! {
+                <div class="side-menu-section">
+                    {"THIS IS Settings MENU"}
+                </div>
+            } 
+        },
+        "Info" => {
+            html! {
+                <div class="side-menu-section">
+                    {"THIS IS info MENU"}
+                </div>
+            } 
+        },
+
+        _ => html! {<> </>}
+
+    }
+}
+
+
+fn view_menu_bar(m: &Model) -> Html<Model> {
+    html! {
+        <div class="menu-bar horizontal-bar">
+            <button class="menu-bar-button">
+                { "Save" }
+            </button>
+            <button class="menu-bar-button">
+                { "Git" }
+            </button>
+            <button class="menu-bar-button">
+                { "Zoom In (+)" }
+            </button>
+            <button class="menu-bar-button">
+                { "Zoom Out (-)" }
+            </button>
+            <button class="menu-bar-button">
+                { "Insert Row" }
+            </button>
+            <button class="menu-bar-button">
+                { "Insert Column" }
+            </button>
+            <button class="menu-bar-button">
+                { "Delete Row" }
+            </button>
+            <button class="menu-bar-button">
+                { "Delete Column" }
+            </button>
+        </div>
+    }
+}
+
+fn view_tab_bar(m: &Model) -> Html<Model> {
+    let mut tabs = VList::<Model>::new();
+    for (index, tab) in m.tabs.clone().iter().enumerate() {
+        if (index as i32) == m.current_tab {
+            tabs.add_child(html! {
+                <button class="tab active-tab">{ tab }</button>
+            });
+        } else {
+            tabs.add_child(html! {
+                <button class="tab">{ tab }</button>
+            });
+        }
+    }
+    html! {
+        <div class="tab-bar horizontal-bar">
+            { tabs }
+            <button class="newtab-btn">{ "+" }</button>
+        </div>
     }
 }
 
@@ -626,23 +781,30 @@ fn view_grammars(m: &Model) -> VList<Model> {
 }
 
 fn view_grammar(m: &Model, coord: Coordinate) -> Html<Model> {
-    let grammar = m.grammars.get(&coord);
-    let style = &grammar.map(|g| g.style.to_string()).unwrap_or_default();
-    grammar.map(|g| match g.kind.clone() {
-        Kind::Text(value) => {
-            view_text_grammar(g.clone(), value)
+    if let Some(grammar) = m.grammars.get(&coord) {
+        match grammar.kind.clone() {
+            Kind::Text(value) => {
+                view_text_grammar(grammar.clone(), &coord, value)
+            }
+            Kind::Input(value) => {
+                let is_active = m.active_cell.clone() == Some(coord.clone());
+                let suggestions = m.suggestions.iter().filter_map(|suggestion_coord| {
+                    if let Some(suggestion_grammar) = m.grammars.get(&suggestion_coord) {
+                        Some((suggestion_coord.clone(), suggestion_grammar.clone()))
+                    } else {
+                        None
+                    }
+                }).collect();
+                view_input_grammar(grammar.clone(), coord, suggestions, value, is_active)
+            }
+            Kind::Grid(_) => {
+                view_grid_grammar(grammar.clone(), &coord)
+            }
         }
-        Kind::Input(value) => {
-            let is_active = m.active_cell.clone().map(|c| c == coord).unwrap_or(false);
-            let suggestions = m.suggestions.iter().filter_map(|s_coord| {
-                m.grammars.get(&s_coord).map(|g| (s_coord.clone(), g.clone()))
-            }).collect();
-            view_input_grammar(g.clone(), coord, suggestions, value, is_active)
-        }
-        Kind::Grid(_) => {
-            view_grid_grammar(g.clone())
-        }
-    }).unwrap_or(html! { <></> })
+    } else {
+        // return empty fragment
+        html! { <></> }
+    }
 }
 
 fn view_input_grammar(grammar: Grammar, coord: Coordinate, suggestions: Vec<(Coordinate, Grammar)>, value: String, is_active: bool) -> Html<Model> {
@@ -695,18 +857,18 @@ fn view_input_grammar(grammar: Grammar, coord: Coordinate, suggestions: Vec<(Coo
     }
 }
 
-fn view_text_grammar(grammar: Grammar, value : String) -> Html<Model> {
+fn view_text_grammar(grammar: Grammar, coord: &Coordinate, value : String) -> Html<Model> {
     html! {
-        <div style={ grammar.style.clone() }>
+        <div style={ grammar.style(&coord) }>
             { value }
         </div>
     }
 }
 
-fn view_grid_grammar(grammar: Grammar) -> Html<Model> {
+fn view_grid_grammar(grammar: Grammar, coord: &Coordinate) -> Html<Model> {
     html! {
-        <div style={ grammar.style.clone() }>
-            {"NESTED GRAMMAR"}
+        <div style={ grammar.style(&coord) }>
+            // empty, with only borders and grid placement
         </div>
     }
 }
