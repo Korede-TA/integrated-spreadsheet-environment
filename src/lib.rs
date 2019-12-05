@@ -117,6 +117,10 @@ impl Grammar {
         }
     }
 
+    fn style(&self, coord: &Coordinate) -> String {
+        format!{"{}\ngrid-area: cell-{};\n", self.style.to_string(), coord.to_string()}
+    }
+
     fn suggestion(alias : String, value: String) -> Grammar {
         Grammar {
             name: alias,
@@ -156,74 +160,93 @@ struct Model {
     active_cell: Option<Coordinate>,
     suggestions: Vec<Coordinate>,
     console: ConsoleService,
+
+    // tabs correspond to sessions
+    tabs: Vec<String>,
+    current_tab: i32,
+
+    // side menus
+    side_menus: Vec<SideMenu>,
+    open_side_menu: Option<i32>,
+}
+
+struct SideMenu {
+    name: String,
+    icon_path: String,
+}
+
+static SIDE_MENUS: &'static [&str] = &[
+   "Home",
+   "File Explorer",
+   "Settings",
+   "Info",
+];
+
+// Since Gridlines are based on sequences of coordinate Row or Column
+// we define a LineSeq type to track a list of non-zero unsigned integers (32-bit)
+// and 
+#[derive(Debug, Clone)]
+struct LineSeq { 
+    lines: Vec<NonZeroU32>,
+    line_type: GridLineType,
+}
+
+impl LineSeq {
+    fn from_coord(coord: &Coordinate, line_type: GridLineType) -> LineSeq {
+        let mut seq = LineSeq {
+            lines: Vec::new(),
+            line_type: line_type.clone(),
+        };
+
+        for item in coord.row_cols.iter() {
+            match line_type {
+                GridLineType::Column => {
+                    seq.lines.push(item.1);
+                },
+                GridLineType::Row => {
+                    seq.lines.push(item.0);
+                },
+            };
+        };
+
+        seq
+    }
+
+    fn to_string(&self) -> String {
+        let mut output = match self.line_type {
+            GridLineType::Column => "grid-col".to_string(),
+            GridLineType::Row => "grid-col".to_string(),
+        };
+        for line in self.lines.clone() {
+            output += "-";
+            output += line.to_string().deref();
+        }
+        output
+    }
 }
 
 // based on CSS grid template rows and columns
-enum GridLine {
-    Start(Coordinate, /*width*/ Option<f64>),
-    End(Coordinate),
+#[derive(Debug, Clone)]
+enum GridTemplate {
+    StartLine(LineSeq),
+    EndLine(LineSeq),
+    Interval(f64),
 }
 
+#[derive(Debug, Clone)]
 enum GridLineType {
     Row, Column,
 }
 
-// cmp_gridlines compares two gridlines of a certain line_type (Row or Column)
-fn cmp_gridlines(line1: &GridLine, line2: &GridLine, line_type: GridLineType) -> Ordering {
-    match (line1.clone(), line2.clone()) {
-        // start and end lines of the same cell:
-        (GridLine::Start(coord1, _), GridLine::End(coord2)) if coord1 == coord2 => Ordering::Greater,
-        (GridLine::End(coord1), GridLine::Start(coord2, _)) if coord1 == coord2 => Ordering::Less,
-        // start and end lines of sibling cells (in the same sub-table)
-        (GridLine::Start(coord1, _), GridLine::End(coord2)) => {
-            match coord1.is_n_parent(&coord2) {
-                Some(n) if n > 0 => Ordering::Greater,
-                _ =>
-                    match line_type {
-                        // compare rows
-                        GridLineType::Row => coord1.row_cols.last().unwrap().0.cmp(&coord2.row_cols.last().unwrap().0),
-                        // compare columns
-                        GridLineType::Column => coord1.row_cols.last().unwrap().1.cmp(&coord2.row_cols.last().unwrap().1),
-                    },
-            }
-        },
-        (GridLine::End(coord1), GridLine::Start(coord2, _)) => {
-            match coord1.is_n_parent(&coord2) {
-                Some(n) if n > 0 => Ordering::Less,
-                _ =>
-                    match line_type {
-                        // compare rows
-                        GridLineType::Row => coord1.row_cols.last().unwrap().0.cmp(&coord2.row_cols.last().unwrap().0),
-                        // compare columns
-                        GridLineType::Column => coord1.row_cols.last().unwrap().1.cmp(&coord2.row_cols.last().unwrap().1),
-                    },
-            }
-        },
-        (GridLine::Start(coord1, _), GridLine::Start(coord2, _)) => {
-            // coord1.row_cols.last().unwrap().0.cmp(&coord2.row_cols.last().unwrap().0)
-            if let Some(_) = coord1.is_n_parent(&coord2) {
-                Ordering::Less
-            } else {
-                coord1.row_cols.last().unwrap().0.cmp(&coord2.row_cols.last().unwrap().0)
-            }
-        }
-        (GridLine::End(coord1), GridLine::End(coord2)) => {
-            if let Some(_) = coord1.is_n_parent(&coord2) {
-                Ordering::Less
-            } else {
-                coord1.row_cols.last().unwrap().1.cmp(&coord2.row_cols.last().unwrap().1)
-            }
-        }
-    }
-}
-
+#[derive(Debug, Clone)]
 struct Grid {
-    template_rows: Vec<GridLine>,
-    template_cols: Vec<GridLine>,
+    template_rows: Vec<GridTemplate>,
+    template_cols: Vec<GridTemplate>,
 }
 
 const MAX_GRID_DEPTH: i32 = 20;
-const DEFAULT_CELL_WIDTH: f64 = 30.0;
+const DEFAULT_CELL_WIDTH: f64 = 80.0;
+const DEFAULT_CELL_HEIGHT: f64 = 30.0;
 
 // we will utilize CSS grid's `grid-template-rows` and `grid-template-cols`
 // properties to define the explicit gridlines for nested grid.
@@ -235,9 +258,8 @@ const DEFAULT_CELL_WIDTH: f64 = 30.0;
 fn compute_grid(
     coord: Coordinate,
     grammars: &HashMap<Coordinate, Grammar>,
-    template_rows: &mut Vec<GridLine>,
-    template_cols: &mut Vec<GridLine>,
-    // gridlines: &mut HashMap<Coordinate, (i32 /* start */ , f64 /* width */, i32 /* stop */)>,
+    template_rows: &mut Vec<GridTemplate>,
+    template_cols: &mut Vec<GridTemplate>,
     depth: i32,
 ) {
 
@@ -246,6 +268,9 @@ fn compute_grid(
     }
 
     let grammar = grammars.get(&coord).unwrap();
+
+    let should_add_row_line = coord.clone().row_cols.iter().last().unwrap().1.get() /* col */ == 1; 
+    let should_add_col_line = coord.clone().row_cols.iter().last().unwrap().0.get() /* row */ == 1; 
 
     match &grammar.kind {
         Kind::Grid(sub_coords) => {
@@ -256,20 +281,55 @@ fn compute_grid(
                 row_to_col_count.get_mut(&(row.get() as i32)).map(|val| *val += 1);
             };
 
-            template_rows.push(GridLine::Start(coord.clone(), None));
+            if should_add_row_line {
+                template_rows.push(GridTemplate::StartLine(
+                        LineSeq::from_coord(&coord, GridLineType::Row)
+                ));
+            }
+            if should_add_col_line {
+                template_cols.push(GridTemplate::StartLine(
+                        LineSeq::from_coord(&coord, GridLineType::Column)
+                ));
+            }
             for sub_coord_fragment in sub_coords {
                 let sub_coord = Coordinate::child_of(&coord, *sub_coord_fragment);
-                template_rows.push(GridLine::Start(sub_coord.clone(), None));
-                template_cols.push(GridLine::Start(sub_coord.clone(), None));
                 compute_grid(sub_coord.clone(), grammars, template_rows, template_cols, depth+1);
-                template_rows.push(GridLine::End(sub_coord.clone()));
-                template_cols.push(GridLine::End(sub_coord.clone()));
             }
-            template_rows.push(GridLine::End(coord.clone()));
+            if should_add_row_line {
+                template_rows.push(GridTemplate::EndLine(
+                        LineSeq::from_coord(&coord, GridLineType::Row)
+                ));
+            }
+            if should_add_col_line {
+                template_cols.push(GridTemplate::EndLine(
+                        LineSeq::from_coord(&coord, GridLineType::Column)
+                ));
+            }
         }
         _ => {
-            template_rows.push(GridLine::Start(coord.clone(), Some(DEFAULT_CELL_WIDTH)));
-            template_rows.push(GridLine::End(coord.clone()));
+            if should_add_row_line {
+                template_rows.push(GridTemplate::StartLine(
+                        LineSeq::from_coord(&coord, GridLineType::Row)
+                ));
+            }
+            template_rows.push(GridTemplate::Interval(DEFAULT_CELL_HEIGHT));
+            if should_add_row_line {
+                template_rows.push(GridTemplate::EndLine(
+                        LineSeq::from_coord(&coord, GridLineType::Row)
+                ));
+            }
+
+            if should_add_col_line {
+                template_cols.push(GridTemplate::StartLine(
+                        LineSeq::from_coord(&coord, GridLineType::Column)
+                ));
+            }
+            template_cols.push(GridTemplate::Interval(DEFAULT_CELL_WIDTH));
+            if should_add_col_line {
+                template_cols.push(GridTemplate::EndLine(
+                        LineSeq::from_coord(&coord, GridLineType::Column)
+                ));
+            }
         }
     }
 }
@@ -279,16 +339,52 @@ impl Grid {
         let mut template_rows = Vec::new();
         let mut template_cols = Vec::new();
         compute_grid(grid_root, grammars, &mut template_rows, &mut template_cols, 0);
-        template_rows.sort_by(|a, b| cmp_gridlines(a, b, GridLineType::Row));
-        template_cols.sort_by(|a, b| cmp_gridlines(a, b, GridLineType::Column));
+        // template_rows.sort_by(|a, b| cmp_gridlines(a, b, GridLineType::Row));
+        // template_cols.sort_by(|a, b| cmp_gridlines(a, b, GridLineType::Column));
         Grid {
             template_rows: template_rows,
             template_cols: template_cols,
         }
+    } 
+     
+    fn template_to_string(lines: Vec<GridTemplate>) -> String {
+        let mut output = String::new();
+        let mut in_line_group : bool = false;
+        for line in lines.iter() {
+            match line.clone() {
+                GridTemplate::StartLine(line) => {
+                    if !in_line_group {
+                        output += "[";
+                        in_line_group = true;
+                    }
+                    output += format!{"{}-start ", line.to_string()}.deref();
+                },
+                GridTemplate::Interval(width) => {
+                    if in_line_group {
+                        output += "]";
+                        in_line_group = false;
+                    }
+                    output += format!{" {}px ", width}.deref();
+                },
+                GridTemplate::EndLine(line) => {
+                    if !in_line_group {
+                        output += "[";
+                        in_line_group = true;
+                    }
+                    output += format!{"{}-end ", line.to_string()}.deref();
+                },
+            }
+        }
+        output += "]";
+        output
     }
 
-    fn to_string() -> String {
-        String::new()
+    fn to_string(&self) -> String {
+        format!{
+            "display: grid; grid-template-rows: \"{}\"; grid-template-columns: \"{}\";",
+            Self::template_to_string(self.template_rows.clone()),
+            Self::template_to_string(self.template_cols.clone()),
+        }
     }
 }
 
@@ -839,7 +935,7 @@ fn view_input_grammar(grammar: Grammar, coord: Coordinate, suggestions: Vec<(Coo
     let new_active_cell = coord.clone();
 
     html! {
-        <div class="cell suggestion" style={ grammar.style.clone() }>
+        <div class="cell suggestion" style={ grammar.style(&coord) }>
             <input 
                 class={ format!{ "cell-data {}", active_cell_class } }
                 value=value
