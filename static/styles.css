@@ -3,6 +3,10 @@
   --cell-num-cells: 26;
 }
 
+body {
+  font-family: "Lucida Console", Monaco, monospace;
+}
+
 .main {
   margin-left: 80px; /* Same as the width of the sidebar */
   padding: 0px 10px;
@@ -144,7 +148,7 @@ input.cell-data {
   overflow-x: hidden; /* Disable horizontal scroll */
   padding-top: 20px;
   background-color: white; /* Black */
-  box-shadow: 5px 5px 10px grey;
+  box-shadow: 5px 80px 10px grey;
 }
 
 /* The navigation menu links */
@@ -173,6 +177,7 @@ input.cell-data {
   padding-top: 20px;
   background-color: white; /* Black */
   box-shadow: 5px 5px 10px grey;
+  padding: 10px;
 }
 
 
@@ -185,7 +190,7 @@ input.cell-data {
   overflow: hidden;
   border: 1px solid #ccc;
   position: fixed;
-  z-index: 1;
+  z-index: 0;
   left: 80px;
   overflow-x: hidden;
   padding: 5px;
@@ -223,7 +228,11 @@ input.cell-data {
 
 /* Create an active/current tablink class */
 .tab-bar .tab {
-  background-color: #ccc;
+  background-color: #fff;
+  border: 1px solid grey;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  box-shadow: 1.5px 2px 3px 2px grey;
 }
 
 .tab-bar .tab.active-tab {
@@ -231,9 +240,12 @@ input.cell-data {
 }
 
 .tab-bar .newtab-btn {
+  border: 1px solid grey;
   border-radius: 20px;
-  color: white;
-  background-color: black;
+  color: grey;
+  background-color: white;
+  font-weight: bold;
+  font-size: 20px;
 }
 
 /* On smaller screens, where height is less than 450px, change the style of the sidebar (less padding and a smaller font size) */

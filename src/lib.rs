@@ -11,8 +11,9 @@ use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::cmp::Ordering;
 use serde::{Serialize, Deserialize};
-use yew::{html, Component, ComponentLink, Html, ShouldRender};
+use yew::{html, ChangeData, Component, ComponentLink, Html, ShouldRender};
 use yew::services::{ConsoleService};
+use yew::services::reader::{File, FileChunk, FileData, ReaderService, ReaderTask};
 use yew::virtual_dom::{VList};
 use wasm_bindgen::prelude::*;
 use stdweb::web::{document, Element, INode, IParentNode};
@@ -50,7 +51,8 @@ extern crate web_logger;
  * data type NonZeroU32 (non-zero unsigned 32-bit integer) as a type for such values
  */
 
-// Style contains both the 
+// Style contains the relevant CSS properties for styling
+// a grammar Cell or Grid
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Style {
     border_color: String,  // CSS: border-color
@@ -86,6 +88,13 @@ color: {};\n",
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+enum Interactive {
+    Button,
+    Slider(f64),
+    Toggle(bool),
+}
+
 // Kinds of grammars in the system.
 // Since this is an Enum, a Grammar's kind field
 // can only be set to one these variants at a time
@@ -93,6 +102,7 @@ color: {};\n",
 enum Kind {
     Text(String),
     Input(String),
+    Interactive(Interactive),
     Grid(Vec<(NonZeroU32, NonZeroU32)>),
 }
 js_serializable!( Kind );
@@ -145,6 +155,17 @@ impl Grammar {
     }
 }
 
+// Session encapsulates the serializable state of the application that gets stored to disk
+// in a .ise file (which is just a JSON file)
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct Session {
+    root: Grammar,
+    meta: Grammar,
+    grammars: HashMap<Coordinate, Grammar>,
+}
+js_serializable!( Session );
+js_deserializable!( Session );
+
 // Model contains the entire state of the application
 struct Model {
     // model holds a direct reference to the topmost root A1 and meta A2 grammars
@@ -160,6 +181,7 @@ struct Model {
     active_cell: Option<Coordinate>,
     suggestions: Vec<Coordinate>,
     console: ConsoleService,
+    reader: ReaderService,
 
     // tabs correspond to sessions
     tabs: Vec<String>,
@@ -168,19 +190,31 @@ struct Model {
     // side menus
     side_menus: Vec<SideMenu>,
     open_side_menu: Option<i32>,
+
+    link: ComponentLink<Model>,
+    tasks: Vec<ReaderTask>,
+}
+
+impl Model {
+    fn load_session(&mut self, session: Session) {
+        self.root = session.root;
+        self.meta = session.meta;
+        self.grammars = session.grammars;
+    }
+
+    fn to_session(&self) -> Session {
+        Session {
+            root: self.root.clone(),
+            meta: self.meta.clone(),
+            grammars: self.grammars.clone(),
+        }
+    }
 }
 
 struct SideMenu {
     name: String,
     icon_path: String,
 }
-
-static SIDE_MENUS: &'static [&str] = &[
-   "Home",
-   "File Explorer",
-   "Settings",
-   "Info",
-];
 
 // Since Gridlines are based on sequences of coordinate Row or Column
 // we define a LineSeq type to track a list of non-zero unsigned integers (32-bit)
@@ -390,10 +424,12 @@ impl Grid {
 
 
 // Coordinate specifies the nested coordinate structure
-#[derive(PartialEq, Eq, Debug, Hash, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Hash, Clone)]
 struct Coordinate {
     row_cols: Vec<(NonZeroU32, NonZeroU32)>, // should never be empty list
 }
+js_serializable!( Coordinate );
+js_deserializable!( Coordinate );
 
 fn non_zero_u32_tuple(val: (u32, u32)) -> (NonZeroU32, NonZeroU32) {
     let (row, col) = val;
@@ -586,13 +622,17 @@ enum Action {
     DoCompletion(/* source: */ Coordinate, /* destination */ Coordinate),
 
     SetActiveMenu(Option<i32>),
+
+    ReadSession(/* filename: */ File),
+
+    LoadSession(FileData),
 }
 
 impl Component for Model {
     type Message = Action;
     type Properties = ();
 
-    fn create(_: Self::Properties, _: ComponentLink<Self>) -> Self {
+    fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
         let root_grammar = Grammar {
             name: "root".to_string(),
             style: Style::default(),
@@ -622,6 +662,7 @@ impl Component for Model {
             // suggestions: vec![],
 
             console: ConsoleService::new(),
+            reader: ReaderService::new(),
 
             tabs: vec![
                "Session 1".to_string(),
@@ -651,6 +692,9 @@ impl Component for Model {
                 },
             ],
             open_side_menu: None,
+
+            link,
+            tasks: vec![],
         }
     }
 
@@ -694,13 +738,22 @@ impl Component for Model {
             }
 
             Action::SetActiveMenu(activeMenu) => {
-                
                 self.open_side_menu = activeMenu;
                 true
-
             }
 
-            _ => false
+            Action::ReadSession(file) => {
+                let callback = self.link.send_back(Action::LoadSession);
+                let task = self.reader.read_file(file, callback);
+                self.tasks.push(task);
+                false
+            }
+
+            Action::LoadSession(file_data) => {
+                let session : Session = serde_json::from_str(format!{"{:?}", file_data}.deref()).unwrap();
+                self.load_session(session);
+                true
+            }
         }
     }
 
@@ -781,7 +834,24 @@ fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html<Model> {
         "File Explorer" => {
             html! {
                 <div class="side-menu-section">
-                    {"THIS IS File Explorer MENU"}
+                    <h1>
+                        {"File Explorer"}
+                    </h1>
+
+                    <b>{"load session"}</b>
+                    <br></br>
+                    <input type="file" onchange=|value| {
+                        if let ChangeData::Files(files) = value {
+                            if files.len() >= 1 {
+                                if let Some(file) = files.iter().nth(0) {
+                                    return Action::ReadSession(file);
+                                }
+                            }
+                        }
+                        Action::Noop
+                    }>
+                        
+                    </input>
                 </div>
             } 
         },
@@ -892,6 +962,10 @@ fn view_grammar(m: &Model, coord: Coordinate) -> Html<Model> {
                     }
                 }).collect();
                 view_input_grammar(grammar.clone(), coord, suggestions, value, is_active)
+            }
+            Kind::Interactive(interactive) => {
+                // TODO: 
+                html! { <></> }
             }
             Kind::Grid(_) => {
                 view_grid_grammar(grammar.clone(), &coord)

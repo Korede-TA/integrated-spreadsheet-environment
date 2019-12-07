@@ -52,8 +52,6 @@ protocol.registerSchemesAsPrivileged([{
 
 function createWindow () {
   win = new BrowserWindow({
-    width: 1200,
-    height: 800,
     webPreferences: {
       // preload: `${__dirname}/preload.js`,
 			nodeIntegration: true,
@@ -64,6 +62,9 @@ function createWindow () {
   win.loadURL(`file://${__dirname}/index.html`);
 
   win.webContents.openDevTools(); // TODO: only do this in development mode
+
+  win.maximize();
+  win.show();
 
   win.on('closed', () => {
     win = null; // dereference window object
