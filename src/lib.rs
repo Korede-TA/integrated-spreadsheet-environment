@@ -11,7 +11,8 @@ use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::cmp::Ordering;
 use serde::{Serialize, Deserialize};
-use yew::{html, ChangeData, Component, ComponentLink, Html, ShouldRender};
+use yew::{html, ChangeData, Component, ComponentLink, Html, ShouldRender, KeyPressEvent};
+use yew::events::{IKeyboardEvent};
 use yew::services::{ConsoleService};
 use yew::services::reader::{File, FileChunk, FileData, ReaderService, ReaderTask};
 use yew::virtual_dom::{VList};
@@ -66,7 +67,7 @@ js_deserializable!( Style );
 impl Style {
     fn default() -> Style {
         Style {
-            border_color: "black".to_string(),
+            border_color: "grey".to_string(),
             border_collapse: true,
             font_weight: 400,
             font_color: "black".to_string(),
@@ -74,14 +75,13 @@ impl Style {
     }
 
     fn to_string(&self) -> String {
-        // TODO: fill this out
         format!{
         "border: 1px solid {};
 border-collapse: {};
 font-weight: {};
 color: {};\n",
         self.border_color,
-        self.border_collapse,
+        if self.border_collapse { "collapse" } else { "inherit" },
         self.font_weight,
         self.font_color,
         }
@@ -90,8 +90,8 @@ color: {};\n",
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 enum Interactive {
-    Button,
-    Slider(f64),
+    Button(),
+    Slider(/*value*/ f64, /*min*/ f64, /*max*/ f64),
     Toggle(bool),
 }
 
@@ -102,7 +102,7 @@ enum Interactive {
 enum Kind {
     Text(String),
     Input(String),
-    Interactive(Interactive),
+    Interactive(String, Interactive),
     Grid(Vec<(NonZeroU32, NonZeroU32)>),
 }
 js_serializable!( Kind );
@@ -123,12 +123,28 @@ impl Grammar {
         Grammar {
             name: "".to_string(),
             style: Style::default(),
-            kind: Kind::Input("default input val".to_string()),
+            kind: Kind::Input("".to_string()),
         }
     }
 
     fn style(&self, coord: &Coordinate) -> String {
-        format!{"{}\ngrid-area: cell-{};\n", self.style.to_string(), coord.to_string()}
+        match &self.kind {
+            Kind::Grid(sub_coords) => {
+                let mut grid_area_str = "\"".to_string();
+                for (row, col) in sub_coords {
+                    if col.get() == 1 && row.get() != 1 {
+                        grid_area_str.pop();
+                        grid_area_str += "\"\n\"";
+                    }
+                    let sub_coord = Coordinate::child_of(coord, (row.clone(), col.clone()));
+                    grid_area_str += format!{"cell-{} ", sub_coord.to_string()}.deref();
+                }
+                grid_area_str.pop();
+                grid_area_str += "\"";
+                format!{"display: grid;\n{}grid-template-areas: \n{};\n", self.style.to_string(), grid_area_str}
+            },
+            _ => format!{"{}grid-area: cell-{};\n", self.style.to_string(), coord.to_string()},
+        }
     }
 
     fn suggestion(alias : String, value: String) -> Grammar {
@@ -215,213 +231,6 @@ struct SideMenu {
     name: String,
     icon_path: String,
 }
-
-// Since Gridlines are based on sequences of coordinate Row or Column
-// we define a LineSeq type to track a list of non-zero unsigned integers (32-bit)
-// and 
-#[derive(Debug, Clone)]
-struct LineSeq { 
-    lines: Vec<NonZeroU32>,
-    line_type: GridLineType,
-}
-
-impl LineSeq {
-    fn from_coord(coord: &Coordinate, line_type: GridLineType) -> LineSeq {
-        let mut seq = LineSeq {
-            lines: Vec::new(),
-            line_type: line_type.clone(),
-        };
-
-        for item in coord.row_cols.iter() {
-            match line_type {
-                GridLineType::Column => {
-                    seq.lines.push(item.1);
-                },
-                GridLineType::Row => {
-                    seq.lines.push(item.0);
-                },
-            };
-        };
-
-        seq
-    }
-
-    fn to_string(&self) -> String {
-        let mut output = match self.line_type {
-            GridLineType::Column => "grid-col".to_string(),
-            GridLineType::Row => "grid-col".to_string(),
-        };
-        for line in self.lines.clone() {
-            output += "-";
-            output += line.to_string().deref();
-        }
-        output
-    }
-}
-
-// based on CSS grid template rows and columns
-#[derive(Debug, Clone)]
-enum GridTemplate {
-    StartLine(LineSeq),
-    EndLine(LineSeq),
-    Interval(f64),
-}
-
-#[derive(Debug, Clone)]
-enum GridLineType {
-    Row, Column,
-}
-
-#[derive(Debug, Clone)]
-struct Grid {
-    template_rows: Vec<GridTemplate>,
-    template_cols: Vec<GridTemplate>,
-}
-
-const MAX_GRID_DEPTH: i32 = 20;
-const DEFAULT_CELL_WIDTH: f64 = 80.0;
-const DEFAULT_CELL_HEIGHT: f64 = 30.0;
-
-// we will utilize CSS grid's `grid-template-rows` and `grid-template-cols`
-// properties to define the explicit gridlines for nested grid.
-// (see: https://gridbyexample.com/examples/example10/)
-//
-// the individual grammar cells will use `grid-row-start`, `grid-row-end` and
-// `grid-col-start` and `grid-col-end` to define the row and column gridlines where
-// they start and stop.
-fn compute_grid(
-    coord: Coordinate,
-    grammars: &HashMap<Coordinate, Grammar>,
-    template_rows: &mut Vec<GridTemplate>,
-    template_cols: &mut Vec<GridTemplate>,
-    depth: i32,
-) {
-
-    if depth == MAX_GRID_DEPTH {
-        return;
-    }
-
-    let grammar = grammars.get(&coord).unwrap();
-
-    let should_add_row_line = coord.clone().row_cols.iter().last().unwrap().1.get() /* col */ == 1; 
-    let should_add_col_line = coord.clone().row_cols.iter().last().unwrap().0.get() /* row */ == 1; 
-
-    match &grammar.kind {
-        Kind::Grid(sub_coords) => {
-            // to account for merged cells, index is based on rows with most columns
-            // and column with most rows
-            let mut row_to_col_count : HashMap<i32, i32> = HashMap::new();
-            for (row, _col) in sub_coords.iter() {
-                row_to_col_count.get_mut(&(row.get() as i32)).map(|val| *val += 1);
-            };
-
-            if should_add_row_line {
-                template_rows.push(GridTemplate::StartLine(
-                        LineSeq::from_coord(&coord, GridLineType::Row)
-                ));
-            }
-            if should_add_col_line {
-                template_cols.push(GridTemplate::StartLine(
-                        LineSeq::from_coord(&coord, GridLineType::Column)
-                ));
-            }
-            for sub_coord_fragment in sub_coords {
-                let sub_coord = Coordinate::child_of(&coord, *sub_coord_fragment);
-                compute_grid(sub_coord.clone(), grammars, template_rows, template_cols, depth+1);
-            }
-            if should_add_row_line {
-                template_rows.push(GridTemplate::EndLine(
-                        LineSeq::from_coord(&coord, GridLineType::Row)
-                ));
-            }
-            if should_add_col_line {
-                template_cols.push(GridTemplate::EndLine(
-                        LineSeq::from_coord(&coord, GridLineType::Column)
-                ));
-            }
-        }
-        _ => {
-            if should_add_row_line {
-                template_rows.push(GridTemplate::StartLine(
-                        LineSeq::from_coord(&coord, GridLineType::Row)
-                ));
-            }
-            template_rows.push(GridTemplate::Interval(DEFAULT_CELL_HEIGHT));
-            if should_add_row_line {
-                template_rows.push(GridTemplate::EndLine(
-                        LineSeq::from_coord(&coord, GridLineType::Row)
-                ));
-            }
-
-            if should_add_col_line {
-                template_cols.push(GridTemplate::StartLine(
-                        LineSeq::from_coord(&coord, GridLineType::Column)
-                ));
-            }
-            template_cols.push(GridTemplate::Interval(DEFAULT_CELL_WIDTH));
-            if should_add_col_line {
-                template_cols.push(GridTemplate::EndLine(
-                        LineSeq::from_coord(&coord, GridLineType::Column)
-                ));
-            }
-        }
-    }
-}
-
-impl Grid {
-    fn new(grammars: &HashMap<Coordinate, Grammar>, grid_root: Coordinate) -> Self {
-        let mut template_rows = Vec::new();
-        let mut template_cols = Vec::new();
-        compute_grid(grid_root, grammars, &mut template_rows, &mut template_cols, 0);
-        // template_rows.sort_by(|a, b| cmp_gridlines(a, b, GridLineType::Row));
-        // template_cols.sort_by(|a, b| cmp_gridlines(a, b, GridLineType::Column));
-        Grid {
-            template_rows: template_rows,
-            template_cols: template_cols,
-        }
-    } 
-     
-    fn template_to_string(lines: Vec<GridTemplate>) -> String {
-        let mut output = String::new();
-        let mut in_line_group : bool = false;
-        for line in lines.iter() {
-            match line.clone() {
-                GridTemplate::StartLine(line) => {
-                    if !in_line_group {
-                        output += "[";
-                        in_line_group = true;
-                    }
-                    output += format!{"{}-start ", line.to_string()}.deref();
-                },
-                GridTemplate::Interval(width) => {
-                    if in_line_group {
-                        output += "]";
-                        in_line_group = false;
-                    }
-                    output += format!{" {}px ", width}.deref();
-                },
-                GridTemplate::EndLine(line) => {
-                    if !in_line_group {
-                        output += "[";
-                        in_line_group = true;
-                    }
-                    output += format!{"{}-end ", line.to_string()}.deref();
-                },
-            }
-        }
-        output += "]";
-        output
-    }
-
-    fn to_string(&self) -> String {
-        format!{
-            "display: grid; grid-template-rows: \"{}\"; grid-template-columns: \"{}\";",
-            Self::template_to_string(self.template_rows.clone()),
-            Self::template_to_string(self.template_cols.clone()),
-        }
-    }
-}
-
 
 // Coordinate specifies the nested coordinate structure
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Hash, Clone)]
@@ -555,6 +364,20 @@ impl Coordinate {
         Some(n)
     }
 
+    fn parent(&self) -> Option<Coordinate> {
+        if self.row_cols.len() == 1 {
+            return None;
+        }
+
+        let parent = {
+            let mut temp = self.clone();
+            temp.row_cols.pop();
+            temp
+        };
+
+        Some(parent)
+    }
+
     fn neighbor_above(&self) -> Option<Coordinate> {
         let mut new_row_col = self.clone().row_cols;
         
@@ -626,6 +449,9 @@ enum Action {
     ReadSession(/* filename: */ File),
 
     LoadSession(FileData),
+
+    // Grid Operations
+    AddNestedGrid(Coordinate, (u32 /*rows*/, u32 /*cols*/))
 }
 
 impl Component for Model {
@@ -636,7 +462,7 @@ impl Component for Model {
         let root_grammar = Grammar {
             name: "root".to_string(),
             style: Style::default(),
-            kind: Kind::Grid(row_col_vec![ (1,1), (1,2), (2,1), (2,2)]),
+            kind: Kind::Grid(row_col_vec![ (1,1), (1,2), (1,3), (2,1), (2,2), (2,3) ]),
         };
         let meta_grammar = Grammar {
             name: "meta".to_string(),
@@ -651,8 +477,10 @@ impl Component for Model {
                 ROOT!{} => root_grammar.clone(),
                 coord!{ ROOT!{}; (1,1) } => Grammar::default(),
                 coord!{ ROOT!{}; (1,2) } => Grammar::default(),
+                coord!{ ROOT!{}; (1,3) } => Grammar::default(),
                 coord!{ ROOT!{}; (2,1) } => Grammar::default(),
                 coord!{ ROOT!{}; (2,2) } => Grammar::default(),
+                coord!{ ROOT!{}; (2,3) } => Grammar::default(),
                 coord!{ META!{}; (1,1) } => Grammar::suggestion("js grammar".to_string(), "This is js".to_string()),
                 coord!{ META!{}; (1,2) } => Grammar::suggestion("java grammar".to_string(), "This is java".to_string()),
             },
@@ -754,12 +582,25 @@ impl Component for Model {
                 self.load_session(session);
                 true
             }
+
+            Action::AddNestedGrid(coord, (rows, cols)) => {
+                let (r, c) = non_zero_u32_tuple((rows, cols));
+                let grammar = Grammar::as_grid(r, c);
+                if let Kind::Grid(sub_coords) = grammar.clone().kind {
+                    self.active_cell = sub_coords.first().map(|c| Coordinate::child_of(&coord, *c));
+                    for sub_coord in sub_coords {
+                        self.grammars.insert(Coordinate::child_of(&coord, sub_coord), Grammar::default());
+                    }
+                }
+                self.grammars.insert(coord, grammar);
+                true
+            }
         }
     }
 
     fn view(&self) -> Html<Self> {
-        let grid = Grid::new(&self.grammars, ROOT!{});
 
+        let active_cell = self.active_cell.clone();
         html! {
             <div>
 
@@ -773,8 +614,15 @@ impl Component for Model {
                 <div class="main">
                     <h1>{ "integrated spreasheet environment" }</h1>
 
-                    <div id="grammars" class="grid" style={ grid.to_string() }>
-                        { view_grammars(&self) }
+                    <div id="grammars" class="grid" onkeypress=|e| {
+                        if e.key() == "g" && e.ctrl_key() {
+                            if let Some(coord) = active_cell.clone() {
+                                return Action::AddNestedGrid(coord.clone(), (3, 3));
+                            }
+                        }
+                        Action::Noop
+                    }>
+                        { view_grammar(&self, ROOT!{}) }
                     </div>
                 </div>
             </div>
@@ -838,7 +686,21 @@ fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html<Model> {
                         {"File Explorer"}
                     </h1>
 
-                    <b>{"load session"}</b>
+                    <h3>{"load session"}</h3>
+                    <br></br>
+                    <input type="file" onchange=|value| {
+                        if let ChangeData::Files(files) = value {
+                            if files.len() >= 1 {
+                                if let Some(file) = files.iter().nth(0) {
+                                    return Action::ReadSession(file);
+                                }
+                            }
+                        }
+                        Action::Noop
+                    }>
+                    </input>
+
+                    <h3>{"save session"}</h3>
                     <br></br>
                     <input type="file" onchange=|value| {
                         if let ChangeData::Files(files) = value {
@@ -963,12 +825,34 @@ fn view_grammar(m: &Model, coord: Coordinate) -> Html<Model> {
                 }).collect();
                 view_input_grammar(grammar.clone(), coord, suggestions, value, is_active)
             }
-            Kind::Interactive(interactive) => {
-                // TODO: 
-                html! { <></> }
+            Kind::Interactive(name, Interactive::Button()) => {
+                html! {
+                    <button>
+                        { name }
+                    </button>
+                }
             }
-            Kind::Grid(_) => {
-                view_grid_grammar(grammar.clone(), &coord)
+            Kind::Interactive(name, Interactive::Slider(value, min, max)) => {
+                html! {
+                    <input type="range" min={min} max={max} value={value}>
+                        { name }
+                    </input>
+                }
+            }
+            Kind::Interactive(name, Interactive::Toggle(checked)) => {
+                html! {
+                    <input type="checkbox" checked={checked}>
+                        { name }
+                    </input>
+                }
+            }
+            Kind::Grid(sub_coords) => {
+                view_grid_grammar(
+                    m,
+                    grammar.clone(),
+                    &coord,
+                    sub_coords.iter().map(|c| Coordinate::child_of(&coord, *c)).collect(),
+                )
             }
         }
     } else {
@@ -1035,10 +919,14 @@ fn view_text_grammar(grammar: Grammar, coord: &Coordinate, value : String) -> Ht
     }
 }
 
-fn view_grid_grammar(grammar: Grammar, coord: &Coordinate) -> Html<Model> {
+fn view_grid_grammar(m: &Model, grammar: Grammar, coord: &Coordinate, sub_coords: Vec<Coordinate>) -> Html<Model> {
     html! {
         <div style={ grammar.style(&coord) }>
-            // empty, with only borders and grid placement
+            {
+                VList {
+                    children: sub_coords.iter().map(|c| view_grammar(m, c.clone())).collect(),
+                }
+            }
         </div>
     }
 }
