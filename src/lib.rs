@@ -1,14 +1,10 @@
 #![recursion_limit = "512"]
 
-// When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
-// allocator. (see Cargo.toml for why we use optimixed allocator)
-#[cfg(feature = "wee_alloc")]
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
 use std::collections::HashMap;
 use std::num::NonZeroU32;
+use std::char::from_u32;
 use std::ops::Deref;
+use std::iter::FromIterator;
 use std::cmp::Ordering;
 use serde::{Serialize, Deserialize};
 use yew::{html, ChangeData, Component, ComponentLink, Html, ShouldRender, KeyPressEvent};
@@ -17,14 +13,18 @@ use yew::services::{ConsoleService};
 use yew::services::reader::{File, FileChunk, FileData, ReaderService, ReaderTask};
 use yew::virtual_dom::{VList};
 use wasm_bindgen::prelude::*;
+use stdweb::Value;
 use stdweb::web::{document, Element, INode, IParentNode};
 use log::trace;
 use itertools::Itertools;
+use pest::Parser;
 
+extern crate web_logger;
+extern crate pest;
+#[macro_use] extern crate log;
 #[macro_use] extern crate maplit;
 #[macro_use] extern crate stdweb;
-#[macro_use] extern crate log;
-extern crate web_logger;
+#[macro_use] extern crate pest_derive;
 
 /*
  * DATA MODEL:
@@ -259,9 +259,61 @@ macro_rules! row_col_vec {
     };
 }
 
+#[derive(Parser)]
+#[grammar = "coordinate.pest"]
+struct CoordinateParser;
+
 // macro for easily defining a coordinate
 // either absolutely or relative to it's parent coordinate
+// TODO: this code is messy, can be optimized more later 
 macro_rules! coord {
+    ( $coord_str:tt ) => {
+        {
+
+            info!{"COORD: {}", $coord_str};
+            let mut fragments: Vec<(NonZeroU32, NonZeroU32)> = Vec::new();
+
+            let pairs = CoordinateParser::parse(Rule::coordinate, $coord_str).unwrap_or_else(|e| panic!("{}", e));
+
+            for pair in pairs {
+                info!{"PAIR: {}", pair};
+            
+                match pair.as_rule() {
+                    Rule::special if pair.as_str() == "root" => {
+                        fragments.push(non_zero_u32_tuple((1, 1)));
+                    }
+                    Rule::special if pair.as_str() == "meta" => {
+                        fragments.push(non_zero_u32_tuple((1, 2)));
+                    }
+                    Rule::fragment => {
+                        let mut fragment: (u32, u32) = (0,0);
+                        for inner_pair in pair.into_inner() {
+                            match inner_pair.as_rule() {
+                                Rule::alpha => {
+                                    let mut val: u32 = 0;
+                                    for ch in inner_pair.as_str().to_string().chars() {
+                                        val += (ch as u32) - 64;
+                                    }
+                                    fragment.0 = val;
+                                }
+                                Rule::digit => {
+                                    fragment.1 = inner_pair.as_str().parse::<u32>().unwrap();
+                                }
+                                _ => unreachable!()
+                            };
+                        }
+                        fragments.push(non_zero_u32_tuple(fragment));
+                    }
+                    _ => unreachable!()
+                }
+            }
+
+            Coordinate {
+                row_cols: fragments,
+            }
+        }
+    };
+
     ( $( $x:expr ), + ) => {
         {
             let mut v: Vec<(NonZeroU32, NonZeroU32)> = Vec::new();
@@ -279,33 +331,21 @@ macro_rules! coord {
 
 // macros defining the ROOT and META coordinates
 macro_rules! ROOT {
-    () => ( coord!{ (1,1) } );
+    () => ( coord!("A1") );
 }
 
 macro_rules! META {
-    () => ( coord!{ (1,2) } );
+    () => ( coord!("A2") );
 }
 
-// helper methods
-fn col_to_string(col : i32) -> String {
-    const alpha_offset : i32 = 64;
-    let normalized_col = if col == 26 { 26 } else { col % 26 };
-    let mut base_str = js! { 
-        return String.fromCharCode(@{normalized_col + alpha_offset});
-    }.into_string().unwrap();
-    if col > 26 {
-        base_str.push_str(col_to_string(col - 26).deref());
-    }
-    base_str
-}
-
-fn row_col_to_string((row, col): (i32, i32)) -> String {
+fn row_col_to_string((row, col): (u32, u32)) -> String {
     let row_str = row.to_string();
-    let col_str = col_to_string(col);
+    let col_str = from_u32(col + 64).unwrap();
     format!{"{}{}", col_str, row_str} 
 }
 
-fn coord_show(row_cols: Vec<(i32, i32)>) -> Option<String> {
+fn coord_show(row_cols: Vec<(u32, u32)>) -> Option<String> {
+    info!{"coord_show: {:?}", row_cols};
     match row_cols.split_first() {
         Some((&(1,1), rest)) => {
             let mut output = "root".to_string();
@@ -342,7 +382,7 @@ impl Coordinate {
 
     fn to_string(&self) -> String {
         coord_show(self.row_cols.iter()
-             .map(|(r, c)| (r.get() as i32, c.get() as i32)).collect()).unwrap()
+             .map(|(r, c)| (r.get(), c.get())).collect()).unwrap()
     }
 
 
@@ -472,21 +512,21 @@ impl Component for Model {
         Model {
             root: root_grammar.clone(),
             meta: meta_grammar.clone(),
-            view_root: ROOT!{},
+            view_root: coord!("root"),
             grammars: hashmap! {
                 ROOT!{} => root_grammar.clone(),
-                coord!{ ROOT!{}; (1,1) } => Grammar::default(),
-                coord!{ ROOT!{}; (1,2) } => Grammar::default(),
-                coord!{ ROOT!{}; (1,3) } => Grammar::default(),
-                coord!{ ROOT!{}; (2,1) } => Grammar::default(),
-                coord!{ ROOT!{}; (2,2) } => Grammar::default(),
-                coord!{ ROOT!{}; (2,3) } => Grammar::default(),
-                coord!{ META!{}; (1,1) } => Grammar::suggestion("js grammar".to_string(), "This is js".to_string()),
-                coord!{ META!{}; (1,2) } => Grammar::suggestion("java grammar".to_string(), "This is java".to_string()),
+                coord!("A1-A1") => Grammar::default(),
+                coord!("A1-A2") => Grammar::default(),
+                coord!("A1-A3") => Grammar::default(),
+                coord!("A1-B1") => Grammar::default(),
+                coord!("A1-B2") => Grammar::default(),
+                coord!("A1-B3") => Grammar::default(),
+                coord!("A2-B2") => Grammar::suggestion("js grammar".to_string(), "This is js".to_string()),
+                coord!("A2-B2") => Grammar::suggestion("java grammar".to_string(), "This is java".to_string()),
             },
             value: String::new(),
-            active_cell: Some(coord!{ ROOT!{}; (1,1) }),
-            suggestions: vec![ coord!{ META!{}; (1,1) }, coord!{ META!{}; (1,1) } ],
+            active_cell: Some(coord!("A1-A1")),
+            suggestions: vec![ coord!("A2-A1"), coord!("A2-A2") ],
             // suggestions: vec![],
 
             console: ConsoleService::new(),
@@ -565,8 +605,8 @@ impl Component for Model {
                 true
             }
 
-            Action::SetActiveMenu(activeMenu) => {
-                self.open_side_menu = activeMenu;
+            Action::SetActiveMenu(active_menu) => {
+                self.open_side_menu = active_menu;
                 true
             }
 
@@ -741,6 +781,15 @@ fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html<Model> {
 fn view_menu_bar(m: &Model) -> Html<Model> {
     html! {
         <div class="menu-bar horizontal-bar">
+            <input disabled=true 
+                value={
+                    if let Some(cell) = m.active_cell.clone() {
+                        cell.to_string()
+                    } else {
+                        "".to_string()
+                    }
+                }>
+            </input>
             <button class="menu-bar-button">
                 { "Save" }
             </button>
