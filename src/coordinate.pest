@@ -1,0 +1,8 @@
+alpha = { ('A'..'Z')+ }
+digit = { ('1'..'9')+ }
+
+fragment = { alpha ~ digit }
+
+special = { ("root" | "meta") }
+
+coordinate = _{ !digit ~ (fragment | special) ~ ("-" ~ fragment)* }
