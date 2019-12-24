@@ -16,15 +16,35 @@ body {
   border-collapse: collapse;
   font-family: "Lucida Console", Monaco, monospace;
   /*width: calc(var(--cell-width) * 26);*/
+  flex-grow: 0;
+}
+
+.handler {
+    width: 20px;
+    padding: 0;
+    cursor: ew-resize;
+    flex: 0 0 auto;
+  }
+
+.wrapper {
+  background-color: #fff;
+  color: #444;
+  /* Use flexbox */
+  display: flex;
+}
+
+.handler::before {
+  content: '';
+  display: block;
+  width: 4px;
+  height: 100%;
+  background: red;
+  margin: 0 auto;
 }
 
 input.cell-data {
   font-family: "Lucida Console", Monaco, monospace;
   font-size: 20px;
-}
-
-.row {
-  display: table-row;
 }
 
 .cell {

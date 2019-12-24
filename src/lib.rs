@@ -56,6 +56,8 @@ extern crate pest;
 // a grammar Cell or Grid
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Style {
+    width: f64,  // CSS: width
+    height: f64, // CSS: height
     border_color: String,  // CSS: border-color
     border_collapse: bool, // CSS: border-collapse
     font_weight: i32,      // CSS: font-weight
@@ -67,6 +69,8 @@ js_deserializable!( Style );
 impl Style {
     fn default() -> Style {
         Style {
+            width: 120.00,
+            height: 50.00,
             border_color: "grey".to_string(),
             border_collapse: true,
             font_weight: 400,
@@ -76,10 +80,14 @@ impl Style {
 
     fn to_string(&self) -> String {
         format!{
-        "border: 1px solid {};
+        "width: {}px;
+height: {}px;
+border: 1px solid {};
 border-collapse: {};
 font-weight: {};
 color: {};\n",
+        self.width,
+        self.height,
         self.border_color,
         if self.border_collapse { "collapse" } else { "inherit" },
         self.font_weight,
@@ -289,15 +297,17 @@ macro_rules! coord {
                         let mut fragment: (u32, u32) = (0,0);
                         for inner_pair in pair.into_inner() {
                             match inner_pair.as_rule() {
+                                // COLUMN
                                 Rule::alpha => {
                                     let mut val: u32 = 0;
                                     for ch in inner_pair.as_str().to_string().chars() {
                                         val += (ch as u32) - 64;
                                     }
-                                    fragment.0 = val;
+                                    fragment.1 = val;
                                 }
+                                // ROW
                                 Rule::digit => {
-                                    fragment.1 = inner_pair.as_str().parse::<u32>().unwrap();
+                                    fragment.0 = inner_pair.as_str().parse::<u32>().unwrap();
                                 }
                                 _ => unreachable!()
                             };
@@ -516,11 +526,11 @@ impl Component for Model {
             grammars: hashmap! {
                 ROOT!{} => root_grammar.clone(),
                 coord!("A1-A1") => Grammar::default(),
-                coord!("A1-A2") => Grammar::default(),
-                coord!("A1-A3") => Grammar::default(),
+                // coord!("A1-A2") => Grammar::default(),
+                // coord!("A1-A3") => Grammar::default(),
                 coord!("A1-B1") => Grammar::default(),
-                coord!("A1-B2") => Grammar::default(),
-                coord!("A1-B3") => Grammar::default(),
+                // coord!("A1-B2") => Grammar::default(),
+                // coord!("A1-B3") => Grammar::default(),
                 coord!("A2-B2") => Grammar::suggestion("js grammar".to_string(), "This is js".to_string()),
                 coord!("A2-B2") => Grammar::suggestion("java grammar".to_string(), "This is java".to_string()),
             },
@@ -654,7 +664,7 @@ impl Component for Model {
                 <div class="main">
                     <h1>{ "integrated spreasheet environment" }</h1>
 
-                    <div id="grammars" class="grid" onkeypress=|e| {
+                    <div id="grammars" class="grid wrapper" onkeypress=|e| {
                         if e.key() == "g" && e.ctrl_key() {
                             if let Some(coord) = active_cell.clone() {
                                 return Action::AddNestedGrid(coord.clone(), (3, 3));
@@ -839,24 +849,6 @@ fn view_tab_bar(m: &Model) -> Html<Model> {
     }
 }
 
-fn view_grammars(m: &Model) -> VList<Model> {
-    let mut grammar_nodes = VList::<Model>::new();
-    grammar_nodes.add_child(html! {
-        <div style=m.root.style.to_string()>{"ROOT"}</div>
-    });
-    match m.root.kind.clone() {
-        Kind::Grid(child_coords) => {
-            for coord in child_coords {
-                let full_coord = Coordinate::child_of(&ROOT!{}, coord.clone());
-                grammar_nodes.add_child(view_grammar(m, full_coord));
-            }
-        }
-        _ => () 
-    }
-
-    grammar_nodes
-}
-
 fn view_grammar(m: &Model, coord: Coordinate) -> Html<Model> {
     if let Some(grammar) = m.grammars.get(&coord) {
         match grammar.kind.clone() {
@@ -962,7 +954,7 @@ fn view_input_grammar(grammar: Grammar, coord: Coordinate, suggestions: Vec<(Coo
 
 fn view_text_grammar(grammar: Grammar, coord: &Coordinate, value : String) -> Html<Model> {
     html! {
-        <div style={ grammar.style(&coord) }>
+        <div class="cell suggestion" style={ grammar.style(&coord) }>
             { value }
         </div>
     }
@@ -972,9 +964,16 @@ fn view_grid_grammar(m: &Model, grammar: Grammar, coord: &Coordinate, sub_coords
     html! {
         <div style={ grammar.style(&coord) }>
             {
-                VList {
-                    children: sub_coords.iter().map(|c| view_grammar(m, c.clone())).collect(),
+                let mut node_list = VList::<Model>::new();
+
+                for c in sub_coords {
+                    node_list.add_child(view_grammar(m, c.clone()));
+                    node_list.add_child(html!{
+                        <div class="handler"></div>
+                    });
                 }
+
+                node_list
             }
         </div>
     }
