@@ -3,23 +3,18 @@ const { readFile } = require("fs");
 const { extname } = require("path");
 const { URL } = require("url");
 
-let win; // declare global reference to window object
+let win;
 
-// set up buffer protocol
+// buffer protocol for serving build artifacts & assets
 function createProtocol (scheme, normalize = true) {
 	protocol.registerBufferProtocol(scheme,
 		(request, respond) => {
 			let pathName = new URL(request.url).pathname;
-
-			// Needed in case URL contains spaces
-			pathName = decodeURI(pathName);
-
-      console.log(pathName);
-
-			readFile(app.getAppPath() + "/" + pathName, function (error, data) {
+			pathName = decodeURI(pathName); // Needed in case URL contains spaces
+			readFile(app.getAppPath() + "/" + pathName, (error, data) => {
 				let extension = extname(pathName).toLowerCase();
 				let mimeType = "";
-        // Enforce mime types
+        // enforce mime types
 				if (extension === ".js") {
 					mimeType = "text/javascript";
 				} else if (extension === ".html") {
@@ -49,48 +44,36 @@ protocol.registerSchemesAsPrivileged([{
     privileges: { standard: true, secure: true, supportFetchAPI: true },
 }]);
 
-
 function createWindow () {
   win = new BrowserWindow({
     webPreferences: {
-      // preload: `${__dirname}/preload.js`,
 			nodeIntegration: true,
-			// contextIsolation: true
-    }
+    },
+    titleBarStyle: 'hiddenInset',
   });
-
   win.loadURL(`file://${__dirname}/index.html`);
-
   win.webContents.openDevTools(); // TODO: only do this in development mode
-
-  win.maximize();
-  win.show();
-
+  win.once('ready-to-show', () => {
+    win.show();
+    win.maximize();
+  });
   win.on('closed', () => {
     win = null; // dereference window object
   });
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
-app.on('ready', function() {
+app.on('ready', () => {
   createProtocol("app");
   createWindow();
 });
 
-// Quit when all windows are closed
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    // on macOS, the app sometimes stays open while
-    // windows are open
+  if (process.platform !== 'darwin' /* macOS */ ) {
     app.quit();
   }
 });
 
 app.on('activate', () => {
-  // on macOS it's common to re-create a window in the app when the
-  // dock icon is clicked and there are no other windows open.
   if (win === null) {
     createWindow();
   }
