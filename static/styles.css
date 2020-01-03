@@ -1,6 +1,9 @@
 :root {
   --cell-width: 100px;
   --cell-num-cells: 26;
+  --bg-light-grey: #f1efef;
+  --bghover-light-grey: #ddd;
+  --border-light-grey: #ccc;
 }
 
 body {
@@ -8,38 +11,27 @@ body {
 }
 
 .main {
-  margin-left: 80px; /* Same as the width of the sidebar */
-  padding: 0px 10px;
+  z-index: 0;
+  margin-top: 80px; /* Same as the height of both menu-bars */
+  margin-left: 71px; /* Same as the width of the sidebar */
+  overflow: scroll;
 }
 
 .cell {
   border-collapse: collapse;
   font-family: "Lucida Console", Monaco, monospace;
-  /*width: calc(var(--cell-width) * 26);*/
   flex-grow: 0;
 }
 
-.handler {
-    width: 20px;
-    padding: 0;
-    cursor: ew-resize;
-    flex: 0 0 auto;
-  }
-
-.wrapper {
-  background-color: #fff;
+.grid-wrapper {
+  background-color: var(--border-light-grey);
   color: #444;
-  /* Use flexbox */
   display: flex;
 }
 
-.handler::before {
-  content: '';
-  display: block;
-  width: 4px;
-  height: 100%;
-  background: red;
-  margin: 0 auto;
+.grid-wrapper .cell {
+  margin-top: 1px;
+  margin-left: 3px;
 }
 
 input.cell-data {
@@ -50,10 +42,7 @@ input.cell-data {
 .cell {
   display: table-cell;
   min-height: 20px;
-  /* max-height: 20px; */
   min-width: var(--cell-width);
-  /* max-width: 200px; */
-  /* border: 1px dotted grey; */
   padding: 0px;
 }
 
@@ -62,20 +51,6 @@ input.cell-data {
   background-color: color;
   outline: none;
 }
-
-/*
-.cell:not(#cell-root):hover {
-  background-color: grey;
-}
-
-.cell:not(#cell-root):hover + .cell {
-  background-color: grey;
-}
-
-.cell + .cell:not(#cell-root):hover {
-  background-color: grey;
-}
-*/
 
 .cell:active {
   outline: none;
@@ -157,8 +132,8 @@ input.cell-data {
   left: 0;
   overflow-x: hidden; /* Disable horizontal scroll */
   padding-top: 20px;
-  background-color: white; /* Black */
-  box-shadow: 5px 80px 10px grey;
+  background-color: var(--bg-light-grey);
+  border: 1px solid #ccc;
 }
 
 /* The navigation menu links */
@@ -186,8 +161,9 @@ input.cell-data {
   overflow-x: hidden; /* Disable horizontal scroll */
   padding-top: 20px;
   background-color: white; /* Black */
-  box-shadow: 5px 5px 10px grey;
   padding: 10px;
+  background-color: var(--bg-light-grey);
+  border: 1px solid var(--border-light-grey);
 }
 
 
@@ -204,7 +180,7 @@ input.cell-data {
   left: 80px;
   overflow-x: hidden;
   padding: 5px;
-  background-color: white;
+  background-color: var(--bg-light-grey);
   width: 100%
 }
 
@@ -213,14 +189,31 @@ input.cell-data {
   height: 30px;
 }
 
-.tab-bar {
-  top: 40px;
-  box-shadow: 5px 5px 10px grey;
-  width: 100%;
-  height: 30px;
+.active-cell-indicator {
+  border: 1px solid grey;
 }
 
-/* Style the buttons that are used to open the tab content */
+.menu-bar-button {
+  background-color: var(--bg-light-grey);
+  border: 1px solid grey;
+  outline: none;
+}
+
+.menu-bar-button:hover {
+  background-color: var(--bghover-light-grey);
+}
+
+.menu-bar-button:active {
+  background: grey;
+}
+
+.tab-bar {
+  top: 40px;
+  width: 100%;
+  height: 30px;
+  border: 1px solid #ccc;
+}
+
 .tab-bar button {
   background-color: inherit;
   float: left;
@@ -231,31 +224,34 @@ input.cell-data {
   transition: 0.3s;
 }
 
-/* Change background color of buttons on hover */
-.tab-bar .tab:hover {
-  background-color: #ddd;
+.tab-bar .tab {
+  background-color: var(--bg-light-grey);
+  border: 1px solid var(--border-light-grey);
+  border-right: 0px;
+  font-weight: bold;
+  outline: none;
 }
 
-/* Create an active/current tablink class */
-.tab-bar .tab {
-  background-color: #fff;
-  border: 1px solid grey;
-  border-top-left-radius: 10px;
-  border-top-right-radius: 10px;
-  box-shadow: 1.5px 2px 3px 2px grey;
+.tab-bar .tab:hover {
+  background-color: var(--bghover-light-grey);
+}
+
+.tab-bar .tab:active {
+  background: grey;
 }
 
 .tab-bar .tab.active-tab {
-  font-weight: bold;
+  margin-top: 1px;
+  background-color: var(--bghover-light-grey);
 }
 
 .tab-bar .newtab-btn {
   border: 1px solid grey;
-  border-radius: 20px;
   color: grey;
-  background-color: white;
+  background-color: var(--bg-light-grey);
   font-weight: bold;
   font-size: 20px;
+  padding-top: 5px;
 }
 
 /* On smaller screens, where height is less than 450px, change the style of the sidebar (less padding and a smaller font size) */

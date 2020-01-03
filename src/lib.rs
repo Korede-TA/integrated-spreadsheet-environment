@@ -82,13 +82,13 @@ impl Style {
         format!{
         "min-width: {}px;
 min-height: {}px;
-border: 1px solid {};
+border: 0px; /* NOTE: ignoring Style::border_* for now */
 border-collapse: {};
 font-weight: {};
 color: {};\n",
         self.width,
         self.height,
-        self.border_color,
+        // self.border_color,
         if self.border_collapse { "collapse" } else { "inherit" },
         self.font_weight,
         self.font_color,
@@ -719,9 +719,7 @@ impl Component for Model {
                 { view_tab_bar(&self) }
 
                 <div class="main">
-                    <h1>{ "integrated spreasheet environment" }</h1>
-
-                    <div id="grammars" class="grid wrapper" onkeypress=|e| {
+                    <div id="grammars" class="grid-wrapper" onkeypress=|e| {
                         if e.key() == "g" && e.ctrl_key() {
                             if let Some(coord) = active_cell.clone() {
                                 return Action::AddNestedGrid(coord.clone(), (3, 3));
@@ -850,7 +848,11 @@ fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html<Model> {
 fn view_menu_bar(m: &Model) -> Html<Model> {
     html! {
         <div class="menu-bar horizontal-bar">
-            <input disabled=true 
+            <input 
+                class="active-cell-indicator"
+                disabled=true 
+                // TODO: clicking on this should highlight
+                // the active cell
                 value={
                     if let Some(cell) = m.active_cell.clone() {
                         cell.to_string()
@@ -903,7 +905,9 @@ fn view_tab_bar(m: &Model) -> Html<Model> {
     html! {
         <div class="tab-bar horizontal-bar">
             { tabs }
-            <button class="newtab-btn">{ "+" }</button>
+            <button class="newtab-btn">
+                <span>{ "+" }</span>
+            </button>
         </div>
     }
 }
