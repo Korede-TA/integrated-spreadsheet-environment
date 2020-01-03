@@ -8,7 +8,7 @@
     "start-cargo": "cargo watch -w src/ -s './scripts/build.sh && electron .'",
     "prestart": "alias wasm-pack='rustup run nightly $HOME/.cargo/bin/wasm-pack \"$@\"'",
     "start": "webpack --config ./webpack.config.js && electron dist/index.html",
-    "watch": "cargo watch -w src/ -s 'npm run start'"
+    "watch": "cargo watch -w src/ -w static/styles.css -s 'npm run start'"
   },
   "repository": {
     "type": "git",
