@@ -69,10 +69,10 @@ js_deserializable!( Style );
 impl Style {
     fn default() -> Style {
         Style {
-            width: 120.00,
-            height: 50.00,
+            width: 90.00,
+            height: 30.00,
             border_color: "grey".to_string(),
-            border_collapse: true,
+            border_collapse: false,
             font_weight: 400,
             font_color: "black".to_string(),
         }
@@ -80,8 +80,8 @@ impl Style {
 
     fn to_string(&self) -> String {
         format!{
-        "width: {}px;
-height: {}px;
+        "min-width: {}px;
+min-height: {}px;
 border: 1px solid {};
 border-collapse: {};
 font-weight: {};
@@ -179,6 +179,21 @@ impl Grammar {
     }
 }
 
+fn move_grammar(map: &mut HashMap<Coordinate, Grammar>, source: Coordinate, dest: Coordinate) {
+    if let Some(source_grammar) = map.clone().get(&source) {
+        map.insert(dest.clone(), source_grammar.clone());
+        if let Kind::Grid(sub_coords) = source_grammar.clone().kind {
+            for sub_coord in sub_coords {
+                move_grammar(
+                    map,
+                    Coordinate::child_of(&source, sub_coord),
+                    Coordinate::child_of(&dest, sub_coord)
+                );
+            }
+        }
+    }
+}
+
 // Session encapsulates the serializable state of the application that gets stored to disk
 // in a .ise file (which is just a JSON file)
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -191,6 +206,7 @@ js_serializable!( Session );
 js_deserializable!( Session );
 
 // Model contains the entire state of the application
+#[derive(Debug)]
 struct Model {
     // model holds a direct reference to the topmost root A1 and meta A2 grammars
     // these two grammars are excluded from the grammar Map
@@ -235,6 +251,7 @@ impl Model {
     }
 }
 
+#[derive(Debug)]
 struct SideMenu {
     name: String,
     icon_path: String,
@@ -278,14 +295,11 @@ macro_rules! coord {
     ( $coord_str:tt ) => {
         {
 
-            info!{"COORD: {}", $coord_str};
             let mut fragments: Vec<(NonZeroU32, NonZeroU32)> = Vec::new();
 
             let pairs = CoordinateParser::parse(Rule::coordinate, $coord_str).unwrap_or_else(|e| panic!("{}", e));
 
             for pair in pairs {
-                info!{"PAIR: {}", pair};
-            
                 match pair.as_rule() {
                     Rule::special if pair.as_str() == "root" => {
                         fragments.push(non_zero_u32_tuple((1, 1)));
@@ -355,7 +369,6 @@ fn row_col_to_string((row, col): (u32, u32)) -> String {
 }
 
 fn coord_show(row_cols: Vec<(u32, u32)>) -> Option<String> {
-    info!{"coord_show: {:?}", row_cols};
     match row_cols.split_first() {
         Some((&(1,1), rest)) => {
             let mut output = "root".to_string();
@@ -504,6 +517,36 @@ enum Action {
     AddNestedGrid(Coordinate, (u32 /*rows*/, u32 /*cols*/))
 }
 
+fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
+    // definition grammar contains the name of the grammar and then the list of
+    // different parts of the grammar
+        
+    let defn_name_coord = Coordinate::child_of(&root_coord, non_zero_u32_tuple((1,1)));
+    let defn_name = Grammar {
+        name: "defn_name".to_string(),
+        style: Style::default(),
+        kind: Kind::Input(String::new()),
+    };
+
+    let defn_body_coord = Coordinate::child_of(&root_coord, non_zero_u32_tuple((2,1)));
+    let defn_body = Grammar {
+        name: "defn_body".to_string(),
+        style: Style::default(),
+        kind: Kind::Input(String::new()),
+    };
+
+    let defn = Grammar {
+        name: "defn".to_string(),
+        style: Style::default(),
+        kind: Kind::Grid(row_col_vec![(1,1), (2,1)]),
+    };
+
+    m.grammars.insert(root_coord, defn);
+    m.grammars.insert(defn_name_coord, defn_name);
+    m.grammars.insert(defn_body_coord, defn_body);
+}
+
+
 impl Component for Model {
     type Message = Action;
     type Properties = ();
@@ -519,24 +562,24 @@ impl Component for Model {
             style: Style::default(),
             kind: Kind::Grid(row_col_vec![ (1,1), (1,2)]),
         };
-        Model {
+        let mut m = Model {
             root: root_grammar.clone(),
             meta: meta_grammar.clone(),
             view_root: coord!("root"),
             grammars: hashmap! {
                 ROOT!{} => root_grammar.clone(),
                 coord!("A1-A1") => Grammar::default(),
-                // coord!("A1-A2") => Grammar::default(),
-                // coord!("A1-A3") => Grammar::default(),
+                coord!("A1-A2") => Grammar::default(),
+                coord!("A1-A3") => Grammar::default(),
                 coord!("A1-B1") => Grammar::default(),
-                // coord!("A1-B2") => Grammar::default(),
-                // coord!("A1-B3") => Grammar::default(),
-                coord!("A2-B2") => Grammar::suggestion("js grammar".to_string(), "This is js".to_string()),
-                coord!("A2-B2") => Grammar::suggestion("java grammar".to_string(), "This is java".to_string()),
+                coord!("A1-B2") => Grammar::default(),
+                coord!("A1-B3") => Grammar::default(),
+                coord!("A2-A1") => Grammar::suggestion("js grammar".to_string(), "This is js".to_string()),
+                coord!("A2-A2") => Grammar::suggestion("java grammar".to_string(), "This is java".to_string()),
             },
             value: String::new(),
             active_cell: Some(coord!("A1-A1")),
-            suggestions: vec![ coord!("A2-A1"), coord!("A2-A2") ],
+            suggestions: vec![ coord!("A2-A1"), coord!("A2-A2"), coord!("A2-A3") ],
             // suggestions: vec![],
 
             console: ConsoleService::new(),
@@ -549,7 +592,6 @@ impl Component for Model {
             ],
 
             current_tab: 0,
-
 
             side_menus: vec![
                 SideMenu {
@@ -573,12 +615,15 @@ impl Component for Model {
 
             link,
             tasks: vec![],
-        }
+        };
+        apply_definition_grammar(&mut m, coord!("A2-A3"));
+        m
     }
 
     // The update function is split into sub-update functions that 
     // are specifc to each EventType
     fn update(&mut self, event_type: Self::Message) -> ShouldRender {
+        info!{"MODEL:\n {:?}", self};
         match event_type {
             Action::Noop => {
                 // Update your model on events
@@ -605,13 +650,7 @@ impl Component for Model {
             }
 
             Action::DoCompletion(source_coord, dest_coord) => {
-                let source_grammar = self.grammars.get(&source_coord);
-                match source_grammar.clone() {
-                    Some(g) => {
-                        self.grammars.insert(dest_coord, g.clone());
-                    }
-                    None => ()
-                }
+                move_grammar(&mut self.grammars, source_coord, dest_coord);
                 true
             }
 
@@ -642,6 +681,9 @@ impl Component for Model {
                         self.grammars.insert(Coordinate::child_of(&coord, sub_coord), Grammar::default());
                     }
                 }
+                if let Some(parent) = Coordinate::parent(&coord).and_then(|p| self.grammars.get_mut(&p)) {
+                    parent.kind = grammar.clone().kind; // make sure the parent gets set to Kind::Grid
+                }
                 self.grammars.insert(coord, grammar);
                 true
             }
@@ -659,7 +701,6 @@ impl Component for Model {
                 { view_menu_bar(&self) }
 
                 { view_tab_bar(&self) }
-
 
                 <div class="main">
                     <h1>{ "integrated spreasheet environment" }</h1>
@@ -868,23 +909,29 @@ fn view_grammar(m: &Model, coord: Coordinate) -> Html<Model> {
             }
             Kind::Interactive(name, Interactive::Button()) => {
                 html! {
-                    <button>
-                        { name }
-                    </button>
+                    <div class="cell" style={ grammar.style(&coord) }>
+                        <button>
+                            { name }
+                        </button>
+                    </div>
                 }
             }
             Kind::Interactive(name, Interactive::Slider(value, min, max)) => {
                 html! {
-                    <input type="range" min={min} max={max} value={value}>
-                        { name }
-                    </input>
+                    <div class="cell" style={ grammar.style(&coord) }>
+                        <input type="range" min={min} max={max} value={value}>
+                            { name }
+                        </input>
+                    </div>
                 }
             }
             Kind::Interactive(name, Interactive::Toggle(checked)) => {
                 html! {
-                    <input type="checkbox" checked={checked}>
-                        { name }
-                    </input>
+                    <div class="cell" style={ grammar.style(&coord) }>
+                        <input type="checkbox" checked={checked}>
+                            { name }
+                        </input>
+                    </div>
                 }
             }
             Kind::Grid(sub_coords) => {
@@ -968,9 +1015,6 @@ fn view_grid_grammar(m: &Model, grammar: Grammar, coord: &Coordinate, sub_coords
 
                 for c in sub_coords {
                     node_list.add_child(view_grammar(m, c.clone()));
-                    node_list.add_child(html!{
-                        <div class="handler"></div>
-                    });
                 }
 
                 node_list
