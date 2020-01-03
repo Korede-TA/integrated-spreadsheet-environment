@@ -513,8 +513,13 @@ enum Action {
 
     LoadSession(FileData),
 
+    SaveSession,
+
     // Grid Operations
-    AddNestedGrid(Coordinate, (u32 /*rows*/, u32 /*cols*/))
+    AddNestedGrid(Coordinate, (u32 /*rows*/, u32 /*cols*/)),
+
+    // Alerts and stuff
+    Alert(String),
 }
 
 fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
@@ -625,10 +630,14 @@ impl Component for Model {
     fn update(&mut self, event_type: Self::Message) -> ShouldRender {
         info!{"MODEL:\n {:?}", self};
         match event_type {
-            Action::Noop => {
-                // Update your model on events
+            Action::Noop => false,
+
+            Action::Alert(message) => {
+                self.console.log(&message);
+                // TODO: make this into a more visual thing
                 false
             }
+
             Action::ChangeInput(coord, new_value) => {
                 let old_grammar = self.grammars.get_mut(&coord);
                 match old_grammar {
@@ -640,6 +649,7 @@ impl Component for Model {
                 }
                 false
             }
+
             Action::ShowSuggestions(coord, query) => {
                 false
             }
@@ -670,6 +680,12 @@ impl Component for Model {
                 let session : Session = serde_json::from_str(format!{"{:?}", file_data}.deref()).unwrap();
                 self.load_session(session);
                 true
+            }
+
+            Action::SaveSession => {
+                let _session : Session = self.to_session();
+                // TODO: Setup saving ot session
+                false
             }
 
             Action::AddNestedGrid(coord, (rows, cols)) => {
@@ -762,7 +778,7 @@ fn view_side_nav(m: &Model) -> Html<Model> {
 }
 
 fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html<Model> {
-    match side_menu.name.deref(){
+    match side_menu.name.deref() {
         "Home" => {
             html! {
                 <div class="side-menu-section">
@@ -785,6 +801,8 @@ fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html<Model> {
                                 if let Some(file) = files.iter().nth(0) {
                                     return Action::ReadSession(file);
                                 }
+                            } else {
+                                return Action::Alert("Could not load file".to_string());
                             }
                         }
                         Action::Noop
@@ -949,7 +967,13 @@ fn view_grammar(m: &Model, coord: Coordinate) -> Html<Model> {
     }
 }
 
-fn view_input_grammar(grammar: Grammar, coord: Coordinate, suggestions: Vec<(Coordinate, Grammar)>, value: String, is_active: bool) -> Html<Model> {
+fn view_input_grammar(
+    grammar: Grammar,
+    coord: Coordinate,
+    suggestions: Vec<(Coordinate, Grammar)>,
+    value: String,
+    is_active: bool
+) -> Html<Model> {
     let mut suggestion_nodes = VList::<Model>::new();
     let mut active_cell_class = "cell-inactive";
     if is_active {
@@ -960,13 +984,9 @@ fn view_input_grammar(grammar: Grammar, coord: Coordinate, suggestions: Vec<(Coo
                 <a 
                     tabindex=-1
                     onclick=|e| {
-                        //if e.key() == "Enter"  {
-                            Action::DoCompletion(s_coord.clone(), c.clone())
-                        //} else {
-                        //    Action::Noop
-                        //}
+                        Action::DoCompletion(s_coord.clone(), c.clone())
                     }>
-                    {&s_grammar.name}
+                    { &s_grammar.name }
                 </a>
             })
             
