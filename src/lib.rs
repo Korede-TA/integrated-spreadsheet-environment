@@ -6,15 +6,18 @@ use std::char::from_u32;
 use std::ops::Deref;
 use std::iter::FromIterator;
 use std::cmp::Ordering;
+use std::option::Option;
 use serde::{Serialize, Deserialize};
-use yew::{html, ChangeData, Component, ComponentLink, Html, ShouldRender, KeyPressEvent};
-use yew::events::{IKeyboardEvent};
+use yew::{html, ChangeData, Component, ComponentLink, Html, ShouldRender, InputData};
+use yew::callback::Callback;
+use yew::events::{IKeyboardEvent, ClickEvent, KeyPressEvent};
 use yew::services::{ConsoleService};
 use yew::services::reader::{File, FileChunk, FileData, ReaderService, ReaderTask};
 use yew::virtual_dom::{VList};
 use wasm_bindgen::prelude::*;
 use stdweb::Value;
-use stdweb::web::{document, Element, INode, IParentNode};
+use stdweb::web::{document, Element, HtmlElement, IHtmlElement, INonElementParentNode};
+use stdweb::unstable::TryFrom;
 use log::trace;
 use itertools::Itertools;
 use pest::Parser;
@@ -80,14 +83,10 @@ impl Style {
 
     fn to_string(&self) -> String {
         format!{
-        "min-width: {}px;
-min-height: {}px;
-border: 0px; /* NOTE: ignoring Style::border_* for now */
+        "/* border: 1px; NOTE: ignoring Style::border_* for now */
 border-collapse: {};
 font-weight: {};
 color: {};\n",
-        self.width,
-        self.height,
         // self.border_color,
         if self.border_collapse { "collapse" } else { "inherit" },
         self.font_weight,
@@ -139,17 +138,31 @@ impl Grammar {
         match &self.kind {
             Kind::Grid(sub_coords) => {
                 let mut grid_area_str = "\"".to_string();
+                let mut prev_row = 1;
+                let mut sub_coords = sub_coords.clone();
+                sub_coords.sort_by(|(a_row, a_col), (b_row, b_col)| 
+                    if a_row < b_row {
+                        Ordering::Less
+                    } else if a_row == b_row {
+                        if a_col < b_col { Ordering::Less } else { Ordering::Greater }
+                    } else { Ordering::Greater }
+                );
                 for (row, col) in sub_coords {
-                    if col.get() == 1 && row.get() != 1 {
+                    if row.get() > prev_row {
                         grid_area_str.pop();
                         grid_area_str += "\"\n\"";
                     }
                     let sub_coord = Coordinate::child_of(coord, (row.clone(), col.clone()));
                     grid_area_str += format!{"cell-{} ", sub_coord.to_string()}.deref();
+                    prev_row = row.get();
                 }
                 grid_area_str.pop();
                 grid_area_str += "\"";
-                format!{"display: grid;\n{}grid-template-areas: \n{};\n", self.style.to_string(), grid_area_str}
+                format!{
+                    "display: grid;\ngrid-area: cell-{};\nheight: fit-content;\nwidth: fit-content !important;\ngrid-template-areas: \n{};\n",
+                    coord.to_string(),
+                    grid_area_str,
+                }
             },
             _ => format!{"{}grid-area: cell-{};\n", self.style.to_string(), coord.to_string()},
         }
@@ -165,8 +178,8 @@ impl Grammar {
 
     fn as_grid(rows: NonZeroU32, cols: NonZeroU32) -> Grammar {
         let mut grid : Vec<(NonZeroU32, NonZeroU32)> = Vec::new();
-        for i in 1..rows.get() {
-            for j in 1..cols.get() {
+        for i in 1..(rows.get() + 1) {
+            for j in 1..(cols.get() + 1) {
                 grid.push((NonZeroU32::new(i).unwrap(), NonZeroU32::new(j).unwrap()));
             }
         }
@@ -220,8 +233,9 @@ struct Model {
     value: String,
     active_cell: Option<Coordinate>,
     suggestions: Vec<Coordinate>,
-    console: ConsoleService,
-    reader: ReaderService,
+
+    col_widths: HashMap<Col, f64>,
+    row_heights: HashMap<Row, f64>,
 
     // tabs correspond to sessions
     tabs: Vec<String>,
@@ -230,6 +244,9 @@ struct Model {
     // side menus
     side_menus: Vec<SideMenu>,
     open_side_menu: Option<i32>,
+
+    console: ConsoleService,
+    reader: ReaderService,
 
     link: ComponentLink<Model>,
     tasks: Vec<ReaderTask>,
@@ -247,6 +264,25 @@ impl Model {
             root: self.root.clone(),
             meta: self.meta.clone(),
             grammars: self.grammars.clone(),
+        }
+    }
+
+    fn get_style(&self, coord: &Coordinate) -> String {
+        let grammar = self.grammars.get(coord).expect("no grammar with this coordinate");
+        if coord.row_cols.len() == 1 {  // root or meta
+            return grammar.style(coord);
+        }
+        if let Kind::Grid(_) = grammar.kind {
+            return format!{
+                "{}\nwidth: fit-content;\nheight: fit-content;\n",
+                grammar.style(coord),
+            };
+        }
+        let col_width = self.col_widths.get(&coord.full_col()).unwrap_or(&90.0);
+        let row_height = self.row_heights.get(&coord.full_row()).unwrap_or(&30.0);
+        format!{
+            "{}\nwidth: {}px;\nheight: {}px;\n",
+            grammar.style(coord), col_width, row_height,
         }
     }
 }
@@ -338,28 +374,29 @@ macro_rules! coord {
         }
     };
 
-    ( $( $x:expr ), + ) => {
+}
+
+macro_rules! coord_col {
+    ( $parent_str:tt, $col_str:tt ) => {
         {
-            let mut v: Vec<(NonZeroU32, NonZeroU32)> = Vec::new();
-            $(
-                v.push(non_zero_u32_tuple($x));
-            )+
-            Coordinate {
-                row_cols: v,
+            let mut col: u32 = 0;
+            for ch in $col_str.to_string().chars() {
+                col += (ch as u32) - 64;
             }
+
+            Col(coord!($parent_str), NonZeroU32::new(col).unwrap())
         }
     };
-
-    ( $parent:expr ; $x:expr ) => ( Coordinate::child_of(&$parent.clone(), non_zero_u32_tuple($x)) );
 }
 
-// macros defining the ROOT and META coordinates
-macro_rules! ROOT {
-    () => ( coord!("A1") );
-}
+macro_rules! coord_row {
+    ( $parent_str:tt, $row_str:tt ) => {
+        {
+            let row: u32 = $row_str.parse::<u32>().unwrap();
 
-macro_rules! META {
-    () => ( coord!("A2") );
+            Row(coord!($parent_str), NonZeroU32::new(row).unwrap())
+        }
+    };
 }
 
 fn row_col_to_string((row, col): (u32, u32)) -> String {
@@ -390,17 +427,48 @@ fn coord_show(row_cols: Vec<(u32, u32)>) -> Option<String> {
     } 
 }
 
+#[derive(Debug, Clone, Hash)]
+struct Row(/* parent */ Coordinate, /* row_index */ NonZeroU32);
+
+impl PartialEq for Row {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0 && self.1 == other.1
+    }
+}
+
+impl Eq for Row {}
+
+#[derive(Debug, Clone, Hash)]
+struct Col(/* parent */ Coordinate, /* col_index */ NonZeroU32);
+
+impl PartialEq for Col {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0 && self.1 == other.1
+    }
+}
+
+impl Eq for Col {}
 
 // Methods for interacting with coordinate struct
 impl Coordinate {
-    fn root() -> Coordinate {
-        ROOT!{}
-    }
-
     fn child_of(parent: &Self, child_coord: (NonZeroU32, NonZeroU32)) -> Coordinate {
         let mut new_row_col = parent.clone().row_cols;
         new_row_col.push(child_coord);
         Coordinate{ row_cols: new_row_col }
+    }
+
+    fn parent(&self) -> Option<Coordinate> {
+        if self.row_cols.len() == 1 {
+            return None;
+        }
+
+        let parent = {
+            let mut temp = self.clone();
+            temp.row_cols.pop();
+            temp
+        };
+
+        Some(parent)
     }
 
     fn to_string(&self) -> String {
@@ -408,6 +476,45 @@ impl Coordinate {
              .map(|(r, c)| (r.get(), c.get())).collect()).unwrap()
     }
 
+    fn row(&self) -> NonZeroU32 {
+        if let Some(last) = self.row_cols.last() {
+            last.0
+        } else {
+            panic!{"a coordinate should always have a row, this one doesnt"}
+        }
+    }
+
+    fn full_row(&self) -> Row {
+        Row(self.parent().unwrap(), self.row())
+    }
+
+    fn row_to_string(&self) -> String {
+        if let Some(parent) = self.parent() {
+            format!{"{}-{}", parent.to_string(), self.row().get()}
+        } else {
+            format!{"{}", self.row().get()}
+        }
+    }
+
+    fn col (&self) -> NonZeroU32 {
+        if let Some(last) = self.row_cols.last() {
+            last.1
+        } else {
+            panic!{"a coordinate should always have a column, this one doesnt"}
+        }
+    }
+
+    fn full_col(&self) -> Col {
+        Col(self.parent().unwrap(), self.col())
+    }
+
+    fn col_to_string(&self) -> String {
+        if let Some(parent) = self.parent() {
+            format!{"{}-{}", parent.to_string(), from_u32(self.col().get() + 64).unwrap()}
+        } else {
+            format!{"{}", from_u32(self.col().get() + 64).unwrap()}
+        }
+    }
 
     // if a cell is the parent, grandparent,..., (great xN)-grandparent of another
     // Optinoally returns: Some(N) if true (including N=0 if sibling),
@@ -425,20 +532,6 @@ impl Coordinate {
             n += 1;
         }
         Some(n)
-    }
-
-    fn parent(&self) -> Option<Coordinate> {
-        if self.row_cols.len() == 1 {
-            return None;
-        }
-
-        let parent = {
-            let mut temp = self.clone();
-            temp.row_cols.pop();
-            temp
-        };
-
-        Some(parent)
     }
 
     fn neighbor_above(&self) -> Option<Coordinate> {
@@ -551,6 +644,44 @@ fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
     m.grammars.insert(defn_body_coord, defn_body);
 }
 
+fn resize(m: &mut Model, coord: Coordinate, row_height_diff: f64, col_width_diff: f64) {
+    if let Some(parent_coord) = coord.parent() {
+        resize(m, parent_coord, row_height_diff, col_width_diff);
+    } else { return; }
+    if let Some(row_height) = m.row_heights.get_mut(&coord.full_row()) {
+        *row_height += row_height_diff + /* horizontal border width */ 2.0;
+    }
+    if let Some(col_width) = m.col_widths.get_mut(&coord.full_col()) {
+        *col_width += col_width_diff + /* vertical border height */ 2.0;
+    }
+}
+
+// when a cell is expanded, grow cells in the same row/column as well
+fn resize_cells(map: &mut HashMap<Coordinate, Grammar>, on: Coordinate) {
+    let (height, width) = {
+        let element = HtmlElement::try_from(
+            document().get_element_by_id(format!{"cell-{}", on.to_string()}.deref()).unwrap()).unwrap();
+        let rect = element.get_bounding_client_rect();
+        (rect.get_height(), rect.get_width())
+    };
+    info!{"expanding...: H {}px, W {}px", height.clone(), width.clone()}
+    let on_grammar = map.get_mut(&on).unwrap();
+    on_grammar.style.height = height.clone();
+    on_grammar.style.width = width.clone();
+    let parent_kind = on.parent().and_then(|p| map.get(&p)).map(|g| g.kind.clone());
+    if let Some(Kind::Grid(neighbors_coords)) = parent_kind {
+        for (row, col) in neighbors_coords {
+            if let Some(cell) = map.get_mut(&Coordinate::child_of(&on, (row.clone(), col.clone()))) {
+                if row == on.row() {
+                    cell.style.height = height.clone();
+                } else if col == on.col() {
+                    cell.style.width = width.clone();
+                }
+            }
+        }
+    }
+}
+
 
 impl Component for Model {
     type Message = Action;
@@ -560,31 +691,41 @@ impl Component for Model {
         let root_grammar = Grammar {
             name: "root".to_string(),
             style: Style::default(),
-            kind: Kind::Grid(row_col_vec![ (1,1), (1,2), (1,3), (2,1), (2,2), (2,3) ]),
+            kind: Kind::Grid(row_col_vec![ (1,1), (2,1), (3,1), (1,2), (2,2), (3,2) ]),
         };
         let meta_grammar = Grammar {
             name: "meta".to_string(),
             style: Style::default(),
-            kind: Kind::Grid(row_col_vec![ (1,1), (1,2)]),
+            kind: Kind::Grid(row_col_vec![ (1,1), (2,1) ]),
         };
         let mut m = Model {
             root: root_grammar.clone(),
             meta: meta_grammar.clone(),
             view_root: coord!("root"),
             grammars: hashmap! {
-                ROOT!{} => root_grammar.clone(),
-                coord!("A1-A1") => Grammar::default(),
-                coord!("A1-A2") => Grammar::default(),
-                coord!("A1-A3") => Grammar::default(),
-                coord!("A1-B1") => Grammar::default(),
-                coord!("A1-B2") => Grammar::default(),
-                coord!("A1-B3") => Grammar::default(),
-                coord!("A2-A1") => Grammar::suggestion("js grammar".to_string(), "This is js".to_string()),
-                coord!("A2-A2") => Grammar::suggestion("java grammar".to_string(), "This is java".to_string()),
+                coord!("root")    => root_grammar.clone(),
+                coord!("root-A1") => Grammar::default(),
+                coord!("root-A2") => Grammar::default(),
+                coord!("root-A3") => Grammar::default(),
+                coord!("root-B1") => Grammar::default(),
+                coord!("root-B2") => Grammar::default(),
+                coord!("root-B3") => Grammar::default(),
+                coord!("meta")    => meta_grammar.clone(),
+                coord!("meta-A1") => Grammar::suggestion("js grammar".to_string(), "This is js".to_string()),
+                coord!("meta-A2") => Grammar::suggestion("java grammar".to_string(), "This is java".to_string()),
+            },
+            col_widths: hashmap! {
+               coord_col!("root","A") => 90.0,
+               coord_col!("root","B") => 90.0,
+            },
+            row_heights: hashmap! {
+               coord_row!("root","1") => 30.0,
+               coord_row!("root","2") => 30.0,
+               coord_row!("root","3") => 30.0,
             },
             value: String::new(),
-            active_cell: Some(coord!("A1-A1")),
-            suggestions: vec![ coord!("A2-A1"), coord!("A2-A2"), coord!("A2-A3") ],
+            active_cell: Some(coord!("root-A1")),
+            suggestions: vec![ coord!("meta-A1"), coord!("meta-A2"), coord!("meta-A3") ],
             // suggestions: vec![],
 
             console: ConsoleService::new(),
@@ -621,14 +762,13 @@ impl Component for Model {
             link,
             tasks: vec![],
         };
-        apply_definition_grammar(&mut m, coord!("A2-A3"));
+        apply_definition_grammar(&mut m, coord!("meta-A3"));
         m
     }
 
     // The update function is split into sub-update functions that 
     // are specifc to each EventType
     fn update(&mut self, event_type: Self::Message) -> ShouldRender {
-        info!{"MODEL:\n {:?}", self};
         match event_type {
             Action::Noop => false,
 
@@ -660,7 +800,8 @@ impl Component for Model {
             }
 
             Action::DoCompletion(source_coord, dest_coord) => {
-                move_grammar(&mut self.grammars, source_coord, dest_coord);
+                move_grammar(&mut self.grammars, source_coord, dest_coord.clone());
+                resize_cells(&mut self.grammars, dest_coord);
                 true
             }
 
@@ -670,7 +811,7 @@ impl Component for Model {
             }
 
             Action::ReadSession(file) => {
-                let callback = self.link.send_back(Action::LoadSession);
+                let callback = self.link.callback(Action::LoadSession);
                 let task = self.reader.read_file(file, callback);
                 self.tasks.push(task);
                 false
@@ -684,7 +825,7 @@ impl Component for Model {
 
             Action::SaveSession => {
                 let _session : Session = self.to_session();
-                // TODO: Setup saving ot session
+                // TODO: Setup saving to session
                 false
             }
 
@@ -700,13 +841,16 @@ impl Component for Model {
                 if let Some(parent) = Coordinate::parent(&coord).and_then(|p| self.grammars.get_mut(&p)) {
                     parent.kind = grammar.clone().kind; // make sure the parent gets set to Kind::Grid
                 }
-                self.grammars.insert(coord, grammar);
+                self.grammars.insert(coord.clone(), grammar);
+                resize(self, coord,
+                    ((rows as f64) - 1.0) * (/* default row height */ 30.0),
+                    ((cols as f64) - 1.0) * (/* default col width */ 90.0));
                 true
             }
         }
     }
 
-    fn view(&self) -> Html<Self> {
+    fn view(&self) -> Html {
 
         let active_cell = self.active_cell.clone();
         html! {
@@ -719,15 +863,15 @@ impl Component for Model {
                 { view_tab_bar(&self) }
 
                 <div class="main">
-                    <div id="grammars" class="grid-wrapper" onkeypress=|e| {
+                    <div id="grammars" class="grid-wrapper" onkeypress=self.link.callback(move |e : KeyPressEvent| {
                         if e.key() == "g" && e.ctrl_key() {
                             if let Some(coord) = active_cell.clone() {
                                 return Action::AddNestedGrid(coord.clone(), (3, 3));
                             }
                         }
                         Action::Noop
-                    }>
-                        { view_grammar(&self, ROOT!{}) }
+                    })>
+                        { view_grammar(&self, coord!{"root"}) }
                     </div>
                 </div>
             </div>
@@ -735,15 +879,13 @@ impl Component for Model {
     }
 }
 
-fn view_side_nav(m: &Model) -> Html<Model> {
-    let mut side_menu_nodes = VList::<Model>::new();
+fn view_side_nav(m: &Model) -> Html {
+    let mut side_menu_nodes = VList::new();
     let mut side_menu_section = html! { <></> };
     for (index, side_menu) in m.side_menus.iter().enumerate() {
         if Some(index as i32) == m.open_side_menu {
             side_menu_nodes.add_child(html! {
-                <button class="active-menu" onclick=|e| {
-                            Action::SetActiveMenu(None)
-                    }>
+                <button class="active-menu" onclick=m.link.callback(|e| Action::SetActiveMenu(None))>
                     <img 
                         src={side_menu.icon_path.clone()} 
                         width="40px" alt={side_menu.name.clone()}>
@@ -754,9 +896,7 @@ fn view_side_nav(m: &Model) -> Html<Model> {
             side_menu_section = view_side_menu(m, side_menu);
         } else {
             side_menu_nodes.add_child(html! {
-                <button onclick=|e| {
-                            Action::SetActiveMenu(Some(index as i32))
-                    }>
+                <button onclick=m.link.callback(move |e| Action::SetActiveMenu(Some(index as i32)))>
                     <img 
                         src={side_menu.icon_path.clone()} 
                         width="40px" alt={side_menu.name.clone()}>
@@ -775,7 +915,7 @@ fn view_side_nav(m: &Model) -> Html<Model> {
     }
 }
 
-fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html<Model> {
+fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html {
     match side_menu.name.deref() {
         "Home" => {
             html! {
@@ -793,7 +933,7 @@ fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html<Model> {
 
                     <h3>{"load session"}</h3>
                     <br></br>
-                    <input type="file" onchange=|value| {
+                    <input type="file" onchange=m.link.callback(|value| {
                         if let ChangeData::Files(files) = value {
                             if files.len() >= 1 {
                                 if let Some(file) = files.iter().nth(0) {
@@ -804,12 +944,12 @@ fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html<Model> {
                             }
                         }
                         Action::Noop
-                    }>
+                    })>
                     </input>
 
                     <h3>{"save session"}</h3>
                     <br></br>
-                    <input type="file" onchange=|value| {
+                    <input type="file" onchange=m.link.callback(|value| {
                         if let ChangeData::Files(files) = value {
                             if files.len() >= 1 {
                                 if let Some(file) = files.iter().nth(0) {
@@ -818,7 +958,7 @@ fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html<Model> {
                             }
                         }
                         Action::Noop
-                    }>
+                    })>
                         
                     </input>
                 </div>
@@ -845,7 +985,7 @@ fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html<Model> {
 }
 
 
-fn view_menu_bar(m: &Model) -> Html<Model> {
+fn view_menu_bar(m: &Model) -> Html {
     html! {
         <div class="menu-bar horizontal-bar">
             <input 
@@ -861,7 +1001,7 @@ fn view_menu_bar(m: &Model) -> Html<Model> {
                     }
                 }>
             </input>
-            <button class="menu-bar-button">
+            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::SaveSession) >
                 { "Save" }
             </button>
             <button class="menu-bar-button">
@@ -889,8 +1029,8 @@ fn view_menu_bar(m: &Model) -> Html<Model> {
     }
 }
 
-fn view_tab_bar(m: &Model) -> Html<Model> {
-    let mut tabs = VList::<Model>::new();
+fn view_tab_bar(m: &Model) -> Html {
+    let mut tabs = VList::new();
     for (index, tab) in m.tabs.clone().iter().enumerate() {
         if (index as i32) == m.current_tab {
             tabs.add_child(html! {
@@ -912,11 +1052,11 @@ fn view_tab_bar(m: &Model) -> Html<Model> {
     }
 }
 
-fn view_grammar(m: &Model, coord: Coordinate) -> Html<Model> {
+fn view_grammar(m: &Model, coord: Coordinate) -> Html {
     if let Some(grammar) = m.grammars.get(&coord) {
         match grammar.kind.clone() {
             Kind::Text(value) => {
-                view_text_grammar(grammar.clone(), &coord, value)
+                view_text_grammar(m, &coord, value)
             }
             Kind::Input(value) => {
                 let is_active = m.active_cell.clone() == Some(coord.clone());
@@ -927,11 +1067,20 @@ fn view_grammar(m: &Model, coord: Coordinate) -> Html<Model> {
                         None
                     }
                 }).collect();
-                view_input_grammar(grammar.clone(), coord, suggestions, value, is_active)
+                view_input_grammar(
+                    m,
+                    coord.clone(),
+                    suggestions,
+                    value,
+                    is_active,
+                )
             }
             Kind::Interactive(name, Interactive::Button()) => {
                 html! {
-                    <div class="cell" style={ grammar.style(&coord) }>
+                    <div
+                        class=format!{"cell row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
+                        id=format!{"cell-{}", coord.to_string()}
+                        style={ m.get_style(&coord) }>
                         <button>
                             { name }
                         </button>
@@ -940,7 +1089,10 @@ fn view_grammar(m: &Model, coord: Coordinate) -> Html<Model> {
             }
             Kind::Interactive(name, Interactive::Slider(value, min, max)) => {
                 html! {
-                    <div class="cell" style={ grammar.style(&coord) }>
+                    <div 
+                        class=format!{"cell row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
+                        id=format!{"cell-{}", coord.to_string()}
+                        style={ m.get_style(&coord) }>
                         <input type="range" min={min} max={max} value={value}>
                             { name }
                         </input>
@@ -949,7 +1101,10 @@ fn view_grammar(m: &Model, coord: Coordinate) -> Html<Model> {
             }
             Kind::Interactive(name, Interactive::Toggle(checked)) => {
                 html! {
-                    <div class="cell" style={ grammar.style(&coord) }>
+                    <div
+                        class=format!{"cell row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
+                        id=format!{"cell-{}", coord.to_string()}
+                        style={ m.get_style(&coord) }>
                         <input type="checkbox" checked={checked}>
                             { name }
                         </input>
@@ -959,7 +1114,6 @@ fn view_grammar(m: &Model, coord: Coordinate) -> Html<Model> {
             Kind::Grid(sub_coords) => {
                 view_grid_grammar(
                     m,
-                    grammar.clone(),
                     &coord,
                     sub_coords.iter().map(|c| Coordinate::child_of(&coord, *c)).collect(),
                 )
@@ -972,13 +1126,13 @@ fn view_grammar(m: &Model, coord: Coordinate) -> Html<Model> {
 }
 
 fn view_input_grammar(
-    grammar: Grammar,
+    m: &Model,
     coord: Coordinate,
     suggestions: Vec<(Coordinate, Grammar)>,
     value: String,
-    is_active: bool
-) -> Html<Model> {
-    let mut suggestion_nodes = VList::<Model>::new();
+    is_active: bool,
+) -> Html {
+    let mut suggestion_nodes = VList::new();
     let mut active_cell_class = "cell-inactive";
     if is_active {
         active_cell_class = "cell-active";
@@ -987,9 +1141,7 @@ fn view_input_grammar(
             suggestion_nodes.add_child(html! {
                 <a 
                     tabindex=-1
-                    onclick=|e| {
-                        Action::DoCompletion(s_coord.clone(), c.clone())
-                    }>
+                    onclick=m.link.callback(move |_ : ClickEvent| Action::DoCompletion(s_coord.clone(), c.clone()))>
                     { &s_grammar.name }
                 </a>
             })
@@ -1005,17 +1157,15 @@ fn view_input_grammar(
     let new_active_cell = coord.clone();
 
     html! {
-        <div class="cell suggestion" style={ grammar.style(&coord) }>
+        <div
+            class=format!{"cell suggestion row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
+            id=format!{"cell-{}", coord.to_string()}
+            style={ m.get_style(&coord) }>
             <input 
                 class={ format!{ "cell-data {}", active_cell_class } }
                 value=value
-                oninput=|e| {
-                    Action::ChangeInput(coord.clone(), e.value)
-                }
-                onclick=|e| {
-                    Action::SetActiveCell(new_active_cell.clone())
-                }
-                >
+                oninput=m.link.callback(move |e : InputData| Action::ChangeInput(coord.clone(), e.value))
+                onclick=m.link.callback(move |_ : ClickEvent| Action::SetActiveCell(new_active_cell.clone()))>
             </input>
             
             { suggestions }
@@ -1023,19 +1173,25 @@ fn view_input_grammar(
     }
 }
 
-fn view_text_grammar(grammar: Grammar, coord: &Coordinate, value : String) -> Html<Model> {
+fn view_text_grammar(m: &Model, coord: &Coordinate, value : String) -> Html {
     html! {
-        <div class="cell suggestion" style={ grammar.style(&coord) }>
+        <div
+            class=format!{"cell text row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
+            id=format!{"cell-{}", coord.to_string()}
+            style={ m.get_style(&coord) }>
             { value }
         </div>
     }
 }
 
-fn view_grid_grammar(m: &Model, grammar: Grammar, coord: &Coordinate, sub_coords: Vec<Coordinate>) -> Html<Model> {
+fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordinate>) -> Html {
     html! {
-        <div style={ grammar.style(&coord) }>
+        <div
+            class=format!{"cell grid row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
+            id=format!{"cell-{}", coord.to_string()}
+            style={ m.get_style(&coord) }>
             {
-                let mut node_list = VList::<Model>::new();
+                let mut node_list = VList::new();
 
                 for c in sub_coords {
                     node_list.add_child(view_grammar(m, c.clone()));

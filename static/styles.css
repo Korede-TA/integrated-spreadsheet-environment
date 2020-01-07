@@ -17,33 +17,28 @@ body {
   overflow: scroll;
 }
 
-.cell {
-  border-collapse: collapse;
-  font-family: "Lucida Console", Monaco, monospace;
-  flex-grow: 0;
-}
-
 .grid-wrapper {
-  background-color: var(--border-light-grey);
+  background-color: white;
   color: #444;
-  display: flex;
+  height: 100%;
+  width: 100%;
 }
 
 .grid-wrapper .cell {
   margin-top: 1px;
-  margin-left: 3px;
-}
-
-input.cell-data {
-  font-family: "Lucida Console", Monaco, monospace;
-  font-size: 20px;
+  margin-left: 1px;
 }
 
 .cell {
-  display: table-cell;
-  min-height: 20px;
-  min-width: var(--cell-width);
-  padding: 0px;
+  border: 1px dashed var(--border-light-grey);
+  border-collapse: collapse;
+  font-family: "Lucida Console", Monaco, monospace;
+  background: #aaa;
+}
+
+.cell:not([display="grid"]) {
+  width: 90px;
+  min-height: 30px;
 }
 
 .cell:focus {
@@ -55,12 +50,19 @@ input.cell-data {
 .cell:active {
   outline: none;
 }
-.cell-data:active {
-  outline: none;
+
+.cell.selected {
+  background-color: rgba(14, 101, 235, 0.1);
 }
 
-.cell.highlighted {
-  background-color: rgba(14, 101, 235, 0.1);
+.cell-data {
+  font-family: "Lucida Console", Monaco, monospace;
+  font-size: 20px;
+  padding: 0px;
+}
+
+.cell-data:active {
+  outline: none;
 }
 
 .suggestion {
@@ -176,7 +178,7 @@ input.cell-data {
   overflow: hidden;
   border: 1px solid #ccc;
   position: fixed;
-  z-index: 0;
+  z-index: 1;
   left: 80px;
   overflow-x: hidden;
   padding: 5px;
