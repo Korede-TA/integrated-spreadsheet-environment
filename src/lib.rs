@@ -644,17 +644,37 @@ fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
     m.grammars.insert(defn_body_coord, defn_body);
 }
 
-fn resize(m: &mut Model, coord: Coordinate, row_height_diff: f64, col_width_diff: f64) {
+fn resize(m: &mut Model, coord: Coordinate, row_height: f64, col_width: f64) {
     if let Some(parent_coord) = coord.parent() {
-        resize(m, parent_coord, row_height_diff, col_width_diff);
-    } else { return; }
-    if let Some(row_height) = m.row_heights.get_mut(&coord.full_row()) {
-        *row_height += row_height_diff + /* horizontal border width */ 2.0;
-    }
-    if let Some(col_width) = m.col_widths.get_mut(&coord.full_col()) {
-        *col_width += col_width_diff + /* vertical border height */ 2.0;
+        let mut row_height_diff = 0.0;
+        let mut col_width_diff = 0.0;
+        if let Some(old_row_height) = m.row_heights.get_mut(&coord.full_row()) {
+            let new_row_height = row_height + /* horizontal border width */ 2.0;
+            row_height_diff = new_row_height - *old_row_height;
+            *old_row_height = new_row_height;
+        }
+        if let Some(old_col_width) = m.col_widths.get_mut(&coord.full_col()) {
+            let new_col_width = col_width + /* vertiacl border height */ 2.0;
+            col_width_diff = new_col_width - *old_col_width;
+            *old_col_width = new_col_width;
+        }
+        info!{"resizing cell: (row: {}, col: {}); height: {}, width: {}", coord.row_to_string(), coord.col_to_string(),  row_height_diff, col_width_diff};
+        resize_diff(m, parent_coord, row_height_diff, col_width_diff);
     }
 }
+
+fn resize_diff(m: &mut Model, coord: Coordinate, row_height_diff: f64, col_width_diff: f64) {
+    if let Some(parent_coord) = coord.parent() {
+        if let Some(row_height) = m.row_heights.get_mut(&coord.full_row()) {
+            *row_height = row_height_diff + /* horizontal border width */ 2.0; 
+        }
+        if let Some(col_width) = m.col_widths.get_mut(&coord.full_col()) {
+            *col_width = col_width_diff + /* vertical border height */ 2.0;
+        }
+        resize_diff(m, parent_coord, row_height_diff, col_width_diff);
+    }
+}
+
 
 // when a cell is expanded, grow cells in the same row/column as well
 fn resize_cells(map: &mut HashMap<Coordinate, Grammar>, on: Coordinate) {
@@ -835,7 +855,15 @@ impl Component for Model {
                 if let Kind::Grid(sub_coords) = grammar.clone().kind {
                     self.active_cell = sub_coords.first().map(|c| Coordinate::child_of(&coord, *c));
                     for sub_coord in sub_coords {
-                        self.grammars.insert(Coordinate::child_of(&coord, sub_coord), Grammar::default());
+                        let new_coord = Coordinate::child_of(&coord, sub_coord);
+                        self.grammars.insert(new_coord.clone(), Grammar::default());
+                        // initialize row & col heights as well
+                        if !self.row_heights.contains_key(&new_coord.clone().full_row()) {
+                            self.row_heights.insert(new_coord.clone().full_row(), 30.0);
+                        }
+                        if !self.col_widths.contains_key(&new_coord.clone().full_col()) {
+                            self.col_widths.insert(new_coord.clone().full_col(), 90.0);
+                        }
                     }
                 }
                 if let Some(parent) = Coordinate::parent(&coord).and_then(|p| self.grammars.get_mut(&p)) {
@@ -843,8 +871,8 @@ impl Component for Model {
                 }
                 self.grammars.insert(coord.clone(), grammar);
                 resize(self, coord,
-                    ((rows as f64) - 1.0) * (/* default row height */ 30.0),
-                    ((cols as f64) - 1.0) * (/* default col width */ 90.0));
+                    (rows as f64) * (/* default row height */ 30.0),
+                    (cols as f64) * (/* default col width */ 90.0));
                 true
             }
         }

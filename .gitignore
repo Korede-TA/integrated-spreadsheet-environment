@@ -1,5 +1,6 @@
 /build
 /target
 /node_modules
+/dist
 **/*.rs.bk
 **/*.DS_Store
