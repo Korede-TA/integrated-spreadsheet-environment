@@ -1253,20 +1253,18 @@ fn view_text_grammar(m: &Model, coord: &Coordinate, value : String) -> Html {
 }
 
 fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordinate>) -> Html {
+    let mut nodes = VList::new();
+
+    for c in sub_coords {
+        nodes.add_child(view_grammar(m, c.clone()));
+    }
+
     html! {
         <div
             class=format!{"cell grid row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
             style={ m.get_style(&coord) }>
-            {
-                let mut node_list = VList::new();
-
-                for c in sub_coords {
-                    node_list.add_child(view_grammar(m, c.clone()));
-                }
-
-                node_list
-            }
+            { nodes }
         </div>
     }
 }
