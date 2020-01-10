@@ -285,6 +285,34 @@ impl Model {
             grammar.style(coord), col_width, row_height,
         }
     }
+
+    fn query_parent(&self, coord_parent: Coordinate) -> Vec<Coordinate> {
+        self.grammars.keys().clone().filter_map(|k| {
+            if k.parent() == Some(coord_parent.clone()) {
+                Some(k.clone())
+            } else { None }
+        }).collect()
+    }
+
+    fn query_col(&self, coord_col: Col) -> Vec<Coordinate> {
+        self.grammars.keys().clone().filter_map(|k| {
+            if k.row_cols.len() == 1 /* ignore root & meta */ {
+                None
+            } else if k.full_col() == coord_col {
+                Some(k.clone())
+            } else { None }
+        }).collect()
+    }
+
+    fn query_row(&self, coord_row: Row) -> Vec<Coordinate> {
+        self.grammars.keys().clone().filter_map(|k| {
+            if k.row_cols.len() == 1 /* ignore root & meta */ {
+                None
+            } else if k.full_row() == coord_row {
+                Some(k.clone())
+            } else { None }
+        }).collect()
+    }
 }
 
 #[derive(Debug)]
@@ -484,8 +512,16 @@ impl Coordinate {
         }
     }
 
+    fn row_mut(&mut self) -> &mut NonZeroU32 {
+        if let Some(last) = self.row_cols.last_mut() {
+            &mut last.0
+        } else {
+            panic!{"a coordinate should always have a row, this one doesnt"}
+        }
+    }
+
     fn full_row(&self) -> Row {
-        Row(self.parent().unwrap(), self.row())
+        Row(self.parent().expect("full_row shouldn't be called on root or meta"), self.row())
     }
 
     fn row_to_string(&self) -> String {
@@ -496,7 +532,7 @@ impl Coordinate {
         }
     }
 
-    fn col (&self) -> NonZeroU32 {
+    fn col(&self) -> NonZeroU32 {
         if let Some(last) = self.row_cols.last() {
             last.1
         } else {
@@ -504,8 +540,16 @@ impl Coordinate {
         }
     }
 
+    fn col_mut(&mut self) -> &mut NonZeroU32 {
+        if let Some(last) = self.row_cols.last_mut() {
+            &mut last.1
+        } else {
+            panic!{"a coordinate should always have a column, this one doesnt"}
+        }
+    }
+
     fn full_col(&self) -> Col {
-        Col(self.parent().unwrap(), self.col())
+        Col(self.parent().expect("full_col shouldn't be called on root or meta"), self.col())
     }
 
     fn col_to_string(&self) -> String {
@@ -610,6 +654,8 @@ enum Action {
 
     // Grid Operations
     AddNestedGrid(Coordinate, (u32 /*rows*/, u32 /*cols*/)),
+
+    InsertRow,
 
     // Alerts and stuff
     Alert(String),
@@ -915,6 +961,40 @@ impl Component for Model {
                     (cols as f64) * (/* default col width */ 90.0));
                 true
             }
+
+            Action::InsertRow => {
+                if let Some(coord) = self.active_cell.clone() {
+                    // find the bottom-most coord
+                    let mut bottom_most_coord = coord.clone();
+                    while let Some(below_coord) = bottom_most_coord.neighbor_below() {
+                        if self.grammars.contains_key(&below_coord) {
+                            bottom_most_coord = below_coord;
+                        } else { break }
+                    }
+
+                    let bottom_most_row_coords = self.query_row(bottom_most_coord.full_row());
+                    let new_row_coords = bottom_most_row_coords.iter().map(|c| {
+                        (NonZeroU32::new(c.row().get() + 1).unwrap(), c.col())
+                    });
+
+                    let parent = coord.parent().unwrap();
+                    if let Some(Grammar{ kind: Kind::Grid(sub_coords), name, style }) = self.grammars.get(&parent) {
+                        let mut new_sub_coords = sub_coords.clone();
+                        let mut grammars = self.grammars.clone();
+                        for c in new_row_coords {
+                            grammars.insert(Coordinate::child_of(&parent.clone(), c), Grammar::default());
+                            new_sub_coords.push(c);
+                        }
+                        grammars.insert(parent, Grammar {
+                            kind: Kind::Grid(new_sub_coords.clone()),
+                            name: name.clone(),
+                            style: style.clone()
+                        });
+                        self.grammars = grammars;
+                    }
+                }
+                true
+            }
         }
     }
 
@@ -1081,7 +1161,7 @@ fn view_menu_bar(m: &Model) -> Html {
             <button class="menu-bar-button">
                 { "Zoom Out (-)" }
             </button>
-            <button class="menu-bar-button">
+            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::InsertRow)>
                 { "Insert Row" }
             </button>
             <button class="menu-bar-button">
