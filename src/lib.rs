@@ -656,6 +656,7 @@ enum Action {
     AddNestedGrid(Coordinate, (u32 /*rows*/, u32 /*cols*/)),
 
     InsertRow,
+    InsertCol,
 
     // Alerts and stuff
     Alert(String),
@@ -961,7 +962,39 @@ impl Component for Model {
                     (cols as f64) * (/* default col width */ 90.0));
                 true
             }
+            Action::InsertCol => {
+                if let Some(coord) = self.active_cell.clone() {
+                    // find the bottom-most coord
+                    let mut right_most_coord = coord.clone();
+                    while let Some(right_coord) = right_most_coord.neighbor_right() {
+                        if self.grammars.contains_key(&right_coord) {
+                            right_most_coord = right_coord;
+                        } else { break }
+                    }
 
+                    let right_most_col_coords = self.query_col(right_most_coord.full_col());
+                    let new_col_coords = right_most_col_coords.iter().map(|c| {
+                        (c.row(), NonZeroU32::new(c.col().get() + 1).unwrap())
+                    });
+
+                    let parent = coord.parent().unwrap();
+                    if let Some(Grammar{ kind: Kind::Grid(sub_coords), name, style }) = self.grammars.get(&parent) {
+                        let mut new_sub_coords = sub_coords.clone();
+                        let mut grammars = self.grammars.clone();
+                        for c in new_col_coords {
+                            grammars.insert(Coordinate::child_of(&parent.clone(), c), Grammar::default());
+                            new_sub_coords.push(c);
+                        }
+                        grammars.insert(parent, Grammar {
+                            kind: Kind::Grid(new_sub_coords.clone()),
+                            name: name.clone(),
+                            style: style.clone()
+                        });
+                        self.grammars = grammars;
+                    }
+                }
+                true
+            }
             Action::InsertRow => {
                 if let Some(coord) = self.active_cell.clone() {
                     // find the bottom-most coord
@@ -1164,7 +1197,7 @@ fn view_menu_bar(m: &Model) -> Html {
             <button class="menu-bar-button" onclick=m.link.callback(|_| Action::InsertRow)>
                 { "Insert Row" }
             </button>
-            <button class="menu-bar-button">
+            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::InsertCol)>
                 { "Insert Column" }
             </button>
             <button class="menu-bar-button">
