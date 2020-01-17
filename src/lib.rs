@@ -22,6 +22,13 @@ use log::trace;
 use itertools::Itertools;
 use pest::Parser;
 
+//use dialog::DialogBox;
+//use nfd::Response;
+use std::fs::File as stdFile;
+use std::fs;
+
+extern crate console_error_panic_hook;
+use std::panic;
 extern crate web_logger;
 extern crate pest;
 #[macro_use] extern crate log;
@@ -1385,6 +1392,8 @@ fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordinate>)
 #[wasm_bindgen]
 pub fn run_app() -> Result<(), JsValue> {
     web_logger::init();
+//    console_error_panic_hook::set_once();
+    panic::set_hook(Box::new(console_error_panic_hook::hook));
     yew::start_app::<Model>();
     Ok(())
 }
