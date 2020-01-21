@@ -16,7 +16,7 @@ use yew::services::reader::{File, FileChunk, FileData, ReaderService, ReaderTask
 use yew::virtual_dom::{VList};
 use wasm_bindgen::prelude::*;
 use stdweb::Value;
-use stdweb::web::{document, Element, HtmlElement, IHtmlElement, INonElementParentNode};
+use stdweb::web::{document, Element, HtmlElement, IElement, IHtmlElement, INode, IParentNode, INonElementParentNode};
 use stdweb::unstable::TryFrom;
 use log::trace;
 use itertools::Itertools;
@@ -334,6 +334,40 @@ fn non_zero_u32_tuple(val: (u32, u32)) -> (NonZeroU32, NonZeroU32) {
     (NonZeroU32::new(row).unwrap(), NonZeroU32::new(col).unwrap())
 }
 
+#[derive(Parser)]
+#[grammar = "coordinate.pest"]
+struct CoordinateParser;
+
+macro_rules! coord_rc {
+    ( $fragment_str:tt ) => {
+        {
+            let pair = CoordinateParser::parse(Rule::fragment, $fragment_str)
+                .unwrap_or_else(|e| panic!("{}", e))
+                .nth(0).expect("parsed coord_rc! fragment_str shoud have at least one Rule::fragment ");
+
+            let mut fragment: (u32, u32) = (0,0);
+            for inner_pair in pair.into_inner() {
+                match inner_pair.as_rule() {
+                    // COLUMN
+                    Rule::alpha => {
+                        let mut val: u32 = 0;
+                        for ch in inner_pair.as_str().to_string().chars() {
+                            val += (ch as u32) - 64;
+                        }
+                        fragment.1 = val;
+                    }
+                    // ROW
+                    Rule::digit => {
+                        fragment.0 = inner_pair.as_str().parse::<u32>().unwrap();
+                    }
+                    _ => unreachable!()
+                };
+            }
+            non_zero_u32_tuple(fragment)
+        }
+    }
+}
+
 // macro for easily defining a vector of non-zero tuples
 // used in Coordinate::root() below
 macro_rules! row_col_vec {
@@ -346,11 +380,17 @@ macro_rules! row_col_vec {
             v
         }
     };
-}
 
-#[derive(Parser)]
-#[grammar = "coordinate.pest"]
-struct CoordinateParser;
+    ( $( $fragment_str:tt ), * ) => {
+        {
+            let mut v: Vec<(NonZeroU32, NonZeroU32)> = Vec::new();
+            $(
+                v.push(coord_rc!($fragment_str));
+            )*
+            v
+        }
+    }
+}
 
 // macro for easily defining a coordinate
 // either absolutely or relative to it's parent coordinate
@@ -402,6 +442,13 @@ macro_rules! coord {
         }
     };
 
+    ( $parent_coord:ident, $fragment_str:tt ) => {
+        {
+            let mut c = $parent_coord.clone();
+            c.row_cols.push(coord_rc!($fragment_str));
+            c
+        }
+    }
 }
 
 macro_rules! coord_col {
@@ -412,7 +459,7 @@ macro_rules! coord_col {
                 col += (ch as u32) - 64;
             }
 
-            Col(coord!($parent_str), NonZeroU32::new(col).unwrap())
+            Col(Some(coord!($parent_str)), NonZeroU32::new(col).unwrap())
         }
     };
 }
@@ -422,7 +469,7 @@ macro_rules! coord_row {
         {
             let row: u32 = $row_str.parse::<u32>().unwrap();
 
-            Row(coord!($parent_str), NonZeroU32::new(row).unwrap())
+            Row(Some(coord!($parent_str)), NonZeroU32::new(row).unwrap())
         }
     };
 }
@@ -456,7 +503,7 @@ fn coord_show(row_cols: Vec<(u32, u32)>) -> Option<String> {
 }
 
 #[derive(Debug, Clone, Hash)]
-struct Row(/* parent */ Coordinate, /* row_index */ NonZeroU32);
+struct Row(/* parent */ Option<Coordinate>, /* row_index */ NonZeroU32);
 
 impl PartialEq for Row {
     fn eq(&self, other: &Self) -> bool {
@@ -467,7 +514,7 @@ impl PartialEq for Row {
 impl Eq for Row {}
 
 #[derive(Debug, Clone, Hash)]
-struct Col(/* parent */ Coordinate, /* col_index */ NonZeroU32);
+struct Col(/* parent */ Option<Coordinate>, /* col_index */ NonZeroU32);
 
 impl PartialEq for Col {
     fn eq(&self, other: &Self) -> bool {
@@ -521,7 +568,7 @@ impl Coordinate {
     }
 
     fn full_row(&self) -> Row {
-        Row(self.parent().expect("full_row shouldn't be called on root or meta"), self.row())
+        Row(self.parent(), self.row())
     }
 
     fn row_to_string(&self) -> String {
@@ -549,7 +596,7 @@ impl Coordinate {
     }
 
     fn full_col(&self) -> Col {
-        Col(self.parent().expect("full_col shouldn't be called on root or meta"), self.col())
+        Col(self.parent(), self.col())
     }
 
     fn col_to_string(&self) -> String {
@@ -660,12 +707,54 @@ enum Action {
 
     // Alerts and stuff
     Alert(String),
+
+    DoOperation(Operation),
+}
+
+fn apply_read_grammar(m: &mut Model, root_coord: Coordinate) {
+    let read_prefix_coord = coord!(root_coord, "A1");
+    m.col_widths.insert(read_prefix_coord.full_col(), 10.0);
+    let read_prefix = Grammar {
+        name: "read-$".to_string(),
+        style: Style::default(),
+        kind: Kind::Text("$".to_string()), 
+    };
+
+    let read_input_coord = coord!(root_coord, "B1");
+    m.col_widths.insert(read_input_coord.full_col(), 70.0);
+    let read_input = Grammar {
+        name: "read-input".to_string(),
+        style: Style::default(),
+        kind: Kind::Input(String::new()),
+    };
+
+    let read_output_coord = coord!(root_coord, "C1");
+    m.col_widths.insert(read_output_coord.full_col(), 70.0);
+    let read_output = Grammar {
+        name: "read-output".to_string(),
+        style: Style::default(),
+        kind: Kind::Text(String::new()),
+    };
+
+    let read = Grammar {
+        name: "$".to_string(),
+        style: Style::default(),
+        kind: Kind::Grid(row_col_vec![(1,1), (1, 2), (1, 3)]), 
+    };
+
+    m.grammars.insert(root_coord, read);
+    m.grammars.insert(read_prefix_coord, read_prefix);
+    m.grammars.insert(read_input_coord, read_input);
+    m.grammars.insert(read_output_coord, read_output);
+}
+
+fn apply_write_grammar(m: &mut Model, root_coord: Coordinate) {
 }
 
 fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
     // definition grammar contains the name of the grammar and then the list of
     // different parts of the grammar
-    let defn_label_coord = Coordinate::child_of(&root_coord, non_zero_u32_tuple((1,1)));
+    let defn_label_coord = coord!(root_coord, "A1");
     let mut defn_label_style = Style::default();
     defn_label_style.font_weight = 600;
     m.col_widths.insert(defn_label_coord.full_col(), 184.0); // set width of col
@@ -675,7 +764,7 @@ fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
         kind: Kind::Text("Define Grammar".to_string()),
     };
         
-    let defn_name_coord = Coordinate::child_of(&root_coord, non_zero_u32_tuple((2,1)));
+    let defn_name_coord = coord!(root_coord, "A2");
     m.col_widths.insert(defn_name_coord.full_col(), 184.0); // set width of col
     let defn_name = Grammar {
         name: "defn_name".to_string(),
@@ -683,32 +772,32 @@ fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
         kind: Kind::Input(String::new()),
     };
 
-    let defn_body_coord = Coordinate::child_of(&root_coord, non_zero_u32_tuple((3,1)));
+    let defn_body_coord = coord!(root_coord, "A3");
     let mut defn_body = Grammar::as_grid(NonZeroU32::new(2).unwrap(), NonZeroU32::new(2).unwrap());
     defn_body.name = "defn_body".to_string();
 
-    let defn_body_A1_coord = Coordinate::child_of(&defn_body_coord, non_zero_u32_tuple((1,1)));
+    let defn_body_A1_coord = coord!(defn_body_coord, "A1");
     let defn_body_A1 = Grammar {
         name: "".to_string(),
         style: Style::default(),
         kind: Kind::Input(String::new()),
     };
 
-    let defn_body_A2_coord = Coordinate::child_of(&defn_body_coord, non_zero_u32_tuple((2,1)));
+    let defn_body_A2_coord = coord!(defn_body_coord, "A1");
     let defn_body_A2 = Grammar {
         name: "".to_string(),
         style: Style::default(),
         kind: Kind::Input(String::new()),
     };
 
-    let defn_body_B1_coord = Coordinate::child_of(&defn_body_coord, non_zero_u32_tuple((1,2)));
+    let defn_body_B1_coord = coord!(defn_body_coord, "B1");
     let defn_body_B1 = Grammar {
         name: "".to_string(),
         style: Style::default(),
         kind: Kind::Input(String::new()),
     };
 
-    let defn_body_B2_coord = Coordinate::child_of(&defn_body_coord, non_zero_u32_tuple((2,2)));
+    let defn_body_B2_coord = coord!(defn_body_coord, "B2");
     let defn_body_B2 = Grammar {
         name: "".to_string(),
         style: Style::default(),
@@ -732,32 +821,32 @@ fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
 }
 
 fn resize(m: &mut Model, coord: Coordinate, row_height: f64, col_width: f64) {
+    let mut row_height_diff = 0.0;
+    let mut col_width_diff = 0.0;
+    if let Some(old_row_height) = m.row_heights.get_mut(&coord.full_row()) {
+        let new_row_height = row_height + /* horizontal border width */ 2.0;
+        row_height_diff = new_row_height - *old_row_height;
+        *old_row_height = new_row_height;
+    }
+    if let Some(old_col_width) = m.col_widths.get_mut(&coord.full_col()) {
+        let new_col_width = col_width + /* vertiacl border height */ 2.0;
+        col_width_diff = new_col_width - *old_col_width;
+        *old_col_width = new_col_width;
+    }
+    info!{"resizing cell: (row: {}, col: {}); height: {}, width: {}", coord.row_to_string(), coord.col_to_string(),  row_height_diff, col_width_diff};
     if let Some(parent_coord) = coord.parent() {
-        let mut row_height_diff = 0.0;
-        let mut col_width_diff = 0.0;
-        if let Some(old_row_height) = m.row_heights.get_mut(&coord.full_row()) {
-            let new_row_height = row_height + /* horizontal border width */ 2.0;
-            row_height_diff = new_row_height - *old_row_height;
-            *old_row_height = new_row_height;
-        }
-        if let Some(old_col_width) = m.col_widths.get_mut(&coord.full_col()) {
-            let new_col_width = col_width + /* vertiacl border height */ 2.0;
-            col_width_diff = new_col_width - *old_col_width;
-            *old_col_width = new_col_width;
-        }
-        info!{"resizing cell: (row: {}, col: {}); height: {}, width: {}", coord.row_to_string(), coord.col_to_string(),  row_height_diff, col_width_diff};
         resize_diff(m, parent_coord, row_height_diff, col_width_diff);
     }
 }
 
 fn resize_diff(m: &mut Model, coord: Coordinate, row_height_diff: f64, col_width_diff: f64) {
+    if let Some(row_height) = m.row_heights.get_mut(&coord.full_row()) {
+        *row_height = row_height_diff + /* horizontal border width */ 2.0; 
+    }
+    if let Some(col_width) = m.col_widths.get_mut(&coord.full_col()) {
+        *col_width = col_width_diff + /* vertical border height */ 2.0;
+    }
     if let Some(parent_coord) = coord.parent() {
-        if let Some(row_height) = m.row_heights.get_mut(&coord.full_row()) {
-            *row_height = row_height_diff + /* horizontal border width */ 2.0; 
-        }
-        if let Some(col_width) = m.col_widths.get_mut(&coord.full_col()) {
-            *col_width = col_width_diff + /* vertical border height */ 2.0;
-        }
         resize_diff(m, parent_coord, row_height_diff, col_width_diff);
     }
 }
@@ -832,8 +921,7 @@ impl Component for Model {
             },
             value: String::new(),
             active_cell: Some(coord!("root-A1")),
-            suggestions: vec![ coord!("meta-A1"), coord!("meta-A2"), coord!("meta-A3") ],
-            // suggestions: vec![],
+            suggestions: vec![ coord!("meta-A1"), coord!("meta-A2"), coord!("meta-A3"), coord!("meta-A4") ],
 
             console: ConsoleService::new(),
             reader: ReaderService::new(),
@@ -869,7 +957,8 @@ impl Component for Model {
             link,
             tasks: vec![],
         };
-        apply_definition_grammar(&mut m, coord!("meta-A3"));
+        apply_read_grammar(&mut m, coord!("meta-A3"));
+        apply_definition_grammar(&mut m, coord!("meta-A4"));
         m
     }
 
@@ -964,7 +1053,7 @@ impl Component for Model {
             }
             Action::InsertCol => {
                 if let Some(coord) = self.active_cell.clone() {
-                    // find the bottom-most coord
+                    // find the right-most coord
                     let mut right_most_coord = coord.clone();
                     while let Some(right_coord) = right_most_coord.neighbor_right() {
                         if self.grammars.contains_key(&right_coord) {
@@ -1325,8 +1414,7 @@ fn view_input_grammar(
                     onclick=m.link.callback(move |_ : ClickEvent| Action::DoCompletion(s_coord.clone(), c.clone()))>
                     { &s_grammar.name }
                 </a>
-            })
-            
+            });
         }
     }
     let suggestions = html!{
