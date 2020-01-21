@@ -330,20 +330,6 @@ impl Serialize for Session {
         state.end()
     }
 }
-/*
-impl Serialize for HashMap<Coordinate, Grammar> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut map = serializer.serialize_map(Some(self.grammars.len()))?;
-        for (k, v) in self.grammars {
-            map.serialize_entry(k, v)?;
-        }
-        map.end()
-    }
-}
-*/
 
 // Model contains the entire state of the application
 #[derive(Debug)]
