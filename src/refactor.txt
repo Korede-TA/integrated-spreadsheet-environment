@@ -27,6 +27,7 @@ session.rs:
 
 style.rs:
     Style
+    get_style
 
 utils.rs:
     all misc/helper function that AREN'T macros go here

@@ -6,6 +6,7 @@ use yew::virtual_dom::{VList};
 use crate::model::{Action,Model,SideMenu};
 use crate::grammar::{Grammar, Kind, Interactive};
 use crate::coordinate::Coordinate;
+use crate::style::get_style;
 
 
 pub fn view_side_nav(m: &Model) -> Html {
@@ -208,7 +209,7 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                     <div
                         class=format!{"cell row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
                         id=format!{"cell-{}", coord.to_string()}
-                        style={ m.get_style(&coord) }>
+                        style={ get_style(&m, &coord) }>
                         <button>
                             { name }
                         </button>
@@ -220,7 +221,7 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                     <div 
                         class=format!{"cell row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
                         id=format!{"cell-{}", coord.to_string()}
-                        style={ m.get_style(&coord) }>
+                        style={ get_style(&m, &coord) }>
                         <input type="range" min={min} max={max} value={value}>
                             { name }
                         </input>
@@ -232,7 +233,7 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                     <div
                         class=format!{"cell row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
                         id=format!{"cell-{}", coord.to_string()}
-                        style={ m.get_style(&coord) }>
+                        style={ get_style(&m, &coord) }>
                         <input type="checkbox" checked={checked}>
                             { name }
                         </input>
@@ -288,7 +289,7 @@ pub fn view_input_grammar(
         <div
             class=format!{"cell suggestion row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
-            style={ m.get_style(&coord) }>
+            style={ get_style(&m, &coord) }>
             <input 
                 class={ format!{ "cell-data {}", active_cell_class } }
                 value=value
@@ -306,7 +307,7 @@ pub fn view_text_grammar(m: &Model, coord: &Coordinate, value : String) -> Html 
         <div
             class=format!{"cell text row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
-            style={ m.get_style(&coord) }>
+            style={ get_style(&m, &coord) }>
             { value }
         </div>
     }
@@ -323,7 +324,7 @@ pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordina
         <div
             class=format!{"cell grid row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
-            style={ m.get_style(&coord) }>
+            style={ get_style(&m, &coord) }>
             { nodes }
         </div>
     }

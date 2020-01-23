@@ -130,25 +130,6 @@ impl Model {
         }
     }
 
-    pub fn get_style(&self, coord: &Coordinate) -> String {
-        let grammar = self.grammars.get(coord).expect("no grammar with this coordinate");
-        if coord.row_cols.len() == 1 {  // root or meta
-            return grammar.style(coord);
-        }
-        if let Kind::Grid(_) = grammar.kind {
-            return format!{
-                "{}\nwidth: fit-content;\nheight: fit-content;\n",
-                grammar.style(coord),
-            };
-        }
-        let col_width = self.col_widths.get(&coord.full_col()).unwrap_or(&90.0);
-        let row_height = self.row_heights.get(&coord.full_row()).unwrap_or(&30.0);
-        format!{
-            "{}\nwidth: {}px;\nheight: {}px;\n",
-            grammar.style(coord), col_width, row_height,
-        }
-    }
-
     fn query_parent(&self, coord_parent: Coordinate) -> Vec<Coordinate> {
         self.grammars.keys().clone().filter_map(|k| {
             if k.parent() == Some(coord_parent.clone()) {
