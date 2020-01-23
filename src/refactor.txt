@@ -1,0 +1,61 @@
+INFO ABOUT REFACTOR
+
+When adding a new file FILENAME.rs:
+    - Anything that will need to be accessed from other files 
+      (functions, enums, structs, attributes, methods) 
+      needs pub in front of it.
+    - In lib.rs:
+        pub mod FILENAME;
+    - Accessing things in FILENAME.rs from other files:
+        use crate::FILENAME::{things};
+        - ONE EXCEPTION:
+          macros are always imported with
+            use crate::MACRO_NAME;
+          regardless of what file they are in.
+          
+          
+lib.rs:
+    run_app()
+
+coordinate.rs:
+    anything to do with the coordinate/grid structure
+    Coordinate
+    Row
+    Col
+    coord, coord_row, coord_col macros
+
+grammar.rs:
+    anything to do with grammars
+    Grammar
+    Kind
+    Interactive
+
+model.rs:
+    anything to do with the state of the application
+     still almost 800 lines, maybe could be split up more
+    Model
+    SideMenu
+    Action
+
+session.rs:
+    all saving/loading code will go here
+    Session
+
+style.rs:
+    Style
+    get_style
+
+util.rs:
+    all misc/helper functions go here
+
+view.rs:
+    all html! related code goes here
+    view_* functions
+
+
+
+
+
+
+        
+    

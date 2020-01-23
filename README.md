@@ -33,3 +33,18 @@ Data model consists of a Map of coordinates (as strings) to structs representing
 representation of a program.
 
 Each grammar (cell) is either a static text value, an input box, or a nested table of grammars.
+
+# Adding new files
+
+When adding a new file FILENAME.rs:
+    - Anything that will need to be accessed from other files 
+      (functions, enums, structs, attributes, methods) 
+      needs pub in front of it.
+    - In lib.rs:
+        pub mod FILENAME;
+    - Accessing things in FILENAME.rs from other files:
+        use crate::FILENAME::{things};
+        - ONE EXCEPTION:
+          macros are always imported with
+            use crate::MACRO_NAME;
+          regardless of what file they are in.
