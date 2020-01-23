@@ -22,6 +22,12 @@ use crate::utils::{
     non_zero_u32_tuple, 
     move_grammar
 };
+use crate::view::{
+    view_grammar,
+    view_menu_bar,
+    view_side_nav,
+    view_tab_bar
+};
 use crate::{
     row_col_vec, 
     coord, 
@@ -48,31 +54,31 @@ pub struct Model {
 
     pub grammars: HashMap</*Key*/ Coordinate, /*Value*/ Grammar>,
     value: String,  // what is this?????
-    active_cell: Option<Coordinate>,
-    suggestions: Vec<Coordinate>,
+    pub active_cell: Option<Coordinate>,
+    pub suggestions: Vec<Coordinate>,
 
     pub col_widths: HashMap<Col, f64>,
     pub row_heights: HashMap<Row, f64>,
 
     // tabs correspond to sessions
-    tabs: Vec<String>,
-    current_tab: i32,
+    pub tabs: Vec<String>,
+    pub current_tab: i32,
 
     // side menus
-    side_menus: Vec<SideMenu>,
-    open_side_menu: Option<i32>,
+    pub side_menus: Vec<SideMenu>,
+    pub open_side_menu: Option<i32>,
 
     console: ConsoleService,
     reader: ReaderService,
 
-    link: ComponentLink<Model>,
+    pub link: ComponentLink<Model>,
     tasks: Vec<ReaderTask>,
 }
 
 #[derive(Debug)]
-struct SideMenu {
-    name: String,
-    icon_path: String,
+pub struct SideMenu {
+    pub name: String,
+    pub icon_path: String,
 }
 
 // ACTIONS
@@ -124,7 +130,7 @@ impl Model {
         }
     }
 
-    fn get_style(&self, coord: &Coordinate) -> String {
+    pub fn get_style(&self, coord: &Coordinate) -> String {
         let grammar = self.grammars.get(coord).expect("no grammar with this coordinate");
         if coord.row_cols.len() == 1 {  // root or meta
             return grammar.style(coord);
@@ -444,325 +450,3 @@ impl Component for Model {
     }
 }
 
-
-fn view_side_nav(m: &Model) -> Html {
-    let mut side_menu_nodes = VList::new();
-    let mut side_menu_section = html! { <></> };
-    for (index, side_menu) in m.side_menus.iter().enumerate() {
-        if Some(index as i32) == m.open_side_menu {
-            side_menu_nodes.add_child(html! {
-                <button class="active-menu" onclick=m.link.callback(|e| Action::SetActiveMenu(None))>
-                    <img 
-                        src={side_menu.icon_path.clone()} 
-                        width="40px" alt={side_menu.name.clone()}>
-                    </img>
-                </button>
-            });
-
-            side_menu_section = view_side_menu(m, side_menu);
-        } else {
-            side_menu_nodes.add_child(html! {
-                <button onclick=m.link.callback(move |e| Action::SetActiveMenu(Some(index as i32)))>
-                    <img 
-                        src={side_menu.icon_path.clone()} 
-                        width="40px" alt={side_menu.name.clone()}>
-                    </img>
-                </button>
-            });
-        }
-    }
-
-    html! {
-        <div class="sidenav">
-            { side_menu_nodes }
-
-            { side_menu_section }
-        </div>
-    }
-}
-
-fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html {
-    match side_menu.name.deref() {
-        "Home" => {
-            html! {
-                <div class="side-menu-section">
-                    {"THIS IS Home MENU"}
-                </div>
-            } 
-        },
-        "File Explorer" => {
-            html! {
-                <div class="side-menu-section">
-                    <h1>
-                        {"File Explorer"}
-                    </h1>
-
-                    <h3>{"load session"}</h3>
-                    <br></br>
-                    <input type="file" onchange=m.link.callback(|value| {
-                        if let ChangeData::Files(files) = value {
-                            if files.len() >= 1 {
-                                if let Some(file) = files.iter().nth(0) {
-                                    return Action::ReadSession(file);
-                                }
-                            } else {
-                                return Action::Alert("Could not load file".to_string());
-                            }
-                        }
-                        Action::Noop
-                    })>
-                    </input>
-
-                    <h3>{"save session"}</h3>
-                    <br></br>
-                    <input type="file" onchange=m.link.callback(|value| {
-                        if let ChangeData::Files(files) = value {
-                            if files.len() >= 1 {
-                                if let Some(file) = files.iter().nth(0) {
-                                    return Action::SaveSession();
-                                }
-                            }
-                        }
-                        Action::Noop
-                    })>
-                        
-                    </input>
-                </div>
-            } 
-        },
-        "Settings" => {
-            html! {
-                <div class="side-menu-section">
-                    {"THIS IS Settings MENU"}
-                </div>
-            } 
-        },
-        "Info" => {
-            html! {
-                <div class="side-menu-section">
-                    {"THIS IS info MENU"}
-                </div>
-            } 
-        },
-
-        _ => html! {<> </>}
-
-    }
-}
-
-
-fn view_menu_bar(m: &Model) -> Html {
-    html! {
-        <div class="menu-bar horizontal-bar">
-            <input 
-                class="active-cell-indicator"
-                disabled=true 
-                // TODO: clicking on this should highlight
-                // the active cell
-                value={
-                    if let Some(cell) = m.active_cell.clone() {
-                        cell.to_string()
-                    } else {
-                        "".to_string()
-                    }
-                }>
-            </input>
-            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::Noop) >
-                { "Save" }
-            </button>
-            <button class="menu-bar-button">
-                { "Git" }
-            </button>
-            <button class="menu-bar-button">
-                { "Zoom In (+)" }
-            </button>
-            <button class="menu-bar-button">
-                { "Zoom Out (-)" }
-            </button>
-            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::InsertRow)>
-                { "Insert Row" }
-            </button>
-            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::InsertCol)>
-                { "Insert Column" }
-            </button>
-            <button class="menu-bar-button">
-                { "Delete Row" }
-            </button>
-            <button class="menu-bar-button">
-                { "Delete Column" }
-            </button>
-        </div>
-    }
-}
-
-fn view_tab_bar(m: &Model) -> Html {
-    let mut tabs = VList::new();
-    for (index, tab) in m.tabs.clone().iter().enumerate() {
-        if (index as i32) == m.current_tab {
-            tabs.add_child(html! {
-                <button class="tab active-tab">{ tab }</button>
-            });
-        } else {
-            tabs.add_child(html! {
-                <button class="tab">{ tab }</button>
-            });
-        }
-    }
-    html! {
-        <div class="tab-bar horizontal-bar">
-            { tabs }
-            <button class="newtab-btn">
-                <span>{ "+" }</span>
-            </button>
-        </div>
-    }
-}
-
-fn view_grammar(m: &Model, coord: Coordinate) -> Html {
-    if let Some(grammar) = m.grammars.get(&coord) {
-        match grammar.kind.clone() {
-            Kind::Text(value) => {
-                view_text_grammar(m, &coord, value)
-            }
-            Kind::Input(value) => {
-                let is_active = m.active_cell.clone() == Some(coord.clone());
-                let suggestions = m.suggestions.iter().filter_map(|suggestion_coord| {
-                    if let Some(suggestion_grammar) = m.grammars.get(&suggestion_coord) {
-                        Some((suggestion_coord.clone(), suggestion_grammar.clone()))
-                    } else {
-                        None
-                    }
-                }).collect();
-                view_input_grammar(
-                    m,
-                    coord.clone(),
-                    suggestions,
-                    value,
-                    is_active,
-                )
-            }
-            Kind::Interactive(name, Interactive::Button()) => {
-                html! {
-                    <div
-                        class=format!{"cell row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
-                        id=format!{"cell-{}", coord.to_string()}
-                        style={ m.get_style(&coord) }>
-                        <button>
-                            { name }
-                        </button>
-                    </div>
-                }
-            }
-            Kind::Interactive(name, Interactive::Slider(value, min, max)) => {
-                html! {
-                    <div 
-                        class=format!{"cell row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
-                        id=format!{"cell-{}", coord.to_string()}
-                        style={ m.get_style(&coord) }>
-                        <input type="range" min={min} max={max} value={value}>
-                            { name }
-                        </input>
-                    </div>
-                }
-            }
-            Kind::Interactive(name, Interactive::Toggle(checked)) => {
-                html! {
-                    <div
-                        class=format!{"cell row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
-                        id=format!{"cell-{}", coord.to_string()}
-                        style={ m.get_style(&coord) }>
-                        <input type="checkbox" checked={checked}>
-                            { name }
-                        </input>
-                    </div>
-                }
-            }
-            Kind::Grid(sub_coords) => {
-                view_grid_grammar(
-                    m,
-                    &coord,
-                    sub_coords.iter().map(|c| Coordinate::child_of(&coord, *c)).collect(),
-                )
-            }
-        }
-    } else {
-        // return empty fragment
-        html! { <></> }
-    }
-}
-
-fn view_input_grammar(
-    m: &Model,
-    coord: Coordinate,
-    suggestions: Vec<(Coordinate, Grammar)>,
-    value: String,
-    is_active: bool,
-) -> Html {
-    let mut suggestion_nodes = VList::new();
-    let mut active_cell_class = "cell-inactive";
-    if is_active {
-        active_cell_class = "cell-active";
-        for (s_coord, s_grammar) in suggestions {
-            let c = coord.clone();
-            suggestion_nodes.add_child(html! {
-                <a 
-                    tabindex=-1
-                    onclick=m.link.callback(move |_ : ClickEvent| Action::DoCompletion(s_coord.clone(), c.clone()))>
-                    { &s_grammar.name }
-                </a>
-            })
-            
-        }
-    }
-    let suggestions = html!{
-        <div class="suggestion-content">
-            { suggestion_nodes }
-        </div>
-    };
-
-    let new_active_cell = coord.clone();
-
-    html! {
-        <div
-            class=format!{"cell suggestion row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
-            id=format!{"cell-{}", coord.to_string()}
-            style={ m.get_style(&coord) }>
-            <input 
-                class={ format!{ "cell-data {}", active_cell_class } }
-                value=value
-                oninput=m.link.callback(move |e : InputData| Action::ChangeInput(coord.clone(), e.value))
-                onclick=m.link.callback(move |_ : ClickEvent| Action::SetActiveCell(new_active_cell.clone()))>
-            </input>
-            
-            { suggestions }
-        </div>
-    }
-}
-
-fn view_text_grammar(m: &Model, coord: &Coordinate, value : String) -> Html {
-    html! {
-        <div
-            class=format!{"cell text row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
-            id=format!{"cell-{}", coord.to_string()}
-            style={ m.get_style(&coord) }>
-            { value }
-        </div>
-    }
-}
-
-fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordinate>) -> Html {
-    let mut nodes = VList::new();
-
-    for c in sub_coords {
-        nodes.add_child(view_grammar(m, c.clone()));
-    }
-
-    html! {
-        <div
-            class=format!{"cell grid row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
-            id=format!{"cell-{}", coord.to_string()}
-            style={ m.get_style(&coord) }>
-            { nodes }
-        </div>
-    }
-}

@@ -20,7 +20,6 @@ model.rs:
     Model
     SideMenu
     Action
-    view_ functions
 
 session.rs:
     all saving/loading code will go here
@@ -31,3 +30,7 @@ style.rs:
 
 utils.rs:
     all misc/helper function that AREN'T macros go here
+
+view.rs:
+    all html! related code goes here
+    view_* functions

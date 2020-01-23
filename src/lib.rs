@@ -17,11 +17,9 @@ pub mod model;
 pub mod session;
 pub mod style;
 #[macro_use] pub mod utils;
+pub mod view;
 
-use crate::coordinate::Coordinate;
-use crate::grammar::{Grammar, Kind};
 use crate::model::Model;
-use crate::style::Style;
 
 /*
  * DATA MODEL:
