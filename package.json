@@ -4,10 +4,11 @@
   "description": "Experimental speadsheet-based interface for structured programming based on \"structured grammars\".",
   "main": "dist/main.js",
   "scripts": {
+    "dev": "watch 'npm run start' src",
     "test": "echo \"Error: no test specified\" && exit 1",
     "start-cargo": "cargo watch -w src/ -s './scripts/build.sh && electron .'",
     "start": "webpack --config ./webpack.config.js && electron dist/index.html",
-    "watch": "cargo watch -w src/ -w static/styles.css -s 'npm run start'"
+    "watch": "cargo watch -w src/ -w static/styles.css -s 'npm run build'"
   },
   "repository": {
     "type": "git",
@@ -26,6 +27,7 @@
     "@wasm-tool/wasm-pack-plugin": "^1.0.1",
     "copy-webpack-plugin": "^5.0.5",
     "html-webpack-plugin": "^3.2.0",
+    "watch": "^1.0.2",
     "webpack": "^4.41.5",
     "webpack-cli": "^3.3.10",
     "webpack-dev-server": "^3.9.0"
