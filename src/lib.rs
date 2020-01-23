@@ -16,7 +16,7 @@ pub mod grammar;
 pub mod model;
 pub mod session;
 pub mod style;
-pub mod utils;
+pub mod util;
 pub mod view;
 
 use crate::model::Model;

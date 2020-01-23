@@ -15,7 +15,7 @@ use crate::grammar::{Grammar, Kind, Interactive};
 use crate::style::Style;
 use crate::coordinate::{Coordinate, Row, Col};
 use crate::session::Session;
-use crate::utils::{
+use crate::util::{
     resize_cells, 
     resize, 
     apply_definition_grammar, 

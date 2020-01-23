@@ -29,7 +29,7 @@ style.rs:
     Style
     get_style
 
-utils.rs:
+util.rs:
     all misc/helper functions go here
 
 view.rs:

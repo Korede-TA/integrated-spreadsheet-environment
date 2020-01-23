@@ -7,7 +7,7 @@ use std::panic;
 use crate::grammar::{Grammar, Kind};
 use crate::model::Model;
 use crate::style::Style;
-use crate::utils::coord_show;
+use crate::util::coord_show;
 
 // Coordinate specifies the nested coordinate structure
 #[derive(Deserialize, PartialEq, Eq, Debug, Hash, Clone)]
