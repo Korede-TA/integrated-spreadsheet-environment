@@ -4,23 +4,20 @@ use std::collections::HashMap;
 use std::num::NonZeroU32;
 use std::char::from_u32;
 use std::ops::Deref;
-use std::iter::FromIterator;
 use std::cmp::Ordering;
 use std::option::Option;
 use serde::{Serialize, Deserialize};
 use yew::{html, ChangeData, Component, ComponentLink, Html, ShouldRender, InputData};
-use yew::callback::Callback;
 use yew::events::{IKeyboardEvent, ClickEvent, KeyPressEvent};
 use yew::services::{ConsoleService};
-use yew::services::reader::{File, FileChunk, FileData, ReaderService, ReaderTask};
+use yew::services::reader::{File, FileData, ReaderService, ReaderTask};
 use yew::virtual_dom::{VList};
 use wasm_bindgen::prelude::*;
-use stdweb::Value;
-use stdweb::web::{document, Element, HtmlElement, IElement, IHtmlElement, INode, IParentNode, INonElementParentNode};
-use stdweb::unstable::TryFrom;
-use log::trace;
-use itertools::Itertools;
+use stdweb::web::{document, HtmlElement, IElement, IHtmlElement, INode, IParentNode, INonElementParentNode};
+use stdweb::unstable::{TryFrom, TryInto};
 use pest::Parser;
+use electron_sys::{ipc_renderer};
+use wasm_bindgen::JsValue;
 
 extern crate web_logger;
 extern crate pest;
@@ -673,6 +670,60 @@ impl Coordinate {
         None
     }
 
+    fn from_string(coord_str: String) -> Self {
+        let mut fragments: Vec<(NonZeroU32, NonZeroU32)> = Vec::new();
+
+        let pairs = CoordinateParser::parse(Rule::coordinate, coord_str.deref()).unwrap_or_else(|e| panic!("{}", e));
+
+        for pair in pairs {
+            match pair.as_rule() {
+                Rule::special if pair.as_str() == "root" => {
+                    fragments.push(non_zero_u32_tuple((1, 1)));
+                }
+                Rule::special if pair.as_str() == "meta" => {
+                    fragments.push(non_zero_u32_tuple((1, 2)));
+                }
+                Rule::fragment => {
+                    let mut fragment: (u32, u32) = (0,0);
+                    for inner_pair in pair.into_inner() {
+                        match inner_pair.as_rule() {
+                            // COLUMN
+                            Rule::alpha => {
+                                let mut val: u32 = 0;
+                                for ch in inner_pair.as_str().to_string().chars() {
+                                    val += (ch as u32) - 64;
+                                }
+                                fragment.1 = val;
+                            }
+                            // ROW
+                            Rule::digit => {
+                                fragment.0 = inner_pair.as_str().parse::<u32>().unwrap();
+                            }
+                            _ => unreachable!()
+                        };
+                    }
+                    fragments.push(non_zero_u32_tuple(fragment));
+                }
+                _ => unreachable!()
+            }
+        }
+
+        Coordinate {
+            row_cols: fragments,
+        }
+    }
+}
+
+// Operations are custom things that happen when you
+// interact with a grammar in a specific way
+enum Operation {
+    // 
+    Defn(Coordinate),
+
+    Read(Coordinate),
+    
+    // invoke a driver with the following string arguments
+    Driver(String, Vec<String>),
 }
 
 // ACTIONS
@@ -681,8 +732,8 @@ enum Action {
     // Do nothing
     Noop,
 
-    // Change string value of Input grammar
-    ChangeInput(Coordinate, /* new_value: */ String),
+    // Change string value of Input/Text grammars, based on value of source grammar
+    ChangeValue(/* Source */ Coordinate, /* new_value: */ String, /* destination */ Vec<Coordinate>),
 
     // Show suggestions dropdown at Coordinate based on query
     ShowSuggestions(Coordinate, /* query: */ String),
@@ -694,10 +745,13 @@ enum Action {
     SetActiveMenu(Option<i32>),
 
     ReadSession(/* filename: */ File),
-
     LoadSession(FileData),
 
     SaveSession,
+
+    ReadDriverFiles(Vec<File>),
+    LoadDriverMainFile(FileData),
+    UploadDriverMiscFile(FileData),
 
     // Grid Operations
     AddNestedGrid(Coordinate, (u32 /*rows*/, u32 /*cols*/)),
@@ -974,12 +1028,33 @@ impl Component for Model {
                 false
             }
 
-            Action::ChangeInput(coord, new_value) => {
-                let old_grammar = self.grammars.get_mut(&coord);
-                match old_grammar {
-                    Some(g @ Grammar { kind: Kind::Text(_), .. }) => {
+            Action::ChangeValue(coord, new_value, destinations) => {
+                let grammar = self.grammars.get_mut(&coord);
+                match grammar {
+                    Some(g @ Grammar { kind: Kind::Input(_), /* name, */ .. }) => {
+                        // Special cases:
+                        // - when changing value for read-input, use inputted coord to read value to
+                        //   read output cell.
+                        // if name.clone() == "read-input".to_string() {
+                        //     let read_coord = Coordinate::from_string(new_value.clone());
+                        //     let read_g = self.grammars.get(&read_coord);
+                        //     match read_g {
+                        //         Some(Grammar { kind: Kind::Text(value), .. }) |  
+                        //         Some(Grammar { kind: Kind::Input(value), .. }) => {
+                        //             let read_output = self.grammars.get_mut(&coord.neighbor_right().unwrap());
+                        //             if let Kind::Text(old_value) = read_output.unwrap().kind {
+                        //                 old_value = value.to_string();
+                        //             }
+                        //             if let Kind::Input(old_value) = read_output.unwrap().kind {
+                        //                 old_value = value.to_string();
+                        //             }
+                        //         },
+                        //         _ => ()
+                        //     }
+                        // }
+                        // Standard case, update value in model
                         self.console.log(&new_value);
-                        g.kind = Kind::Text(new_value);
+                        g.kind = Kind::Input(new_value);
                     },
                     _ => ()
                 }
@@ -1016,6 +1091,96 @@ impl Component for Model {
             Action::LoadSession(file_data) => {
                 let session : Session = serde_json::from_str(format!{"{:?}", file_data}.deref()).unwrap();
                 self.load_session(session);
+                true
+            }
+
+            Action::ReadDriverFiles(files_list) => {
+                // Get the main file and miscellaneous/additional files from the drivers list 
+                let (main_file, misc_files) = {
+                    let (main_file_as_vec, misc_files) : (Vec<File>, Vec<File>) = files_list.iter().fold((Vec::new(), Vec::new()), |accum, file| { 
+                        // Iter::partition is used to divide a list into two given a certain condition.
+                        // Here the condition here is to separate the main file of the driver from the
+                        // addditional ones, where the main file's path looks like
+                        // '{directory_name}/{file_name}.js' and the directory_name == file_name
+                        let mut new_accum = accum.clone();
+                        // use `webkitRelativePath` as the `name`, if it's available
+                        // we'll call out to regular JS to do this using the `js!` macro.
+                        // Note that yew::services::reader::File::name() calls "file.name" under the
+                        // hood (https://docs.rs/stdweb/0.4.20/src/stdweb/webapi/file.rs.html#23)
+                        let full_file_name : String = js!(
+                            if (!!@{&file}.webkitRelativePath) {
+                                return @{&file}.webkitRelativePath;
+                            } else {
+                                console.log("couldn't get relative path of file: ", @{&file}.name);
+                                return @{&file}.name; // equivalent to yew::services::reader::File::name()
+                            }
+                        ).try_into().unwrap();
+                        let path_parts : Vec<&str> = full_file_name.split("/").collect();
+                        match (path_parts.first(), path_parts.last(), path_parts.len()) {
+                            (Some(directory), Some(file_name), 2) if format!{"{}.js", directory} == file_name.to_string() => {
+                                if new_accum.0.len() == 0 {
+                                    new_accum.0.push(file.clone());
+                                } else {
+                                    panic!("[Action::ReadDriverFiles]: there shouldn't be more than 1 main file in the driver directory")
+                                }
+                            },
+                            _ => {
+                                new_accum.1.push(file.clone());
+                            },
+                        };
+                        new_accum
+                    });
+                    // the `partition` call above gives us a tuple of two Vecs (Vec, Vec) where the first Vec 
+                    // should have only one element, so we'll convert it to a (Vec::Item, Vec).
+                    // If this has an error, then there's something wrong with how the driver
+                    // directory is organized.
+                    (main_file_as_vec.first().unwrap().clone(), misc_files.clone())
+                };
+
+                // upload misc files so they can be served by electron to be used by main driver file
+                let upload_callback = self.link.callback(|file_data| Action::UploadDriverMiscFile(file_data));
+                for file in misc_files {
+                    let task = self.reader.read_file(file, upload_callback.clone());
+                    self.tasks.push(task);
+                }
+
+                // Load main driver file. After this task has been scheduled and executed, the
+                // driver is ready for use.
+                self.tasks.push(
+                    self.reader.read_file(main_file, 
+                        self.link.callback(Action::LoadDriverMainFile)));
+
+                false
+            }
+
+            Action::UploadDriverMiscFile(file_data) => {
+                // Here, we use some electron APIs to call out to the main process in JS.
+                // For this, we use the `electron_sys` library which is pretty experimental but
+                // feature complete.
+                // See here for documentation how to communicate between the main and renderer proess in Electron:
+                //   https://www.tutorialspoint.com/electron/electron_inter_process_communication.htm
+                // And here, for the documentation for the electon_sys Rust bindings for electron.ipcRenderer:
+                //   https://docs.rs/electron-sys/0.4.0/electron_sys/struct.IpcRenderer.html 
+                
+                let args : [JsValue; 2] = [
+                    JsValue::from_str(file_data.name.deref()),
+                    JsValue::from_str(std::str::from_utf8(&file_data.content).unwrap()),
+                ];
+                ipc_renderer.send_sync("upload-driver-misc-file", Box::new(args));
+                false
+            }
+
+            Action::LoadDriverMainFile(main_file_data) => {
+                info!{"Loading Driver: {}", &main_file_data.name};
+                let file_contents = std::str::from_utf8(&main_file_data.content).unwrap();
+                // dump file contents into script tag and attach to the DOM
+                let script = document().create_element("script").unwrap();
+                script.set_text_content(file_contents);
+                script.set_attribute("type", "text/javascript");
+                script.set_attribute("class", "ise-driver");
+                script.set_attribute("defer", "true");
+                let head = document().query_selector("head").unwrap().unwrap();
+                head.append_child(&script);
                 true
             }
 
@@ -1117,6 +1282,8 @@ impl Component for Model {
                 }
                 true
             }
+
+            Action::DoOperation(_) => false,
         }
     }
 
@@ -1237,7 +1404,35 @@ fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html {
         "Settings" => {
             html! {
                 <div class="side-menu-section">
-                    {"THIS IS Settings MENU"}
+                    <h1>
+                        {"Settings"}
+                    </h1>
+
+                    <h3>{"load driver"}</h3>
+                    <br></br>
+                    // drivers will be represented as directories, so we use "webkitdirectory"
+                    // (which isn't standard, but supported in chrome) to get an array of files in
+                    // the dirctory
+                    // https://developer.mozilla.org/en-US/docs/Web/API/HTMLInputElement/webkitdirectory
+                    <input 
+                        type="file"
+                        webkitdirectory=""
+                        onchange=m.link.callback(|value| {
+                        if let ChangeData::Files(files) = value {
+                            // `files` will be a flat list with each file's "webkitRelativePath",
+                            // being a full path starting with the directory name.
+                            // ReadDriverFiles will load the .js file with the same name as the
+                            // directory, and upload the rest of the files to be served by electron
+                            let files_list : Vec<File> = files.into_iter().collect();
+                            if files_list.len() >= 1 {
+                                return Action::ReadDriverFiles(files_list);
+                            } else {
+                                return Action::Alert("Could not load Driver".to_string());
+                            }
+                        }
+                        Action::Noop
+                    })>
+                    </input>
                 </div>
             } 
         },
@@ -1425,6 +1620,9 @@ fn view_input_grammar(
 
     let new_active_cell = coord.clone();
 
+    let change_destinations = vec![
+    ];
+
     html! {
         <div
             class=format!{"cell suggestion row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
@@ -1433,7 +1631,7 @@ fn view_input_grammar(
             <input 
                 class={ format!{ "cell-data {}", active_cell_class } }
                 value=value
-                oninput=m.link.callback(move |e : InputData| Action::ChangeInput(coord.clone(), e.value))
+                oninput=m.link.callback(move |e : InputData| Action::ChangeValue(coord.clone(), e.value, change_destinations.clone()))
                 onclick=m.link.callback(move |_ : ClickEvent| Action::SetActiveCell(new_active_cell.clone()))>
             </input>
             
