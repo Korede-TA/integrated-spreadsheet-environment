@@ -1,5 +1,4 @@
 lib.rs:
-    ALL macro_rules! definitions go here
     run_app()
 
 coordinate.rs:
@@ -7,6 +6,7 @@ coordinate.rs:
     Coordinate
     Row
     Col
+    coord, coord_row, coord_col macros
 
 grammar.rs:
     anything to do with grammars
@@ -30,7 +30,7 @@ style.rs:
     get_style
 
 utils.rs:
-    all misc/helper function that AREN'T macros go here
+    all misc/helper functions go here
 
 view.rs:
     all html! related code goes here

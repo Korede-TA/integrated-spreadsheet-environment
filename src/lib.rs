@@ -16,7 +16,7 @@ pub mod grammar;
 pub mod model;
 pub mod session;
 pub mod style;
-#[macro_use] pub mod utils;
+pub mod utils;
 pub mod view;
 
 use crate::model::Model;
@@ -48,99 +48,8 @@ use crate::model::Model;
  */
 
 
-// macro for easily defining a vector of non-zero tuples
-// used in Coordinate::root() below
-#[macro_export]
-macro_rules! row_col_vec {
-    ( $( $x:expr ), * ) => {
-        {
-            let mut v: Vec<(NonZeroU32, NonZeroU32)> = Vec::new();
-            $(
-                v.push(non_zero_u32_tuple($x));
-            )*
-            v
-        }
-    };
-}
 
-// macro for easily defining a coordinate
-// either absolutely or relative to it's parent coordinate
-// TODO: this code is messy, can be optimized more later 
-#[macro_export]
-macro_rules! coord {
-    ( $coord_str:tt ) => {
-        {
-            
 
-            let mut fragments: Vec<(NonZeroU32, NonZeroU32)> = Vec::new();
-
-            let pairs = CoordinateParser::parse(Rule::coordinate, $coord_str).unwrap_or_else(|e| panic!("{}", e));
-
-            for pair in pairs {
-                match pair.as_rule() {
-                    Rule::special if pair.as_str() == "root" => {
-                        fragments.push(non_zero_u32_tuple((1, 1)));
-                    }
-                    Rule::special if pair.as_str() == "meta" => {
-                        fragments.push(non_zero_u32_tuple((1, 2)));
-                    }
-                    Rule::fragment => {
-                        let mut fragment: (u32, u32) = (0,0);
-                        for inner_pair in pair.into_inner() {
-                            match inner_pair.as_rule() {
-                                // COLUMN
-                                Rule::alpha => {
-                                    let mut val: u32 = 0;
-                                    for ch in inner_pair.as_str().to_string().chars() {
-                                        val += (ch as u32) - 64;
-                                    }
-                                    fragment.1 = val;
-                                }
-                                // ROW
-                                Rule::digit => {
-                                    fragment.0 = inner_pair.as_str().parse::<u32>().unwrap();
-                                }
-                                _ => unreachable!()
-                            };
-                        }
-                        fragments.push(non_zero_u32_tuple(fragment));
-                    }
-                    _ => unreachable!()
-                }
-            }
-
-            Coordinate {
-                row_cols: fragments,
-            }
-        }
-    };
-
-}
-
-#[macro_export]
-macro_rules! coord_col {
-    ( $parent_str:tt, $col_str:tt ) => {
-        {
-            let mut col: u32 = 0;
-            for ch in $col_str.to_string().chars() {
-                col += (ch as u32) - 64;
-            }
-
-            Col(coord!($parent_str), NonZeroU32::new(col).unwrap())
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! coord_row {
-    ( $parent_str:tt, $row_str:tt ) => {
-        {
-            let row: u32 = $row_str.parse::<u32>().unwrap();
-
-            Row(coord!($parent_str), NonZeroU32::new(row).unwrap())
-        }
-    };
-}
 
 #[wasm_bindgen]
 pub fn run_app() -> Result<(), JsValue> {

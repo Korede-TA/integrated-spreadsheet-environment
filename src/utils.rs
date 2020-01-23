@@ -185,3 +185,18 @@ pub fn resize_cells(map: &mut HashMap<Coordinate, Grammar>, on: Coordinate) {
         }
     }
 }
+
+// macro for easily defining a vector of non-zero tuples
+// used in Coordinate::root() below
+#[macro_export]
+macro_rules! row_col_vec {
+    ( $( $x:expr ), * ) => {
+        {
+            let mut v: Vec<(NonZeroU32, NonZeroU32)> = Vec::new();
+            $(
+                v.push(non_zero_u32_tuple($x));
+            )*
+            v
+        }
+    };
+}
