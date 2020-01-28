@@ -83,7 +83,7 @@ pub fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html {
                         if let ChangeData::Files(files) = value {
                             if files.len() >= 1 {
                                 if let Some(file) = files.iter().nth(0) {
-                                    return Action::SaveSession();
+                                    return Action::SaveSession(file);
                                 }
                             }
                         }

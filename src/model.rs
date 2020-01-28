@@ -10,6 +10,18 @@ use yew::virtual_dom::{VList};
 use pest::Parser;
 use std::fs;
 use std::panic;
+/*
+use electron_sys::{
+    dialog,
+    SaveDialogOptions
+};
+*/
+use node_sys::fs as node_fs;
+use node_sys::Buffer;
+use js_sys::{
+    JsString,
+    Function
+};
 
 use crate::grammar::{Grammar, Kind, Interactive};
 use crate::style::Style;
@@ -103,7 +115,7 @@ pub enum Action {
 
     LoadSession(FileData),
 
-    SaveSession(),
+    SaveSession(File),
 
     // Grid Operations
     AddNestedGrid(Coordinate, (u32 /*rows*/, u32 /*cols*/)),
@@ -299,11 +311,18 @@ impl Component for Model {
                 true
             }
 
-            Action::SaveSession() => {
+            Action::SaveSession(file) => {
                 let session = self.to_session();
-                let j = serde_json::to_string(&session);
-                let filename = "testfile";
-                fs::write(filename, j.unwrap()).expect("Unable to write to file!");
+                let j = serde_json::to_string(&session.clone());
+                let filename = file.name();
+                let jsfilename = JsString::from(filename);
+                let jsbuffer = Buffer::from_string(&JsString::from(j.unwrap()), None);
+                let jscallback = Function::new_no_args("{}");
+
+                node_fs::append_file(&jsfilename, &jsbuffer, None, &jscallback);
+                //let opts = SaveDialogOptions::new(None,None,None,None,None,None,None,None,None);
+                //dialog.show_save_dialog(None, opts);
+                //fs::write(filename, j.unwrap()).expect("Unable to write to file!");
                 false
             }
 

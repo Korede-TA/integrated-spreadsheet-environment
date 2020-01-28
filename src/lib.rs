@@ -54,7 +54,6 @@ use crate::model::Model;
 #[wasm_bindgen]
 pub fn run_app() -> Result<(), JsValue> {
     web_logger::init();
-//    console_error_panic_hook::set_once();
     panic::set_hook(Box::new(console_error_panic_hook::hook));
     yew::start_app::<Model>();
     Ok(())
