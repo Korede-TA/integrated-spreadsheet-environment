@@ -316,7 +316,8 @@ impl Component for Model {
             }
 
             Action::SetSessionTitle(name) => {
-                false
+                self.tabs[self.current_tab].title = name;
+                true
             }
 
             Action::AddNestedGrid(coord, (rows, cols)) => {
