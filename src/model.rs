@@ -56,16 +56,8 @@ pub struct CoordinateParser;
 // Model contains the entire state of the application
 #[derive(Debug)]
 pub struct Model {
-    // model holds a direct reference to the topmost root A1 and meta A2 grammars
-    // these two grammars are excluded from the grammar Map
-    root: Grammar,
-    meta: Grammar,
-
-    // the view that the UI treats as the topmost grammar to start rendering from.
     view_root: Coordinate,
 
-    pub grammars: HashMap</*Key*/ Coordinate, /*Value*/ Grammar>,
-    value: String,  // what is this?????
     pub active_cell: Option<Coordinate>,
     pub suggestions: Vec<Coordinate>,
 
@@ -73,8 +65,8 @@ pub struct Model {
     pub row_heights: HashMap<Row, f64>,
 
     // tabs correspond to sessions
-    pub tabs: Vec<String>,
-    pub current_tab: i32,
+    pub tabs: Vec<Session>,
+    pub current_tab: usize,
 
     // side menus
     pub side_menus: Vec<SideMenu>,
@@ -117,6 +109,8 @@ pub enum Action {
 
     SaveSession(File),
 
+    SetSessionTitle(String),
+
     // Grid Operations
     AddNestedGrid(Coordinate, (u32 /*rows*/, u32 /*cols*/)),
 
@@ -129,21 +123,17 @@ pub enum Action {
 
 impl Model {
     fn load_session(&mut self, session: Session) {
-        self.root = session.root;
-        self.meta = session.meta;
-        self.grammars = session.grammars;
+        self.tabs[self.current_tab].root = session.root;
+        self.tabs[self.current_tab].meta = session.meta;
+        self.tabs[self.current_tab].grammars = session.grammars;
     }
 
     fn to_session(&self) -> Session {
-        Session {
-            root: self.root.clone(),
-            meta: self.meta.clone(),
-            grammars: self.grammars.clone(),
-        }
+        return self.tabs[self.current_tab].clone();
     }
 
     fn query_parent(&self, coord_parent: Coordinate) -> Vec<Coordinate> {
-        self.grammars.keys().clone().filter_map(|k| {
+        self.tabs[self.current_tab].grammars.keys().clone().filter_map(|k| {
             if k.parent() == Some(coord_parent.clone()) {
                 Some(k.clone())
             } else { None }
@@ -151,7 +141,7 @@ impl Model {
     }
 
     fn query_col(&self, coord_col: Col) -> Vec<Coordinate> {
-        self.grammars.keys().clone().filter_map(|k| {
+        self.tabs[self.current_tab].grammars.keys().clone().filter_map(|k| {
             if k.row_cols.len() == 1 /* ignore root & meta */ {
                 None
             } else if k.full_col() == coord_col {
@@ -161,7 +151,7 @@ impl Model {
     }
 
     fn query_row(&self, coord_row: Row) -> Vec<Coordinate> {
-        self.grammars.keys().clone().filter_map(|k| {
+        self.tabs[self.current_tab].grammars.keys().clone().filter_map(|k| {
             if k.row_cols.len() == 1 /* ignore root & meta */ {
                 None
             } else if k.full_row() == coord_row {
@@ -187,21 +177,7 @@ impl Component for Model {
             kind: Kind::Grid(row_col_vec![ (1,1), (2,1) ]),
         };
         let mut m = Model {
-            root: root_grammar.clone(),
-            meta: meta_grammar.clone(),
             view_root: coord!("root"),
-            grammars: hashmap! {
-                coord!("root")    => root_grammar.clone(),
-                coord!("root-A1") => Grammar::default(),
-                coord!("root-A2") => Grammar::default(),
-                coord!("root-A3") => Grammar::default(),
-                coord!("root-B1") => Grammar::default(),
-                coord!("root-B2") => Grammar::default(),
-                coord!("root-B3") => Grammar::default(),
-                coord!("meta")    => meta_grammar.clone(),
-                coord!("meta-A1") => Grammar::suggestion("js grammar".to_string(), "This is js".to_string()),
-                coord!("meta-A2") => Grammar::suggestion("java grammar".to_string(), "This is java".to_string()),
-            },
             col_widths: hashmap! {
                coord_col!("root","A") => 90.0,
                coord_col!("root","B") => 90.0,
@@ -211,7 +187,6 @@ impl Component for Model {
                coord_row!("root","2") => 30.0,
                coord_row!("root","3") => 30.0,
             },
-            value: String::new(),
             active_cell: Some(coord!("root-A1")),
             suggestions: vec![ coord!("meta-A1"), coord!("meta-A2"), coord!("meta-A3") ],
             // suggestions: vec![],
@@ -220,9 +195,23 @@ impl Component for Model {
             reader: ReaderService::new(),
 
             tabs: vec![
-               "Session 1".to_string(),
-               "My Session".to_string(),
-               "Session 100".to_string(),
+                Session{
+                    title: "my session".to_string(),
+                    root: root_grammar.clone(),
+                    meta: meta_grammar.clone(),
+                    grammars: hashmap! {
+                        coord!("root")    => root_grammar.clone(),
+                        coord!("root-A1") => Grammar::default(),
+                        coord!("root-A2") => Grammar::default(),
+                        coord!("root-A3") => Grammar::default(),
+                        coord!("root-B1") => Grammar::default(),
+                        coord!("root-B2") => Grammar::default(),
+                        coord!("root-B3") => Grammar::default(),
+                        coord!("meta")    => meta_grammar.clone(),
+                        coord!("meta-A1") => Grammar::suggestion("js grammar".to_string(), "This is js".to_string()),
+                        coord!("meta-A2") => Grammar::suggestion("java grammar".to_string(), "This is java".to_string()),
+                    }
+                }
             ],
 
             current_tab: 0,
@@ -267,7 +256,7 @@ impl Component for Model {
             }
 
             Action::ChangeInput(coord, new_value) => {
-                let old_grammar = self.grammars.get_mut(&coord);
+                let old_grammar = self.tabs[self.current_tab].grammars.get_mut(&coord);
                 match old_grammar {
                     Some(g @ Grammar { kind: Kind::Text(_), .. }) => {
                         self.console.log(&new_value);
@@ -288,8 +277,8 @@ impl Component for Model {
             }
 
             Action::DoCompletion(source_coord, dest_coord) => {
-                move_grammar(&mut self.grammars, source_coord, dest_coord.clone());
-                resize_cells(&mut self.grammars, dest_coord);
+                move_grammar(&mut self.tabs[self.current_tab].grammars, source_coord, dest_coord.clone());
+                resize_cells(&mut self.tabs[self.current_tab].grammars, dest_coord);
                 true
             }
 
@@ -326,6 +315,10 @@ impl Component for Model {
                 false
             }
 
+            Action::SetSessionTitle(name) => {
+                false
+            }
+
             Action::AddNestedGrid(coord, (rows, cols)) => {
                 let (r, c) = non_zero_u32_tuple((rows, cols));
                 let grammar = Grammar::as_grid(r, c);
@@ -333,7 +326,7 @@ impl Component for Model {
                     self.active_cell = sub_coords.first().map(|c| Coordinate::child_of(&coord, *c));
                     for sub_coord in sub_coords {
                         let new_coord = Coordinate::child_of(&coord, sub_coord);
-                        self.grammars.insert(new_coord.clone(), Grammar::default());
+                        self.tabs[self.current_tab].grammars.insert(new_coord.clone(), Grammar::default());
                         // initialize row & col heights as well
                         if !self.row_heights.contains_key(&new_coord.clone().full_row()) {
                             self.row_heights.insert(new_coord.clone().full_row(), 30.0);
@@ -343,10 +336,10 @@ impl Component for Model {
                         }
                     }
                 }
-                if let Some(parent) = Coordinate::parent(&coord).and_then(|p| self.grammars.get_mut(&p)) {
+                if let Some(parent) = Coordinate::parent(&coord).and_then(|p| self.tabs[self.current_tab].grammars.get_mut(&p)) {
                     parent.kind = grammar.clone().kind; // make sure the parent gets set to Kind::Grid
                 }
-                self.grammars.insert(coord.clone(), grammar);
+                self.tabs[self.current_tab].grammars.insert(coord.clone(), grammar);
                 resize(self, coord,
                     (rows as f64) * (/* default row height */ 30.0),
                     (cols as f64) * (/* default col width */ 90.0));
@@ -357,7 +350,7 @@ impl Component for Model {
                     // find the bottom-most coord
                     let mut right_most_coord = coord.clone();
                     while let Some(right_coord) = right_most_coord.neighbor_right() {
-                        if self.grammars.contains_key(&right_coord) {
+                        if self.tabs[self.current_tab].grammars.contains_key(&right_coord) {
                             right_most_coord = right_coord;
                         } else { break }
                     }
@@ -368,9 +361,9 @@ impl Component for Model {
                     });
 
                     let parent = coord.parent().unwrap();
-                    if let Some(Grammar{ kind: Kind::Grid(sub_coords), name, style }) = self.grammars.get(&parent) {
+                    if let Some(Grammar{ kind: Kind::Grid(sub_coords), name, style }) = self.tabs[self.current_tab].grammars.get(&parent) {
                         let mut new_sub_coords = sub_coords.clone();
-                        let mut grammars = self.grammars.clone();
+                        let mut grammars = self.tabs[self.current_tab].grammars.clone();
                         for c in new_col_coords {
                             grammars.insert(Coordinate::child_of(&parent.clone(), c), Grammar::default());
                             new_sub_coords.push(c);
@@ -380,7 +373,7 @@ impl Component for Model {
                             name: name.clone(),
                             style: style.clone()
                         });
-                        self.grammars = grammars;
+                        self.tabs[self.current_tab].grammars = grammars;
                     }
                 }
                 true
@@ -390,7 +383,7 @@ impl Component for Model {
                     // find the bottom-most coord
                     let mut bottom_most_coord = coord.clone();
                     while let Some(below_coord) = bottom_most_coord.neighbor_below() {
-                        if self.grammars.contains_key(&below_coord) {
+                        if self.tabs[self.current_tab].grammars.contains_key(&below_coord) {
                             bottom_most_coord = below_coord;
                         } else { break }
                     }
@@ -401,9 +394,9 @@ impl Component for Model {
                     });
 
                     let parent = coord.parent().unwrap();
-                    if let Some(Grammar{ kind: Kind::Grid(sub_coords), name, style }) = self.grammars.get(&parent) {
+                    if let Some(Grammar{ kind: Kind::Grid(sub_coords), name, style }) = self.tabs[self.current_tab].grammars.get(&parent) {
                         let mut new_sub_coords = sub_coords.clone();
-                        let mut grammars = self.grammars.clone();
+                        let mut grammars = self.tabs[self.current_tab].grammars.clone();
                         for c in new_row_coords {
                             grammars.insert(Coordinate::child_of(&parent.clone(), c), Grammar::default());
                             new_sub_coords.push(c);
@@ -413,7 +406,7 @@ impl Component for Model {
                             name: name.clone(),
                             style: style.clone()
                         });
-                        self.grammars = grammars;
+                        self.tabs[self.current_tab].grammars = grammars;
                     }
                 }
                 true

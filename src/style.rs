@@ -46,7 +46,7 @@ color: {};\n",
 }
 
 pub fn get_style(model: &Model, coord: &Coordinate) -> String {
-    let grammar = model.grammars.get(coord).expect("no grammar with this coordinate");
+    let grammar = model.tabs[model.current_tab].grammars.get(coord).expect("no grammar with this coordinate");
     if coord.row_cols.len() == 1 {  // root or meta
         return grammar.style(coord);
     }
