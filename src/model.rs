@@ -411,6 +411,13 @@ impl Component for Model {
                 let grammar = Grammar::as_grid(r, c);
                 if let Kind::Grid(sub_coords) = grammar.clone().kind {
                     self.active_cell = sub_coords.first().map(|c| Coordinate::child_of(&coord, *c));
+                    // let row_val = coord
+                    info!{"Check coord: {:?}", coord};
+                    // check if active cell row height and width is greater than default value
+                        // set height argument to active cell height if greater
+                        // set width argument to active cell width if greater
+                        // else set arguments to default height:30; width:90
+
                     for sub_coord in sub_coords {
                         let new_coord = Coordinate::child_of(&coord, sub_coord);
                         self.grammars.insert(new_coord.clone(), Grammar::default());
