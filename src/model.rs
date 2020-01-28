@@ -10,12 +10,6 @@ use yew::virtual_dom::{VList};
 use pest::Parser;
 use std::fs;
 use std::panic;
-/*
-use electron_sys::{
-    dialog,
-    SaveDialogOptions
-};
-*/
 use node_sys::fs as node_fs;
 use node_sys::Buffer;
 use js_sys::{
@@ -122,18 +116,21 @@ pub enum Action {
 }
 
 impl Model {
+
+    // only use this if you need a COPY of the current session
+    // i.e. not changing its values
+    pub fn to_session(&self) -> Session {
+        return self.tabs[self.current_tab].clone();
+    }
+
     fn load_session(&mut self, session: Session) {
         self.tabs[self.current_tab].root = session.root;
         self.tabs[self.current_tab].meta = session.meta;
         self.tabs[self.current_tab].grammars = session.grammars;
     }
 
-    fn to_session(&self) -> Session {
-        return self.tabs[self.current_tab].clone();
-    }
-
     fn query_parent(&self, coord_parent: Coordinate) -> Vec<Coordinate> {
-        self.tabs[self.current_tab].grammars.keys().clone().filter_map(|k| {
+        self.to_session().grammars.keys().clone().filter_map(|k| {
             if k.parent() == Some(coord_parent.clone()) {
                 Some(k.clone())
             } else { None }
@@ -141,7 +138,7 @@ impl Model {
     }
 
     fn query_col(&self, coord_col: Col) -> Vec<Coordinate> {
-        self.tabs[self.current_tab].grammars.keys().clone().filter_map(|k| {
+        self.to_session().grammars.keys().clone().filter_map(|k| {
             if k.row_cols.len() == 1 /* ignore root & meta */ {
                 None
             } else if k.full_col() == coord_col {
@@ -151,7 +148,7 @@ impl Model {
     }
 
     fn query_row(&self, coord_row: Row) -> Vec<Coordinate> {
-        self.tabs[self.current_tab].grammars.keys().clone().filter_map(|k| {
+        self.to_session().grammars.keys().clone().filter_map(|k| {
             if k.row_cols.len() == 1 /* ignore root & meta */ {
                 None
             } else if k.full_row() == coord_row {
@@ -303,19 +300,16 @@ impl Component for Model {
             Action::SaveSession() => {
                 let session = self.to_session();
                 let j = serde_json::to_string(&session.clone());
-                let filename = self.tabs[self.current_tab].title.to_string();
+                let filename = session.title.to_string();
                 let jsfilename = JsString::from(filename);
                 let jsbuffer = Buffer::from_string(&JsString::from(j.unwrap()), None);
                 let jscallback = Function::new_no_args("{}");
-
                 node_fs::append_file(&jsfilename, &jsbuffer, None, &jscallback);
-                //let opts = SaveDialogOptions::new(None,None,None,None,None,None,None,None,None);
-                //dialog.show_save_dialog(None, opts);
-                //fs::write(filename, j.unwrap()).expect("Unable to write to file!");
                 false
             }
 
             Action::SetSessionTitle(name) => {
+                // cant use to_session() here since we're actually changing it
                 self.tabs[self.current_tab].title = name;
                 true
             }
@@ -351,7 +345,7 @@ impl Component for Model {
                     // find the bottom-most coord
                     let mut right_most_coord = coord.clone();
                     while let Some(right_coord) = right_most_coord.neighbor_right() {
-                        if self.tabs[self.current_tab].grammars.contains_key(&right_coord) {
+                        if self.to_session().grammars.contains_key(&right_coord) {
                             right_most_coord = right_coord;
                         } else { break }
                     }
@@ -362,9 +356,9 @@ impl Component for Model {
                     });
 
                     let parent = coord.parent().unwrap();
-                    if let Some(Grammar{ kind: Kind::Grid(sub_coords), name, style }) = self.tabs[self.current_tab].grammars.get(&parent) {
+                    if let Some(Grammar{ kind: Kind::Grid(sub_coords), name, style }) = self.to_session().grammars.get(&parent) {
                         let mut new_sub_coords = sub_coords.clone();
-                        let mut grammars = self.tabs[self.current_tab].grammars.clone();
+                        let mut grammars = self.to_session().grammars.clone();
                         for c in new_col_coords {
                             grammars.insert(Coordinate::child_of(&parent.clone(), c), Grammar::default());
                             new_sub_coords.push(c);

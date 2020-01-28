@@ -128,7 +128,7 @@ pub fn view_menu_bar(m: &Model) -> Html {
                     }
                 }>
             </input>
-            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::Noop) >
+            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::SaveSession()) >
                 { "Save" }
             </button>
             <button class="menu-bar-button">
