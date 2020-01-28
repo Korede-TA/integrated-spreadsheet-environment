@@ -2,6 +2,7 @@ use std::ops::Deref;
 use yew::{html, ChangeData, Html, InputData};
 use yew::events::ClickEvent;
 use yew::virtual_dom::{VList};
+use yew::services::reader::{File};
 
 use crate::model::{Action,Model,SideMenu};
 use crate::grammar::{Grammar, Kind, Interactive};
@@ -95,7 +96,35 @@ pub fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html {
         "Settings" => {
             html! {
                 <div class="side-menu-section">
-                    {"THIS IS Settings MENU"}
+                    <h1>
+                        {"Settings"}
+                    </h1>
+
+                    <h3>{"load driver"}</h3>
+                    <br></br>
+                    // drivers will be represented as directories, so we use "webkitdirectory"
+                    // (which isn't standard, but supported in chrome) to get an array of files in
+                    // the dirctory
+                    // https://developer.mozilla.org/en-US/docs/Web/API/HTMLInputElement/webkitdirectory
+                    <input 
+                        type="file"
+                        webkitdirectory=""
+                        onchange=m.link.callback(|value| {
+                        if let ChangeData::Files(files) = value {
+                            // `files` will be a flat list with each file's "webkitRelativePath",
+                            // being a full path starting with the directory name.
+                            // ReadDriverFiles will load the .js file with the same name as the
+                            // directory, and upload the rest of the files to be served by electron
+                            let files_list : Vec<File> = files.into_iter().collect();
+                            if files_list.len() >= 1 {
+                                return Action::ReadDriverFiles(files_list);
+                            } else {
+                                return Action::Alert("Could not load Driver".to_string());
+                            }
+                        }
+                        Action::Noop
+                    })>
+                    </input>
                 </div>
             } 
         },
