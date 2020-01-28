@@ -80,17 +80,15 @@ pub fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html {
 
                     <h3>{"save session"}</h3>
                     <br></br>
-                    <input type="file" onchange=m.link.callback(|value| {
-                        if let ChangeData::Files(files) = value {
-                            if files.len() >= 1 {
-                                if let Some(file) = files.iter().nth(0) {
-                                    return Action::SaveSession();
-                                }
-                            }
+                    <input type="text" value=m.tabs[m.current_tab].title onchange=m.link.callback(|v| {
+                        if let ChangeData::Value(s) = v {
+                            return Action::SetSessionTitle(s);
                         }
                         Action::Noop
                     })>
-                        
+
+                    </input>
+                    <input type="button" value="Save" onclick=m.link.callback(|_| Action::SaveSession())>
                     </input>
                 </div>
             } 
@@ -159,7 +157,7 @@ pub fn view_menu_bar(m: &Model) -> Html {
                     }
                 }>
             </input>
-            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::Noop) >
+            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::SaveSession()) >
                 { "Save" }
             </button>
             <button class="menu-bar-button">
@@ -190,13 +188,13 @@ pub fn view_menu_bar(m: &Model) -> Html {
 pub fn view_tab_bar(m: &Model) -> Html {
     let mut tabs = VList::new();
     for (index, tab) in m.tabs.clone().iter().enumerate() {
-        if (index as i32) == m.current_tab {
+        if (index as usize) == m.current_tab {
             tabs.add_child(html! {
-                <button class="tab active-tab">{ tab }</button>
+                <button class="tab active-tab">{ tab.title.clone() }</button>
             });
         } else {
             tabs.add_child(html! {
-                <button class="tab">{ tab }</button>
+                <button class="tab">{ tab.title.clone() }</button>
             });
         }
     }
@@ -211,7 +209,7 @@ pub fn view_tab_bar(m: &Model) -> Html {
 }
 
 pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
-    if let Some(grammar) = m.grammars.get(&coord) {
+    if let Some(grammar) = m.tabs[m.current_tab].grammars.get(&coord) {
         match grammar.kind.clone() {
             Kind::Text(value) => {
                 view_text_grammar(m, &coord, value)
@@ -219,7 +217,7 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
             Kind::Input(value) => {
                 let is_active = m.active_cell.clone() == Some(coord.clone());
                 let suggestions = m.suggestions.iter().filter_map(|suggestion_coord| {
-                    if let Some(suggestion_grammar) = m.grammars.get(&suggestion_coord) {
+                    if let Some(suggestion_grammar) = m.tabs[m.current_tab].grammars.get(&suggestion_coord) {
                         Some((suggestion_coord.clone(), suggestion_grammar.clone()))
                     } else {
                         None
