@@ -107,7 +107,7 @@ pub enum Action {
 
     LoadSession(FileData),
 
-    SaveSession(File),
+    SaveSession(),
 
     SetSessionTitle(String),
 
@@ -300,10 +300,10 @@ impl Component for Model {
                 true
             }
 
-            Action::SaveSession(file) => {
+            Action::SaveSession() => {
                 let session = self.to_session();
                 let j = serde_json::to_string(&session.clone());
-                let filename = file.name();
+                let filename = self.tabs[self.current_tab].title.to_string();
                 let jsfilename = JsString::from(filename);
                 let jsbuffer = Buffer::from_string(&JsString::from(j.unwrap()), None);
                 let jscallback = Function::new_no_args("{}");

@@ -79,7 +79,7 @@ pub fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html {
 
                     <h3>{"save session"}</h3>
                     <br></br>
-                    <input type="text" value="filename" onchange=m.link.callback(|v| {
+                    <input type="text" value=m.tabs[m.current_tab].title onchange=m.link.callback(|v| {
                         if let ChangeData::Value(s) = v {
                             return Action::SetSessionTitle(s);
                         }
@@ -87,18 +87,7 @@ pub fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html {
                     })>
 
                     </input>
-                    <input type="button" value="Save" onclick=m.link.callback(|_| Action::Noop)>
-                        /*|value| {
-                        if let ChangeData::Files(files) = value {
-                            if files.len() >= 1 {
-                                if let Some(file) = files.iter().nth(0) {
-                                    return Action::SaveSession(file);
-                                }
-                            }
-                        }
-                        Action::Noop
-                    })>*/
-                        
+                    <input type="button" value="Save" onclick=m.link.callback(|_| Action::SaveSession())>
                     </input>
                 </div>
             } 
