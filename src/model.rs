@@ -15,13 +15,14 @@ use wasm_bindgen::JsValue;
 use stdweb::web::{document, HtmlElement, IElement, IHtmlElement, INode, IParentNode, INonElementParentNode};
 use stdweb::unstable::{TryFrom, TryInto};
 
-use crate::grammar::{Grammar, Kind, Interactive};
+use crate::grammar::{Grammar, Kind, Interactive, Lookup};
 use crate::style::Style;
 use crate::coordinate::{Coordinate, Row, Col};
 use crate::session::Session;
 use crate::util::{
     resize_cells, 
     resize, 
+    resize_diff,
     apply_definition_grammar, 
     non_zero_u32_tuple, 
     move_grammar
@@ -94,9 +95,6 @@ pub enum Action {
     // Change string value of Input grammar
     ChangeInput(Coordinate, /* new_value: */ String),
 
-    // Show suggestions dropdown at Coordinate based on query
-    ShowSuggestions(Coordinate, /* query: */ String),
-
     SetActiveCell(Coordinate),
 
     DoCompletion(/* source: */ Coordinate, /* destination */ Coordinate),
@@ -121,6 +119,10 @@ pub enum Action {
 
     // Alerts and stuff
     Alert(String),
+
+    Lookup(Lookup),
+
+    ToggleLookup(Coordinate),
 }
 
 impl Model {
@@ -265,17 +267,13 @@ impl Component for Model {
             Action::ChangeInput(coord, new_value) => {
                 let old_grammar = self.grammars.get_mut(&coord);
                 match old_grammar {
-                    Some(g @ Grammar { kind: Kind::Text(_), .. }) => {
+                    Some(g @ Grammar { kind: Kind::Input(_), .. }) => {
                         self.console.log(&new_value);
-                        g.kind = Kind::Text(new_value);
+                        g.kind = Kind::Input(new_value);
                     },
                     _ => ()
                 }
-                false
-            }
-
-            Action::ShowSuggestions(coord, query) => {
-                false
+                true
             }
 
             Action::SetActiveCell(coord) => {
@@ -496,6 +494,36 @@ impl Component for Model {
                         self.grammars = grammars;
                     }
                 }
+                true
+            }
+            Action::Lookup(lookup_type) => {
+                // match lookup_type {
+                // Lookup::Cell(coord) => {
+                //     if let Some(g) = m.grammars.get(&coord) {
+
+                //     }
+                // }
+                // Lookup::Range { parent: Coordinate, start: (NonZeroU32, NonZeroU32), end: (NonZeroU32, NonZeroU32) } => {
+
+                // }
+                // Lookup::Row(Row) => {
+                // }
+                // Lookup::Col(Col) => {
+                // }
+                // }
+                false
+            }
+
+            Action::ToggleLookup(coord) => {
+                match self.grammars.get_mut(&coord) {
+                Some(g @ Grammar {kind: Kind::Input(_), ..}) => {
+                    g.kind = Kind::Lookup("".to_string(), None);
+                },
+                Some(g @ Grammar {kind: Kind::Lookup(_, _), ..}) => {
+                    g.kind = Kind::Input("".to_string());
+                },
+                _ => info!{ "[Action::ToggleLookup] cannot toggle non-Input/Lookup kind of grammar" },
+                };
                 true
             }
         }

@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 use std::char::from_u32;
 use std::option::Option;
-use serde::Deserialize;
+use serde::{Serialize, Deserialize};
 use std::panic;
 
 use crate::grammar::{Grammar, Kind};
@@ -169,7 +169,7 @@ impl Coordinate {
 }
 
 
-#[derive(Debug, Clone, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash)]
 pub struct Row(/* parent */ pub Coordinate, /* row_index */ pub NonZeroU32);
 
 impl PartialEq for Row {
@@ -180,7 +180,7 @@ impl PartialEq for Row {
 
 impl Eq for Row {}
 
-#[derive(Debug, Clone, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash)]
 pub struct Col(/* parent */ pub Coordinate, /* col_index */ pub NonZeroU32);
 
 impl PartialEq for Col {

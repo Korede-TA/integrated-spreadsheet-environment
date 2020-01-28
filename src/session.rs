@@ -119,6 +119,12 @@ impl Serialize for Kind {
                 }
                 seq.end()
             }
+            Kind::Lookup(s, x) => {
+                let mut sv = serializer.serialize_struct_variant("Kind", 2, "Interactive", 2)?;
+                sv.serialize_field("raw_value", s)?;
+                sv.serialize_field("lookup", x)?;
+                sv.end()
+            }
         }
     }
 }
