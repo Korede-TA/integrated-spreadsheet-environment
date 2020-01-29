@@ -2,27 +2,24 @@ use std::collections::HashMap;
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::option::Option;
-use yew::{html, ChangeData, Component, ComponentLink, Html, ShouldRender, InputData};
-use yew::events::{IKeyboardEvent, ClickEvent, KeyPressEvent};
+use yew::prelude::*;
 use yew::services::{ConsoleService};
 use yew::services::reader::{File, FileData, ReaderService, ReaderTask};
-use yew::virtual_dom::{VList};
 use pest::Parser;
 use std::fs;
 use std::panic;
 use electron_sys::{ipc_renderer};
 use wasm_bindgen::JsValue;
-use stdweb::web::{document, HtmlElement, IElement, IHtmlElement, INode, IParentNode, INonElementParentNode};
-use stdweb::unstable::{TryFrom, TryInto};
+use stdweb::web::{document, IElement, IHtmlElement, INode, IParentNode};
+use stdweb::web::html_element::{InputElement};
 
-use crate::grammar::{Grammar, Kind, Interactive, Lookup};
+use crate::grammar::{Grammar, Kind, Lookup};
 use crate::style::Style;
 use crate::coordinate::{Coordinate, Row, Col};
 use crate::session::Session;
 use crate::util::{
     resize_cells, 
     resize, 
-    resize_diff,
     apply_definition_grammar, 
     non_zero_u32_tuple, 
     move_grammar
@@ -78,6 +75,8 @@ pub struct Model {
 
     pub link: ComponentLink<Model>,
     tasks: Vec<ReaderTask>,
+
+    focus_node_ref: NodeRef,
 }
 
 #[derive(Debug)]
@@ -120,7 +119,7 @@ pub enum Action {
     // Alerts and stuff
     Alert(String),
 
-    Lookup(Lookup),
+    Lookup(/* source: */ Coordinate, /* lookup_type: */ Lookup),
 
     ToggleLookup(Coordinate),
 }
@@ -247,6 +246,8 @@ impl Component for Model {
 
             link,
             tasks: vec![],
+
+            focus_node_ref: NodeRef::default(),
         };
         apply_definition_grammar(&mut m, coord!("meta-A3"));
         m
@@ -265,13 +266,18 @@ impl Component for Model {
             }
 
             Action::ChangeInput(coord, new_value) => {
-                let old_grammar = self.grammars.get_mut(&coord);
-                match old_grammar {
-                    Some(g @ Grammar { kind: Kind::Input(_), .. }) => {
-                        self.console.log(&new_value);
-                        g.kind = Kind::Input(new_value);
-                    },
-                    _ => ()
+                if let Some(g) = self.grammars.get_mut(&coord) {
+                    match g {
+                        Grammar { kind: Kind::Input(_), .. } => {
+                            self.console.log(&new_value);
+                            g.kind = Kind::Input(new_value);
+                        },
+                        Grammar { kind: Kind::Lookup(_, lookup_type), .. } => {
+                            self.console.log(&new_value);
+                            g.kind = Kind::Lookup(new_value, lookup_type.clone());
+                        },
+                        _ => ()
+                    }
                 }
                 true
             }
@@ -326,6 +332,7 @@ impl Component for Model {
                         // we'll call out to regular JS to do this using the `js!` macro.
                         // Note that yew::services::reader::File::name() calls "file.name" under the
                         // hood (https://docs.rs/stdweb/0.4.20/src/stdweb/webapi/file.rs.html#23)
+                        use stdweb::unstable::TryInto;
                         let full_file_name : String = js!(
                             if (!!@{&file}.webkitRelativePath) {
                                 return @{&file}.webkitRelativePath;
@@ -496,21 +503,13 @@ impl Component for Model {
                 }
                 true
             }
-            Action::Lookup(lookup_type) => {
-                // match lookup_type {
-                // Lookup::Cell(coord) => {
-                //     if let Some(g) = m.grammars.get(&coord) {
-
-                //     }
-                // }
-                // Lookup::Range { parent: Coordinate, start: (NonZeroU32, NonZeroU32), end: (NonZeroU32, NonZeroU32) } => {
-
-                // }
-                // Lookup::Row(Row) => {
-                // }
-                // Lookup::Col(Col) => {
-                // }
-                // }
+            Action::Lookup(source_coord, lookup_type) => {
+                match lookup_type {
+                    Lookup::Cell(dest_coord) => {
+                        move_grammar(&mut self.grammars, source_coord, dest_coord.clone());
+                    }
+                    _ => ()
+                }
                 false
             }
 
@@ -543,11 +542,7 @@ impl Component for Model {
 
                 <div class="main">
                     <div id="grammars" class="grid-wrapper" onkeypress=self.link.callback(move |e : KeyPressEvent| {
-                        if e.key() == "g" && e.ctrl_key() {
-                            if let Some(coord) = active_cell.clone() {
-                                return Action::AddNestedGrid(coord.clone(), (3, 3));
-                            }
-                        }
+                        // Global Key-Shortcuts
                         Action::Noop
                     })>
                         { view_grammar(&self, coord!{"root"}) }
@@ -556,5 +551,13 @@ impl Component for Model {
             </div>
         }
     }
+
+    fn mounted(&mut self) -> ShouldRender {
+        if let Some(input) = self.focus_node_ref.try_into::<InputElement>() {
+            input.focus();
+        }
+        false
+    }
+
 }
 

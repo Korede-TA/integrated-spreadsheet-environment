@@ -1,7 +1,7 @@
 use std::ops::Deref;
 use std::collections::hash_map::Keys;
 use yew::{html, ChangeData, Html, InputData};
-use yew::events::{IKeyboardEvent, ClickEvent, KeyPressEvent};
+use yew::events::{IKeyboardEvent, ClickEvent, KeyPressEvent, KeyDownEvent};
 use yew::virtual_dom::{VList};
 use yew::services::reader::{File};
 
@@ -324,6 +324,7 @@ pub fn view_lookup_grammar(
     let c = coord.clone();
     let to_toggle = coord.clone();
     let can_toggle : bool = value.clone().deref() == "";
+    info!{"value: {}, can_toggle: {}", value.clone(), can_toggle};
     html! {
         <div
             class=format!{"cell suggestion row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
@@ -334,9 +335,8 @@ pub fn view_lookup_grammar(
                 class={ format!{ "cell-data {}", active_cell_class } }
                 placeholder="coordinate"
                 value=value
-                onkeypress=m.link.callback(move |e : KeyPressEvent| {
+                onkeydown=m.link.callback(move |e : KeyDownEvent| {
                     if e.code() == "Backspace" && can_toggle {
-                        info!{"toggling lookup"}
                         Action::ToggleLookup(to_toggle.clone())
                     } else { Action::Noop }
                 })
@@ -380,7 +380,7 @@ pub fn view_input_grammar(
 
     let has_lookup_prefix : bool = value.clone().deref() == "=$";
 
-    let to_toggle = coord.clone();
+    let current_coord = coord.clone();
     
     html! {
         <div
@@ -393,7 +393,9 @@ pub fn view_input_grammar(
                 onkeypress=m.link.callback(move |e : KeyPressEvent| {
                     if e.code() == "Space" && has_lookup_prefix {
                         info!{"toggling lookup"}
-                        Action::ToggleLookup(to_toggle.clone())
+                        Action::ToggleLookup(current_coord.clone())
+                    } else if e.key() == "g" && e.ctrl_key() && is_active {
+                        Action::AddNestedGrid(current_coord.clone(), (3, 3))
                     } else { Action::Noop }
                 })
                 oninput=m.link.callback(move |e : InputData| Action::ChangeInput(coord.clone(), e.value))
