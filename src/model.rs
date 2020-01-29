@@ -407,26 +407,39 @@ impl Component for Model {
 
 
             Action::AddNestedGrid(coord, (rows, cols)) => {
+                // height and width initial values
+                let mut tmp_heigt = 30.0;
+                let mut tmp_width = 90.0;
                 let (r, c) = non_zero_u32_tuple((rows, cols));
                 let grammar = Grammar::as_grid(r, c);
                 if let Kind::Grid(sub_coords) = grammar.clone().kind {
                     self.active_cell = sub_coords.first().map(|c| Coordinate::child_of(&coord, *c));
                     // let row_val = coord
-                    info!{"Check coord: {:?}", coord};
+
+                    let current_width = self.col_widths[&coord.full_col()];
+                    let current_height = self.row_heights[&coord.full_row()];
+                    
                     // check if active cell row height and width is greater than default value
+                    if current_width > tmp_width {
                         // set height argument to active cell height if greater
+                        //Get the actual amount of cell being created and use it instead of "3" being HARD CODED.
+                        tmp_width = current_width/3.0; 
+                    }
+                    if current_height > tmp_heigt {
                         // set width argument to active cell width if greater
-                        // else set arguments to default height:30; width:90
+                        //Get the actual amount of cell being created and use it instead of "3" being HARD CODED.
+                        tmp_heigt = current_height/3.0;
+                    }
 
                     for sub_coord in sub_coords {
                         let new_coord = Coordinate::child_of(&coord, sub_coord);
                         self.grammars.insert(new_coord.clone(), Grammar::default());
                         // initialize row & col heights as well
                         if !self.row_heights.contains_key(&new_coord.clone().full_row()) {
-                            self.row_heights.insert(new_coord.clone().full_row(), 30.0);
+                            self.row_heights.insert(new_coord.clone().full_row(), tmp_heigt); //30.0);
                         }
                         if !self.col_widths.contains_key(&new_coord.clone().full_col()) {
-                            self.col_widths.insert(new_coord.clone().full_col(), 90.0);
+                            self.col_widths.insert(new_coord.clone().full_col(), tmp_width);//90.0);
                         }
                     }
                 }
@@ -435,8 +448,8 @@ impl Component for Model {
                 }
                 self.grammars.insert(coord.clone(), grammar);
                 resize(self, coord,
-                    (rows as f64) * (/* default row height */ 30.0),
-                    (cols as f64) * (/* default col width */ 90.0));
+                    (rows as f64) * (/* default row height */ tmp_heigt),//30.0),
+                    (cols as f64) * (/* default col width */ tmp_width));//90.0));
                 true
             }
             Action::InsertCol => {
