@@ -76,7 +76,7 @@ pub struct Model {
     pub link: ComponentLink<Model>,
     tasks: Vec<ReaderTask>,
 
-    focus_node_ref: NodeRef,
+    pub focus_node_ref: NodeRef,
 }
 
 #[derive(Debug)]

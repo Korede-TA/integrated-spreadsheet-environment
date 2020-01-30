@@ -8,7 +8,6 @@ use crate::coordinate::{
     Coordinate,
     Row, Col,
 };
-use crate::model::Model;
 use crate::style::Style;
 
 // Grammar is the main data-type representing

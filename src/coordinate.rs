@@ -4,9 +4,6 @@ use std::option::Option;
 use serde::{Serialize, Deserialize};
 use std::panic;
 
-use crate::grammar::{Grammar, Kind};
-use crate::model::Model;
-use crate::style::Style;
 use crate::util::coord_show;
 
 // Coordinate specifies the nested coordinate structure

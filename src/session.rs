@@ -7,7 +7,6 @@ use serde::{
 
 use crate::coordinate::Coordinate;
 use crate::grammar::{Grammar, Kind, Interactive};
-use crate::model::Model;
 use crate::style::Style;
 
 // Session encapsulates the serializable state of the application that gets stored to disk
