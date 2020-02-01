@@ -2,7 +2,7 @@ use std::option::Option;
 use serde::Deserialize;
 
 use crate::coordinate::Coordinate;
-use crate::grammar::{Grammar, Kind};
+use crate::grammar::{Kind};
 use crate::model::Model;
 
 // Style contains the relevant CSS properties for styling

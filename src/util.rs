@@ -6,7 +6,7 @@ use std::option::Option;
 use stdweb::web::{document, HtmlElement, IHtmlElement, INonElementParentNode};
 use stdweb::unstable::TryFrom;
 
-use crate::coordinate::{Coordinate, Row, Col};
+use crate::coordinate::{Coordinate};
 use crate::grammar::{Grammar, Kind};
 use crate::model::Model;
 use crate::style::Style;

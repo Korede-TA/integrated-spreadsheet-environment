@@ -2,11 +2,9 @@ use std::collections::HashMap;
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::option::Option;
-use yew::{html, ChangeData, Component, ComponentLink, Html, ShouldRender, InputData};
-use yew::events::{IKeyboardEvent, ClickEvent, KeyPressEvent};
+use yew::prelude::*;
 use yew::services::{ConsoleService};
 use yew::services::reader::{File, FileData, ReaderService, ReaderTask};
-use yew::virtual_dom::{VList};
 use pest::Parser;
 use std::fs;
 use std::panic;
@@ -18,10 +16,10 @@ use js_sys::{
 };
 use electron_sys::{ipc_renderer};
 use wasm_bindgen::JsValue;
-use stdweb::web::{document, HtmlElement, IElement, IHtmlElement, INode, IParentNode, INonElementParentNode};
-use stdweb::unstable::{TryFrom, TryInto};
+use stdweb::web::{document, IElement, IHtmlElement, INode, IParentNode};
+use stdweb::web::html_element::{InputElement};
 
-use crate::grammar::{Grammar, Kind, Interactive};
+use crate::grammar::{Grammar, Kind, Lookup};
 use crate::style::Style;
 use crate::coordinate::{Coordinate, Row, Col};
 use crate::session::Session;
@@ -75,6 +73,8 @@ pub struct Model {
 
     pub link: ComponentLink<Model>,
     tasks: Vec<ReaderTask>,
+
+    pub focus_node_ref: NodeRef,
 }
 
 #[derive(Debug)]
@@ -91,9 +91,6 @@ pub enum Action {
 
     // Change string value of Input grammar
     ChangeInput(Coordinate, /* new_value: */ String),
-
-    // Show suggestions dropdown at Coordinate based on query
-    ShowSuggestions(Coordinate, /* query: */ String),
 
     SetActiveCell(Coordinate),
 
@@ -120,6 +117,10 @@ pub enum Action {
 
     // Alerts and stuff
     Alert(String),
+
+    Lookup(/* source: */ Coordinate, /* lookup_type: */ Lookup),
+
+    ToggleLookup(Coordinate),
 }
 
 impl Model {
@@ -242,6 +243,8 @@ impl Component for Model {
 
             link,
             tasks: vec![],
+
+            focus_node_ref: NodeRef::default(),
         };
         apply_definition_grammar(&mut m, coord!("meta-A3"));
         m
@@ -260,19 +263,20 @@ impl Component for Model {
             }
 
             Action::ChangeInput(coord, new_value) => {
-                let old_grammar = self.tabs[self.current_tab].grammars.get_mut(&coord);
-                match old_grammar {
-                    Some(g @ Grammar { kind: Kind::Text(_), .. }) => {
-                        self.console.log(&new_value);
-                        g.kind = Kind::Text(new_value);
-                    },
-                    _ => ()
+                if let Some(g) = self.tabs[self.current_tab].grammars.get_mut(&coord) {
+                    match g {
+                        Grammar { kind: Kind::Input(_), .. } => {
+                            self.console.log(&new_value);
+                            g.kind = Kind::Input(new_value);
+                        },
+                        Grammar { kind: Kind::Lookup(_, lookup_type), .. } => {
+                            self.console.log(&new_value);
+                            g.kind = Kind::Lookup(new_value, lookup_type.clone());
+                        },
+                        _ => ()
+                    }
                 }
-                false
-            }
-
-            Action::ShowSuggestions(coord, query) => {
-                false
+                true
             }
 
             Action::SetActiveCell(coord) => {
@@ -334,6 +338,7 @@ impl Component for Model {
                         // we'll call out to regular JS to do this using the `js!` macro.
                         // Note that yew::services::reader::File::name() calls "file.name" under the
                         // hood (https://docs.rs/stdweb/0.4.20/src/stdweb/webapi/file.rs.html#23)
+                        use stdweb::unstable::TryInto;
                         let full_file_name : String = js!(
                             if (!!@{&file}.webkitRelativePath) {
                                 return @{&file}.webkitRelativePath;
@@ -524,6 +529,28 @@ impl Component for Model {
                 }
                 true
             }
+            Action::Lookup(source_coord, lookup_type) => {
+                match lookup_type {
+                    Lookup::Cell(dest_coord) => {
+                        move_grammar(&mut self.grammars, source_coord, dest_coord.clone());
+                    }
+                    _ => ()
+                }
+                false
+            }
+
+            Action::ToggleLookup(coord) => {
+                match self.grammars.get_mut(&coord) {
+                Some(g @ Grammar {kind: Kind::Input(_), ..}) => {
+                    g.kind = Kind::Lookup("".to_string(), None);
+                },
+                Some(g @ Grammar {kind: Kind::Lookup(_, _), ..}) => {
+                    g.kind = Kind::Input("".to_string());
+                },
+                _ => info!{ "[Action::ToggleLookup] cannot toggle non-Input/Lookup kind of grammar" },
+                };
+                true
+            }
         }
     }
 
@@ -541,11 +568,7 @@ impl Component for Model {
 
                 <div class="main">
                     <div id="grammars" class="grid-wrapper" onkeypress=self.link.callback(move |e : KeyPressEvent| {
-                        if e.key() == "g" && e.ctrl_key() {
-                            if let Some(coord) = active_cell.clone() {
-                                return Action::AddNestedGrid(coord.clone(), (3, 3));
-                            }
-                        }
+                        // Global Key-Shortcuts
                         Action::Noop
                     })>
                         { view_grammar(&self, coord!{"root"}) }
@@ -554,5 +577,13 @@ impl Component for Model {
             </div>
         }
     }
+
+    fn mounted(&mut self) -> ShouldRender {
+        if let Some(input) = self.focus_node_ref.try_into::<InputElement>() {
+            input.focus();
+        }
+        false
+    }
+
 }
 
