@@ -1,6 +1,6 @@
 use std::ops::Deref;
 use yew::{html, ChangeData, Html, InputData};
-use yew::events::ClickEvent;
+use yew::events::{ClickEvent, IMouseEvent, IKeyboardEvent, KeyPressEvent};
 use yew::virtual_dom::{VList};
 
 use crate::model::{Action,Model,SideMenu};
@@ -284,17 +284,27 @@ pub fn view_input_grammar(
     };
 
     let new_active_cell = coord.clone();
+    let select_cell = coord.clone();
 
     html! {
         <div
             class=format!{"cell suggestion row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
-            <input 
-                class={ format!{ "cell-data {}", active_cell_class } }
-                value=value
-                oninput=m.link.callback(move |e : InputData| Action::ChangeInput(coord.clone(), e.value))
-                onclick=m.link.callback(move |_ : ClickEvent| Action::SetActiveCell(new_active_cell.clone()))>
+            <input
+                class={ format!{ "cell-data {}", active_cell_class } },
+                value=value,
+                oninput=m.link.callback(move |e : InputData| Action::ChangeInput(coord.clone(), e.value)),
+                onclick=m.link.callback(move |e : ClickEvent|                    
+                    { 
+                        if e.shift_key() {
+                            info!("get shift key");
+                            return Action::SetSelectedCells(select_cell.clone());
+                           
+                        } 
+                        return Action::SetActiveCell(new_active_cell.clone());         
+                    }),   
+            >
             </input>
             
             { suggestions }
