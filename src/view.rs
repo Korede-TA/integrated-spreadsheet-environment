@@ -297,12 +297,14 @@ pub fn view_input_grammar(
                 oninput=m.link.callback(move |e : InputData| Action::ChangeInput(coord.clone(), e.value)),
                 onclick=m.link.callback(move |e : ClickEvent|                    
                     { 
+                        
                         if e.shift_key() {
                             info!("get shift key");
                             return Action::SetSelectedCells(select_cell.clone());
                            
                         } 
-                        return Action::SetActiveCell(new_active_cell.clone());         
+                        return Action::SetActiveCell(new_active_cell.clone());
+                              
                     }),   
             >
             </input>
@@ -319,13 +321,12 @@ pub fn view_text_grammar(m: &Model, coord: &Coordinate, value : String) -> Html 
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
             { value }
-        </div>
+        </div>  
     }
 }
 
 pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordinate>) -> Html {
     let mut nodes = VList::new();
-
     for c in sub_coords {
         nodes.add_child(view_grammar(m, c.clone()));
     }
