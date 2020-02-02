@@ -51,8 +51,8 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
         .grammars
         .get(coord)
         .expect("no grammar with this coordinate");
+    // ignore root or meta
     if coord.row_cols.len() == 1 {
-        // root or meta
         return grammar.style(coord);
     }
     if let Kind::Grid(_) = grammar.kind {

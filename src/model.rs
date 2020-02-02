@@ -124,7 +124,7 @@ impl Model {
     // only use this if you need a COPY of the current session
     // i.e. not changing its values
     pub fn to_session(&self) -> Session {
-        return self.get_session().clone();
+        self.get_session().clone()
     }
 
     fn load_session(&mut self, session: Session) {
@@ -285,18 +285,24 @@ impl Component for Model {
             }
 
             Action::ChangeInput(coord, new_value) => {
-                let old_grammar = self.get_session_mut().grammars.get_mut(&coord);
-                match old_grammar {
-                    Some(
-                        g @ Grammar {
-                            kind: Kind::Text(_),
+                if let Some(g) = self.get_session_mut().grammars.get_mut(&coord) {
+                    match g {
+                        Grammar {
+                            kind: Kind::Input(_),
                             ..
-                        },
-                    ) => {
-                        info! {"{}", &new_value};
-                        g.kind = Kind::Text(new_value);
+                        } => {
+                            info!("{}", &new_value);
+                            g.kind = Kind::Input(new_value);
+                        }
+                        Grammar {
+                            kind: Kind::Lookup(_, lookup_type),
+                            ..
+                        } => {
+                            info!("{}", &new_value);
+                            g.kind = Kind::Lookup(new_value, lookup_type.clone());
+                        }
+                        _ => (),
                     }
-                    _ => (),
                 }
                 false
             }
