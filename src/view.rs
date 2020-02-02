@@ -81,7 +81,7 @@ pub fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html {
 
                     <h3>{"save session"}</h3>
                     <br></br>
-                    <input type="text" value=m.tabs[m.current_tab].title onchange=m.link.callback(|v| {
+                    <input type="text" value=m.get_session().title onchange=m.link.callback(|v| {
                         if let ChangeData::Value(s) = v {
                             return Action::SetSessionTitle(s);
                         }
@@ -188,8 +188,8 @@ pub fn view_menu_bar(m: &Model) -> Html {
 
 pub fn view_tab_bar(m: &Model) -> Html {
     let mut tabs = VList::new();
-    for (index, tab) in m.tabs.clone().iter().enumerate() {
-        if (index as usize) == m.current_tab {
+    for (index, tab) in m.sessions.clone().iter().enumerate() {
+        if (index as usize) == m.current_session_index {
             tabs.add_child(html! {
                 <button class="tab active-tab">{ tab.title.clone() }</button>
             });
@@ -211,14 +211,14 @@ pub fn view_tab_bar(m: &Model) -> Html {
 
 pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
     let is_active = m.active_cell.clone() == Some(coord.clone());
-    if let Some(grammar) = m.tabs[m.current_tab].grammars.get(&coord) {
+    if let Some(grammar) = m.get_session().grammars.get(&coord) {
         match grammar.kind.clone() {
             Kind::Text(value) => {
                 view_text_grammar(m, &coord, value)
             }
             Kind::Input(value) => {
                 let suggestions = m.suggestions.iter().filter_map(|suggestion_coord| {
-                    if let Some(suggestion_grammar) = m.tabs[m.current_tab].grammars.get(&suggestion_coord) {
+                    if let Some(suggestion_grammar) = m.get_session().grammars.get(&suggestion_coord) {
                         Some((suggestion_coord.clone(), suggestion_grammar.clone()))
                     } else {
                         None
@@ -276,7 +276,7 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                 )
             }
             Kind::Lookup(value, lookup_type) => {
-                let suggestions : Vec<Coordinate> = m.grammars.keys()
+                let suggestions : Vec<Coordinate> = m.get_session().grammars.keys()
                                                             .filter_map(|lookup_c| if lookup_c.to_string().contains(value.deref()) {
                                                                 Some(lookup_c.clone())
                                                             } else { None })
