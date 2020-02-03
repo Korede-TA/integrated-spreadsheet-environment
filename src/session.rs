@@ -9,6 +9,7 @@ use crate::coordinate::Coordinate;
 use crate::grammar::{Grammar, Kind, Interactive};
 use crate::model::Model;
 use crate::style::Style;
+use crate::get_grid;
 
 // Session encapsulates the serializable state of the application that gets stored to disk
 // in a .ise file (which is just a JSON file)
@@ -113,9 +114,10 @@ impl Serialize for Kind {
                 sv.end()
             }
             Kind::Grid(v) => {
-                let mut seq = serializer.serialize_seq(Some(v.len()))?;
-                for e in v {
-                    seq.serialize_element(e)?;
+                let mut list = get_grid!(v);
+                let mut seq = serializer.serialize_seq(Some(list.len()))?;
+                for e in list {
+                    seq.serialize_element(&e)?;
                 }
                 seq.end()
             }

@@ -122,8 +122,10 @@ macro_rules! get_grid {
             let mut col = 1;
             let mut row = 2;
             let mut c = vec!((std::num::NonZeroU32::new(1).unwrap(), std::num::NonZeroU32::new(1).unwrap()));
+            info!("h {}, {}", c[0].0.get().to_string(), c[0].1.get().to_string());
             while col < $sub_coords.1.get() + 1{
                 c.push((std::num::NonZeroU32::new(row.clone()).unwrap(), std::num::NonZeroU32::new(col.clone()).unwrap())) ;
+                info!("h2 {}, {}", c[0].0.get().to_string(), c[1].1.get().to_string());
                 if row == $sub_coords.0.get(){
                     row = 1;
                     col +=1;
@@ -131,6 +133,7 @@ macro_rules! get_grid {
                     row += 1;
                 }   
             }
+            info!("View {}", c.len());
             c
         }
     };

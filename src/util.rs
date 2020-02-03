@@ -11,12 +11,14 @@ use crate::grammar::{Grammar, Kind};
 use crate::model::Model;
 use crate::style::Style;
 use crate::row_col_vec;
+use crate::get_grid;
 
 pub fn move_grammar(map: &mut HashMap<Coordinate, Grammar>, source: Coordinate, dest: Coordinate) {
     if let Some(source_grammar) = map.clone().get(&source) {
         map.insert(dest.clone(), source_grammar.clone());
         if let Kind::Grid(sub_coords) = source_grammar.clone().kind {
-            for sub_coord in sub_coords {
+            let mut c = get_grid!(sub_coords);
+            for sub_coord in c {
                 move_grammar(
                     map,
                     Coordinate::child_of(&source, sub_coord),
@@ -71,6 +73,7 @@ pub fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
         name: "defn_label".to_string(),
         style: defn_label_style,
         kind: Kind::Text("Define Grammar".to_string()),
+        grid_list: vec!((std::num::NonZeroU32::new(1).unwrap(), std::num::NonZeroU32::new(1).unwrap())),
     };
         
     let defn_name_coord = Coordinate::child_of(&root_coord, non_zero_u32_tuple((2,1)));
@@ -79,6 +82,7 @@ pub fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
         name: "defn_name".to_string(),
         style: Style::default(),
         kind: Kind::Input(String::new()),
+        grid_list: vec!((std::num::NonZeroU32::new(1).unwrap(), std::num::NonZeroU32::new(1).unwrap())),
     };
 
     let defn_body_coord = Coordinate::child_of(&root_coord, non_zero_u32_tuple((3,1)));
@@ -90,6 +94,7 @@ pub fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
         name: "".to_string(),
         style: Style::default(),
         kind: Kind::Input(String::new()),
+        grid_list: vec!((std::num::NonZeroU32::new(1).unwrap(), std::num::NonZeroU32::new(1).unwrap())),
     };
 
     let defn_body_A2_coord = Coordinate::child_of(&defn_body_coord, non_zero_u32_tuple((2,1)));
@@ -97,6 +102,7 @@ pub fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
         name: "".to_string(),
         style: Style::default(),
         kind: Kind::Input(String::new()),
+        grid_list: vec!((std::num::NonZeroU32::new(1).unwrap(), std::num::NonZeroU32::new(1).unwrap())),
     };
 
     let defn_body_B1_coord = Coordinate::child_of(&defn_body_coord, non_zero_u32_tuple((1,2)));
@@ -104,6 +110,7 @@ pub fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
         name: "".to_string(),
         style: Style::default(),
         kind: Kind::Input(String::new()),
+        grid_list: vec!((std::num::NonZeroU32::new(1).unwrap(), std::num::NonZeroU32::new(1).unwrap())),
     };
 
     let defn_body_B2_coord = Coordinate::child_of(&defn_body_coord, non_zero_u32_tuple((2,2)));
@@ -111,12 +118,14 @@ pub fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
         name: "".to_string(),
         style: Style::default(),
         kind: Kind::Input(String::new()),
+        grid_list: vec!((std::num::NonZeroU32::new(1).unwrap(), std::num::NonZeroU32::new(1).unwrap())),
     };
-
+    
     let defn = Grammar {
         name: "defn".to_string(),
         style: Style::default(),
-        kind: Kind::Grid(row_col_vec![(1,1), (2,1), (3,1)]),
+        kind: Kind::Grid((std::num::NonZeroU32::new(3).unwrap(), std::num::NonZeroU32::new(1).unwrap())),
+        grid_list: row_col_vec![(1,1), (2,1), (3,1)],
     };
 
     m.grammars.insert(root_coord, defn);
@@ -174,14 +183,21 @@ pub fn resize_cells(map: &mut HashMap<Coordinate, Grammar>, on: Coordinate) {
     on_grammar.style.width = width.clone();
     let parent_kind = on.parent().and_then(|p| map.get(&p)).map(|g| g.kind.clone());
     if let Some(Kind::Grid(neighbors_coords)) = parent_kind {
-        for (row, col) in neighbors_coords {
-            if let Some(cell) = map.get_mut(&Coordinate::child_of(&on, (row.clone(), col.clone()))) {
-                if row == on.row() {
+        let mut row = 1;
+        let mut col = 1;
+        while col < neighbors_coords.1.get() + 1{
+            if let Some(cell) = map.get_mut(&Coordinate::child_of(&on, (NonZeroU32::new(row.clone()).unwrap(), NonZeroU32::new(col.clone()).unwrap()))) {
+                if row == on.row().get() {
                     cell.style.height = height.clone();
-                } else if col == on.col() {
+                } else if col == on.col().get() {
                     cell.style.width = width.clone();
                 }
             }
+            if row == neighbors_coords.0.get(){
+                row = 1;
+                col += 1;
+            }
+            row += 1;
         }
     }
 }

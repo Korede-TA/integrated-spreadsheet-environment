@@ -418,7 +418,7 @@ impl Component for Model {
                 let (r, c) = non_zero_u32_tuple((rows, cols));
                 let grammar = Grammar::as_grid(r, c);
                 if let Kind::Grid(sub_coords) = grammar.clone().kind {
-                    let c = get_grid!(sub_coords);
+                    let mut c = get_grid!(sub_coords);
                     self.active_cell = c.first().map(|c| Coordinate::child_of(&coord, *c));
                     // let row_val = coord
 

@@ -8,7 +8,7 @@ use crate::model::{Action,Model,SideMenu};
 use crate::grammar::{Grammar, Kind, Interactive};
 use crate::coordinate::Coordinate;
 use crate::style::get_style;
-
+use crate::get_grid;
 
 pub fn view_side_nav(m: &Model) -> Html {
     let mut side_menu_nodes = VList::new();
@@ -177,10 +177,10 @@ pub fn view_menu_bar(m: &Model) -> Html {
             <button class="menu-bar-button" onclick=m.link.callback(|_| Action::InsertCol)>
                 { "Insert Column" }
             </button>
-            <button class="menu-bar-button">
+            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::DeleteRow)>
                 { "Delete Row" }
             </button>
-            <button class="menu-bar-button">
+            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::DeleteCol)>
                 { "Delete Column" }
             </button>
         </div>
@@ -270,10 +270,11 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                 }
             }
             Kind::Grid(sub_coords) => {
+                let v = get_grid!(sub_coords);
                 view_grid_grammar(
                     m,
                     &coord,
-                    sub_coords.iter().map(|c| Coordinate::child_of(&coord, *c)).collect(),
+                    v.iter().map(|c| Coordinate::child_of(&coord, *c)).collect(),
                 )
             }
         }
@@ -344,9 +345,10 @@ pub fn view_text_grammar(m: &Model, coord: &Coordinate, value : String) -> Html 
 
 pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordinate>) -> Html {
     let mut nodes = VList::new();
-
     for c in sub_coords {
+        info!("View {}", c.to_string());
         nodes.add_child(view_grammar(m, c.clone()));
+        
     }
 
     html! {
