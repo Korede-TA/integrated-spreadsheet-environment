@@ -61,6 +61,10 @@ body {
   padding: 0px;
 }
 
+.cell-data.selected {
+  background-color: rgba(14, 209, 235, 0.1);
+}
+
 .cell-data:active {
   outline: none;
 }

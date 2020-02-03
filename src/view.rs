@@ -189,6 +189,8 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
             }
             Kind::Input(value) => {
                 let is_active = m.active_cell.clone() == Some(coord.clone());
+                let first_select_cell = m.first_select_cell.clone() == Some(coord.clone());
+                let last_select_cell = m.last_select_cell.clone() == Some(coord.clone());
                 let suggestions = m.suggestions.iter().filter_map(|suggestion_coord| {
                     if let Some(suggestion_grammar) = m.grammars.get(&suggestion_coord) {
                         Some((suggestion_coord.clone(), suggestion_grammar.clone()))
@@ -202,6 +204,8 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                     suggestions,
                     value,
                     is_active,
+                    first_select_cell,
+                    last_select_cell
                 )
             }
             Kind::Interactive(name, Interactive::Button()) => {
@@ -260,9 +264,12 @@ pub fn view_input_grammar(
     suggestions: Vec<(Coordinate, Grammar)>,
     value: String,
     is_active: bool,
+    first_select_cell: bool,
+    last_select_cell: bool,
 ) -> Html {
     let mut suggestion_nodes = VList::new();
     let mut active_cell_class = "cell-inactive";
+    let mut select_cell_class = "Not-selected";
     if is_active {
         active_cell_class = "cell-active";
         for (s_coord, s_grammar) in suggestions {
@@ -275,8 +282,14 @@ pub fn view_input_grammar(
                 </a>
             })
             
-        }
+        }     
     }
+    if first_select_cell {
+        select_cell_class = "selected";
+    }
+    if last_select_cell {
+        select_cell_class = "selected";
+    }  
     let suggestions = html!{
         <div class="suggestion-content">
             { suggestion_nodes }
@@ -292,14 +305,14 @@ pub fn view_input_grammar(
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
             <input
-                class={ format!{ "cell-data {}", active_cell_class } },
+                class={ format!{ "cell-data {} {}", active_cell_class , select_cell_class} },
                 value=value,
                 oninput=m.link.callback(move |e : InputData| Action::ChangeInput(coord.clone(), e.value)),
                 onclick=m.link.callback(move |e : ClickEvent|                    
                     { 
                         
                         if e.shift_key() {
-                            info!("get shift key");
+                            info!("get shift key here");
                             return Action::SetSelectedCells(select_cell.clone());
                            
                         } 

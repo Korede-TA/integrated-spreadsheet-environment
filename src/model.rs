@@ -35,8 +35,8 @@ pub struct Model {
 
     // the view that the UI treats as the topmost grammar to start rendering from.
     view_root: Coordinate,
-    f_select_cell: Coordinate,
-    l_select_cell: Coordinate,
+    pub first_select_cell: Option<Coordinate>,
+    pub last_select_cell: Option<Coordinate>,
 
     pub grammars: HashMap</*Key*/ Coordinate, /*Value*/ Grammar>,
     value: String, // what is this?????
@@ -220,13 +220,9 @@ impl Component for Model {
             console: ConsoleService::new(),
             reader: ReaderService::new(),
 
-            select_grammar: Vec::new(),
-            f_select_cell: Coordinate {
-                row_cols: Vec::new(),
-            },
-            l_select_cell: Coordinate {
-                row_cols: Vec::new(),
-            },
+            select_grammar: vec![],
+            first_select_cell: None,
+            last_select_cell: None,
 
             tabs: vec![
                 "Session 1".to_string(),
@@ -295,24 +291,19 @@ impl Component for Model {
             Action::ShowSuggestions(coord, query) => false,
 
             Action::SetActiveCell(coord) => {
-                self.f_select_cell = coord.clone();
-                info!(
-                    "f-row-{} f-column-{}",
-                    self.f_select_cell.row_to_string(),
-                    self.f_select_cell.col_to_string()
-                );
-                self.active_cell = Some(coord);
+                self.first_select_cell = Some(coord.clone());
+                info!("{}", self.first_select_cell.as_ref().unwrap().to_string());
+                self.active_cell = Some(coord.clone());
                 true
             }
 
             Action::SetSelectedCells(coord) => {
-                self.l_select_cell = coord.clone();
+                self.last_select_cell = Some(coord.clone());
                 info!(
-                    "l-row-{} l-column-{}",
-                    self.l_select_cell.row_to_string(),
-                    self.l_select_cell.col_to_string()
+                    "last-select-row-{} last-select-column-{}",
+                    self.last_select_cell.as_ref().unwrap().row_to_string(),
+                    self.last_select_cell.as_ref().unwrap().col_to_string()
                 );
-                self.select_grammar.push(coord);
                 true
             }
 
