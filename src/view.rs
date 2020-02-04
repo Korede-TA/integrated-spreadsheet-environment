@@ -258,7 +258,7 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                 }
             }
             Kind::Interactive(name, Interactive::Toggle(checked)) => {
-                info!("Interactive {}-{}",coord.row_to_string(), coord.col_to_string() );
+                ////info!("Interactive {}-{}",coord.row_to_string(), coord.col_to_string() );
                 html! {
                     <div
                         class=format!{"cell row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
@@ -348,11 +348,11 @@ pub fn view_text_grammar(m: &Model, coord: &Coordinate, value : String) -> Html 
 pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordinate>) -> Html {
     let mut nodes = VList::new();
     for c in sub_coords {
-        info!("View {}", c.to_string());
+        //info!("View {}", c.to_string());
         nodes.add_child(view_grammar(m, c.clone()));
         
     }
-    // info!("{}", dbg!(nodes.clone()).to_string);
+    // //info!("{}", dbg!(nodes.clone()).to_string);
     
 
     html! {

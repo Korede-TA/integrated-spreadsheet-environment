@@ -459,71 +459,66 @@ impl Component for Model {
                 true
             }
             Action::InsertCol => {
-                // if let Some(coord) = self.active_cell.clone() {
-                //     // find the bottom-most coord
-                //     let mut right_most_coord = coord.clone();
-                //     while let Some(right_coord) = right_most_coord.neighbor_right() {
-                //         if self.grammars.contains_key(&right_coord) {
-                //             right_most_coord = right_coord;
-                //         } else { break }
-                //     }
+                if let Some(coord) = self.active_cell.clone() {
+                    // find the bottom-most coord
+                    let mut right_most_coord = coord.clone();
+                    while let Some(right_coord) = right_most_coord.neighbor_right() {
+                        if self.grammars.contains_key(&right_coord) {
+                            right_most_coord = right_coord;
+                        } else { break }
+                    }
 
-                //     let right_most_col_coords = self.query_col(right_most_coord.full_col());
-                //     let new_col_coords = right_most_col_coords.iter().map(|c| {
-                //         (c.row(), NonZeroU32::new(c.col().get() + 1).unwrap())
-                //     });
+                    let right_most_col_coords = self.query_col(right_most_coord.full_col());
+                    let new_col_coords = right_most_col_coords.iter().map(|c| {
+                        (c.row(), NonZeroU32::new(c.col().get() + 1).unwrap())
+                    });
+                    
 
-                //     let parent = coord.parent().unwrap();
-                //     if let Some(Grammar{ kind: Kind::Grid(sub_coords), name, style, grid_list }) = self.grammars.get(&parent) {
-                //         let mut new_sub_coords = get_grid!(sub_coords);
-                //         let mut grammars = self.grammars.clone();
-                //         for c in new_col_coords {
-                //             grammars.insert(Coordinate::child_of(&parent.clone(), c), Grammar::default());
-                //             new_sub_coords.push(c);
-                //         }
-                //         grammars.insert(parent, Grammar {
-                //             kind: Kind::Grid(new_sub_coords.clone()),
-                //             name: name.clone(),
-                //             style: style.clone(),
-                //             grid_list: grid_list.clone(),
-                //         });
-                //         self.grammars = grammars;
-                //     }
-                // }
+                    let parent = coord.parent().unwrap();
+                    
+                    if let Some(Grammar{ kind: Kind::Grid(sub_coords), name: _, style:_, grid_list:_ }) = self.grammars.get(&parent) {
+                        
+                        let mut grammars = self.grammars.clone();
+                        for c in new_col_coords {
+                             grammars.insert(Coordinate::child_of(&parent.clone(), c), Grammar::default());
+                         }
+                         let m = self.grammars[&parent].kind.clone();
+                         info!("Kind {}-{}", sub_coords.0.get(), sub_coords.1.get());
+                         grammars.get_mut(&parent).unwrap().kind = Kind::Grid((sub_coords.0, NonZeroU32::new(sub_coords.1.get() + 1).unwrap()));
+                         info!("Kind after {:?}", self.grammars[&parent].kind);
+                         self.grammars = grammars;
+                    }
+                }
                 true
             }
             Action::InsertRow => {
-                // if let Some(coord) = self.active_cell.clone() {
-                //     // find the bottom-most coord
-                //     let mut bottom_most_coord = coord.clone();
-                //     while let Some(below_coord) = bottom_most_coord.neighbor_below() {
-                //         if self.grammars.contains_key(&below_coord) {
-                //             bottom_most_coord = below_coord;
-                //         } else { break }
-                //     }
+                if let Some(coord) = self.active_cell.clone() {
+                    // find the bottom-most coord
+                    let mut bottom_most_coord = coord.clone();
+                    while let Some(below_coord) = bottom_most_coord.neighbor_below() {
+                        if self.grammars.contains_key(&below_coord) {
+                            bottom_most_coord = below_coord;
+                        } else { break }
+                    }
 
-                //     let bottom_most_row_coords = self.query_row(bottom_most_coord.full_row());
-                //     let new_row_coords = bottom_most_row_coords.iter().map(|c| {
-                //         (NonZeroU32::new(c.row().get() + 1).unwrap(), c.col())
-                //     });
+                    let bottom_most_row_coords = self.query_row(bottom_most_coord.full_row());
+                    let new_row_coords = bottom_most_row_coords.iter().map(|c| {
+                        (NonZeroU32::new(c.row().get() + 1).unwrap(), c.col())
+                    });
 
-                //     let parent = coord.parent().unwrap();
-                //     if let Some(Grammar{ kind: Kind::Grid(sub_coords), name, style, grid_list }) = self.grammars.get(&parent) {
-                //         let mut new_sub_coords = get_grid!(sub_coords.clone());
-                //         let mut grammars = self.grammars.clone();
-                //         for c in new_row_coords {
-                //             grammars.insert(Coordinate::child_of(&parent.clone(), c), Grammar::default());
-                //             new_sub_coords.push(c);
-                //         }
-                //         grammars.insert(parent, Grammar {
-                //             kind: Kind::Grid(new_sub_coords.clone()),
-                //             name: name.clone(),
-                //             style: style.clone(),
-                //             grid_list: grid_list.clone(),
-                //         });
-                //         self.grammars = grammars;
-                //     }
-                // }
+                    let parent = coord.parent().unwrap();
+                    if let Some(Grammar{ kind: Kind::Grid(sub_coords), name: _, style:_, grid_list:_ }) = self.grammars.get(&parent) {
+                        let mut grammars = self.grammars.clone();
+                        for c in new_row_coords {
+                             grammars.insert(Coordinate::child_of(&parent.clone(), c), Grammar::default());
+                         }
+                         let m = self.grammars[&parent].kind.clone();
+                         info!("Kind {}-{}", sub_coords.0.get(), sub_coords.1.get());
+                         grammars.get_mut(&parent).unwrap().kind = Kind::Grid((NonZeroU32::new(sub_coords.0.get() + 1).unwrap(), sub_coords.1 ));
+                         info!("Kind after {:?}", self.grammars[&parent].kind);
+                         self.grammars = grammars;
+                    }
+                }
                 true
             }
             Action::DeleteRow => {
@@ -578,21 +573,11 @@ impl Component for Model {
                         next_row = below_coord;
                         
                         }
-                        //in progress
-                        // let MM = self.grammars.get(&parent).unwrap();
-                        // if self.root.kind.contains(&coord){
-                        //     self.root.kind = Kind::Grid(new_sub_coords.clone());
-                        // }
-                        // else if let Some(Grammar{ kind: Kind::Grid(_sub_coords), name, style }) = self.grammars.get(&parent) {
-                        
-                        //     let mut grammars = self.grammars.clone();
-                        //     info!("Here: {}", new_sub_coords[0].0.to_string());
-                        //     grammars.insert(parent, Grammar {
-                        //         kind: Kind::Grid(new_sub_coords.clone()),
-                        //         name: name.clone(),
-                        //         style: style.clone()
-                        //     });
-                            self.grammars = grammars;
+
+                        if let Some(Grammar{ kind: Kind::Grid(sub_coords), name: _, style:_, grid_list:_ }) = self.grammars.get(&parent) {
+                            grammars.get_mut(&parent).unwrap().kind = Kind::Grid((NonZeroU32::new(sub_coords.0.get() - 1).unwrap(), sub_coords.1 ));
+                        }
+                        self.grammars = grammars;
                     // }
                 }
                 true
@@ -649,20 +634,10 @@ impl Component for Model {
                         next_col = right_coord;
                         
                         }
-                        //in progress
-                        // let MM = self.grammars.get(&parent).unwrap();
-                        // if self.root.kind.contains(&coord){
-                        //     self.root.kind = Kind::Grid(new_sub_coords.clone());
-                        // }
-                        // else if let Some(Grammar{ kind: Kind::Grid(_sub_coords), name, style }) = self.grammars.get(&parent) {
-                        
-                        //     let mut grammars = self.grammars.clone();
-                        //     info!("Here: {}", new_sub_coords[0].0.to_string());
-                        //     grammars.insert(parent, Grammar {
-                        //         kind: Kind::Grid(new_sub_coords.clone()),
-                        //         name: name.clone(),
-                        //         style: style.clone()
-                        //     });
+
+                        if let Some(Grammar{ kind: Kind::Grid(sub_coords), name: _, style:_, grid_list:_ }) = self.grammars.get(&parent) {
+                            grammars.get_mut(&parent).unwrap().kind = Kind::Grid((sub_coords.0, NonZeroU32::new(sub_coords.0.get() - 1).unwrap()));
+                        }
                             self.grammars = grammars;
                     // }
                 }
