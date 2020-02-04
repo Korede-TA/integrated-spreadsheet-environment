@@ -258,7 +258,6 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                 }
             }
             Kind::Interactive(name, Interactive::Toggle(checked)) => {
-                info!("Interactive {}-{}",coord.row_to_string(), coord.col_to_string() );
                 html! {
                     <div
                         class=format!{"cell row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
@@ -334,7 +333,6 @@ pub fn view_input_grammar(
 }
 
 pub fn view_text_grammar(m: &Model, coord: &Coordinate, value : String) -> Html {
-    info!("Text Grammar {}-{}",coord.row_to_string(), coord.col_to_string() );
     html! {
         <div
             class=format!{"cell text row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
@@ -352,8 +350,6 @@ pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordina
         nodes.add_child(view_grammar(m, c.clone()));
         
     }
-    // info!("{}", dbg!(nodes.clone()).to_string);
-    
 
     html! {
         <div
@@ -363,5 +359,4 @@ pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordina
             { nodes }
         </div>
     }
-    
 }

@@ -47,6 +47,7 @@ impl Coordinate {
     pub fn row(&self) -> NonZeroU32 {
         
         if let Some(last) = self.row_cols.last() {
+            info!("Row {}", last.0.to_string());
             last.0
         } else {
             panic!{"a coordinate should always have a row, this one doesnt"}
@@ -67,6 +68,7 @@ impl Coordinate {
 
     pub fn row_to_string(&self) -> String {
         if let Some(parent) = self.parent() {
+            info!("parent {}", parent.to_string());
             format!{"{}-{}", parent.to_string(), self.row().get()}
         } else {
             format!{"{}", self.row().get()}
@@ -75,6 +77,7 @@ impl Coordinate {
 
     pub fn col(&self) -> NonZeroU32 {
         if let Some(last) = self.row_cols.last() {
+            info!("Col {}", last.1.to_string());
             last.1
         } else {
             panic!{"a coordinate should always have a column, this one doesnt"}

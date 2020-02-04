@@ -45,7 +45,6 @@ impl Coordinate {
     }
 
     pub fn row(&self) -> NonZeroU32 {
-        
         if let Some(last) = self.row_cols.last() {
             last.0
         } else {

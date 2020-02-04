@@ -352,8 +352,6 @@ pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordina
         nodes.add_child(view_grammar(m, c.clone()));
         
     }
-    // info!("{}", dbg!(nodes.clone()).to_string);
-    
 
     html! {
         <div
@@ -363,5 +361,4 @@ pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordina
             { nodes }
         </div>
     }
-    
 }
