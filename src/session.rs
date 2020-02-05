@@ -1,15 +1,15 @@
+use serde::{
+    ser::{SerializeSeq, SerializeStruct, SerializeStructVariant, Serializer},
+    Deserialize, Serialize,
+};
 use std::collections::HashMap;
 use std::option::Option;
-use serde::{
-	ser::{SerializeStruct, SerializeSeq, SerializeStructVariant ,Serializer},
-	Deserialize, Serialize,
-};
 
 use crate::coordinate::Coordinate;
-use crate::grammar::{Grammar, Kind, Interactive};
+use crate::get_grid;
+use crate::grammar::{Grammar, Interactive, Kind};
 use crate::model::Model;
 use crate::style::Style;
-use crate::get_grid;
 
 // Session encapsulates the serializable state of the application that gets stored to disk
 // in a .ise file (which is just a JSON file)
@@ -19,8 +19,8 @@ pub struct Session {
     pub meta: Grammar,
     pub grammars: HashMap<Coordinate, Grammar>,
 }
-js_serializable!( Session );
-js_deserializable!( Session );
+js_serializable!(Session);
+js_deserializable!(Session);
 
 impl Serialize for Session {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -114,7 +114,7 @@ impl Serialize for Kind {
                 sv.end()
             }
             Kind::Grid(v) => {
-                let mut list = get_grid!(v);
+                let list = get_grid!(v);
                 let mut seq = serializer.serialize_seq(Some(list.len()))?;
                 for e in list {
                     seq.serialize_element(&e)?;
