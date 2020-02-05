@@ -292,18 +292,13 @@ impl Component for Model {
 
             Action::SetActiveCell(coord) => {
                 self.first_select_cell = Some(coord.clone());
-                info!("{}", self.first_select_cell.as_ref().unwrap().to_string());
+                self.last_select_cell = None;
                 self.active_cell = Some(coord.clone());
                 true
             }
 
             Action::SetSelectedCells(coord) => {
                 self.last_select_cell = Some(coord.clone());
-                info!(
-                    "last-select-row-{} last-select-column-{}",
-                    self.last_select_cell.as_ref().unwrap().row_to_string(),
-                    self.last_select_cell.as_ref().unwrap().col_to_string()
-                );
                 true
             }
 
