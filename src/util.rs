@@ -63,6 +63,19 @@ pub fn coord_show(row_cols: Vec<(u32, u32)>) -> Option<String> {
 pub fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
     // definition grammar contains the name of the grammar and then the list of
     // different parts of the grammar
+    //
+    //  ------------------------------
+    //  | Definition |    { name }   |
+    //  ------------------------------
+    //  |----------------------------|
+    //  || {rule name} | { rule     ||
+    //  ||             |  grammar } ||
+    //  ||-------------|------------||
+    //  ||             |            ||
+    //  ||             |            ||
+    //  |--------(expandable)--------|
+    //  ------------------------------
+    //
     let defn_label_coord = Coordinate::child_of(&root_coord, non_zero_u32_tuple((1,1)));
     let mut defn_label_style = Style::default();
     defn_label_style.font_weight = 600;
@@ -160,8 +173,8 @@ pub fn resize_diff(m: &mut Model, coord: Coordinate, row_height_diff: f64, col_w
     }
 }
 
-// when a cell is expanded, grow cells in the same row/column as well
-pub fn resize_cells(map: &mut HashMap<Coordinate, Grammar>, on: Coordinate) {
+// Use width and height values from DOM to resize element
+pub fn dom_resize(m: &mut Model, on: Coordinate) {
     let (height, width) = {
         let element = HtmlElement::try_from(
             document().get_element_by_id(format!{"cell-{}", on.to_string()}.deref()).unwrap()).unwrap();
@@ -169,6 +182,8 @@ pub fn resize_cells(map: &mut HashMap<Coordinate, Grammar>, on: Coordinate) {
         (rect.get_height(), rect.get_width())
     };
     info!{"expanding...: H {}px, W {}px", height.clone(), width.clone()}
+    resize(m, on, height, width);
+    /*
     let on_grammar = map.get_mut(&on).unwrap();
     on_grammar.style.height = height.clone();
     on_grammar.style.width = width.clone();
@@ -184,6 +199,7 @@ pub fn resize_cells(map: &mut HashMap<Coordinate, Grammar>, on: Coordinate) {
             }
         }
     }
+    */
 }
 
 // macro for easily defining a vector of non-zero tuples

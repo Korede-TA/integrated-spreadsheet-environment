@@ -1,4 +1,5 @@
 use std::option::Option;
+use std::ops::Deref;
 use serde::Deserialize;
 
 use crate::coordinate::Coordinate;
@@ -46,20 +47,17 @@ color: {};\n",
 }
 
 pub fn get_style(model: &Model, coord: &Coordinate) -> String {
-    let grammar = model.get_session().grammars.get(coord).expect("no grammar with this coordinate");
-    if coord.row_cols.len() == 1 {  // root or meta
-        return grammar.style(coord);
-    }
-    if let Kind::Grid(_) = grammar.kind {
-        return format!{
-            "{}\nwidth: fit-content;\nheight: fit-content;\n",
-            grammar.style(coord),
-        };
-    }
-    let col_width = model.col_widths.get(&coord.full_col()).unwrap_or(&90.0);
-    let row_height = model.row_heights.get(&coord.full_row()).unwrap_or(&30.0);
-    format!{
-        "{}\nwidth: {}px;\nheight: {}px;\n",
-        grammar.style(coord), col_width, row_height,
+    let grammar = model.get_session().grammars.get(coord)
+        .expect(format!{"no grammar with this coordinate {}", coord.to_string()}.deref());
+    match grammar.kind {
+        Kind::Grid(_) | Kind::Defn(_,_,_) => grammar.style(coord).to_string(),
+        _ => {
+            let col_width = model.col_widths.get(&coord.full_col()).unwrap_or(&90.0);
+            let row_height = model.row_heights.get(&coord.full_row()).unwrap_or(&30.0);
+            format!{
+                "{}\nwidth: {}px;\nheight: {}px;\n",
+                grammar.style(coord), col_width, row_height,
+            }
+        }
     }
 }

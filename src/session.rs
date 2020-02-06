@@ -121,9 +121,16 @@ impl Serialize for Kind {
                 seq.end()
             }
             Kind::Lookup(s, x) => {
-                let mut sv = serializer.serialize_struct_variant("Kind", 2, "Interactive", 2)?;
+                let mut sv = serializer.serialize_struct_variant("Kind", 3, "Lookup", 2)?;
                 sv.serialize_field("raw_value", s)?;
                 sv.serialize_field("lookup", x)?;
+                sv.end()
+            }
+            Kind::Defn(s, c, rules) => {
+                let mut sv = serializer.serialize_struct_variant("Kind", 4, "Defn", 3)?;
+                sv.serialize_field("name", s)?;
+                sv.serialize_field("coordinate", c)?;
+                sv.serialize_field("rules", rules)?;
                 sv.end()
             }
         }

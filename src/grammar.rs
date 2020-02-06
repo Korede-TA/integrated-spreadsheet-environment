@@ -2,6 +2,7 @@ use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::cmp::Ordering;
 use std::option::Option;
+use std::default::Default;
 use serde::{Serialize, Deserialize};
 
 use crate::coordinate::{
@@ -39,7 +40,13 @@ pub enum Kind {
     Interactive(String, Interactive),
 
     // Lookup grammar
+    // in the context of definitions, these bind to cell bindings
     Lookup(String, Option<Lookup>),
+
+    // Definition grammar
+    // the second coordinate is the top-level coordinate of the cell in the meta-table where this
+    // definition, or definition sub-rule is defined
+    Defn(String, /* definition coord */ Coordinate, Vec<(String, Coordinate)>)
 }
 js_serializable!( Kind );
 js_deserializable!( Kind );
@@ -61,15 +68,17 @@ pub enum Interactive {
     Toggle(bool),
 }
 
-impl Grammar {
-    pub fn default() -> Grammar {
-        Grammar {
+impl Default for Grammar {
+    fn default() -> Self {
+        Self {
             name: "".to_string(),
             style: Style::default(),
             kind: Kind::Input("".to_string()),
         }
     }
+}
 
+impl Grammar {
     pub fn style(&self, coord: &Coordinate) -> String {
         match &self.kind {
             Kind::Grid(sub_coords) => {
@@ -107,7 +116,7 @@ impl Grammar {
         }
     }
 
-    pub fn suggestion(alias : String, value: String) -> Grammar {
+    pub fn text(alias : String, value: String) -> Grammar {
         Grammar {
             name: alias,
             style: Style::default(),
@@ -133,4 +142,27 @@ impl Grammar {
 
 
 
+#[macro_export]
+macro_rules! grammar_table {
+	($([$($content:tt)*]), *) => (
+		HashMap::<Coordinate, Grammar>::from_iter(vec![$(vec![$($content)*]), *].into_iter().flatten().collect())
+	);
 
+    /*
+    (@step $_idx:expr,) => {};
+
+    (@step $idx:expr, $head:ident, $($tail:ident,)*) => {
+        impl A {
+            fn $head(&self) -> i32 {
+                self.data[$idx]
+            }
+        }
+
+        grammar_table!(@step $idx + 1usize, $($tail,)*);
+    };
+
+    ($($n:ident),*) => {
+        grammar_table!(@step 0usize, $($n,)*);
+    }
+    */
+}

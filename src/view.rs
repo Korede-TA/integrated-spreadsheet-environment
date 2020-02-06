@@ -1,4 +1,5 @@
 use std::ops::Deref;
+use std::default::Default;
 use std::collections::hash_map::Keys;
 use yew::prelude::*;
 use yew::virtual_dom::{VList};
@@ -9,6 +10,7 @@ use crate::model::{Action,Model,SideMenu};
 use crate::grammar::{Grammar, Kind, Interactive, Lookup};
 use crate::coordinate::Coordinate;
 use crate::style::get_style;
+use crate::util::non_zero_u32_tuple;
 
 
 pub fn view_side_nav(m: &Model) -> Html {
@@ -78,7 +80,6 @@ pub fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html {
                         Action::Noop
                     })>
                     </input>
-
                     <h3>{"save session"}</h3>
                     <br></br>
                     <input type="text" value=m.get_session().title onchange=m.link.callback(|v| {
@@ -217,13 +218,17 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                 view_text_grammar(m, &coord, value)
             }
             Kind::Input(value) => {
-                let suggestions = m.suggestions.iter().filter_map(|suggestion_coord| {
-                    if let Some(suggestion_grammar) = m.get_session().grammars.get(&suggestion_coord) {
-                        Some((suggestion_coord.clone(), suggestion_grammar.clone()))
-                    } else {
-                        None
-                    }
-                }).collect();
+                let suggestions = m.suggestions
+                        .get(&coord)
+                        .unwrap_or(&m.default_suggestions)
+                        .iter()
+                        .filter_map(|suggestion_coord| {
+                            if let Some(suggestion_grammar) = m.get_session().grammars.get(&suggestion_coord) {
+                                Some((suggestion_coord.clone(), suggestion_grammar.clone()))
+                            } else {
+                                None
+                            }
+                        }).collect();
                 view_input_grammar(
                     m,
                     coord.clone(),
@@ -283,10 +288,57 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                                                             .collect();
                 view_lookup_grammar(m, &coord, suggestions, value, lookup_type, is_active)
             }
+            Kind::Defn(name, defn_coord, sub_grammars) => {
+                view_defn_grammar(
+                    m,
+                    &coord,
+                    &defn_coord,
+                    name,
+                    sub_grammars.iter()
+                        .map(|(name, c)| (name.clone(), m.get_session().grammars.get(c).cloned().unwrap_or_default()))
+                        .collect()
+                )
+            }
         }
     } else {
-        // return empty fragment
         html! { <></> }
+    }
+}
+
+pub fn view_defn_grammar(
+    m: &Model,
+    coord: &Coordinate,
+    defn_coord: &Coordinate,
+    name: String,
+    sub_grammars: Vec<(String, Grammar)>
+) -> Html {
+    let mut nodes = VList::new();
+    let suggestions: Vec<(Coordinate, Grammar)> = vec![];
+    let mut index = 1;
+    for (name, grammar) in sub_grammars {
+        let name_coord = Coordinate::child_of(defn_coord, non_zero_u32_tuple((index.clone(), 1)));
+        let grammar_coord = Coordinate::child_of(defn_coord, non_zero_u32_tuple((index.clone(), 2)));
+        nodes.add_child(html! {
+            <div>
+                { view_text_grammar(m, &name_coord, name) } // changes to the sub-rule name requires re-bindings
+                { view_grammar(m, grammar_coord) }  // any change to the grammar, reflects in the grammar map
+            </div>
+        });
+        index+=1;
+    }
+    let c = coord.clone();
+    html! {
+        <div
+            class=format!{"cell grid row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
+            id=format!{"cell-{}", coord.to_string()}
+            style={ get_style(&m, &coord) }>
+            <input 
+                class="cell"
+                value={name}
+                oninput=m.link.callback(move |e : InputData| Action::DefnUpdateName(c.clone(), e.value))>
+            </input>
+            { nodes }
+        </div>
     }
 }
 
@@ -372,6 +424,7 @@ pub fn view_input_grammar(
                             first_suggestion_ref.clone()
                         } else { NodeRef::default() }
                     }
+                    tabindex=-1
                     onclick=m.link.callback(move |_ : ClickEvent| Action::DoCompletion(s_coord.clone(), c.clone()))>
                     { &s_grammar.name }
                 </a>
