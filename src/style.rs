@@ -46,7 +46,7 @@ color: {};\n",
 }
 
 pub fn get_style(model: &Model, coord: &Coordinate) -> String {
-    let grammar = model
+    let grammar = model.tabs[model.current_tab]
         .grammars
         .get(coord)
         .expect("no grammar with this coordinate");

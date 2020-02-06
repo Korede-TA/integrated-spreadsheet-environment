@@ -8,13 +8,13 @@ use std::option::Option;
 use crate::coordinate::Coordinate;
 use crate::get_grid;
 use crate::grammar::{Grammar, Interactive, Kind};
-use crate::model::Model;
 use crate::style::Style;
 
 // Session encapsulates the serializable state of the application that gets stored to disk
 // in a .ise file (which is just a JSON file)
 #[derive(Deserialize, Debug, Clone)]
 pub struct Session {
+    pub title: String,
     pub root: Grammar,
     pub meta: Grammar,
     pub grammars: HashMap<Coordinate, Grammar>,
@@ -120,6 +120,12 @@ impl Serialize for Kind {
                     seq.serialize_element(&e)?;
                 }
                 seq.end()
+            }
+            Kind::Lookup(s, x) => {
+                let mut sv = serializer.serialize_struct_variant("Kind", 2, "Interactive", 2)?;
+                sv.serialize_field("raw_value", s)?;
+                sv.serialize_field("lookup", x)?;
+                sv.end()
             }
         }
     }
