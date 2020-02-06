@@ -52,8 +52,9 @@ body {
   
 }
 
-.cell-data.selected {
-  background-color: rgba(235, 14, 136, 0.1);
+
+.cell-data.selection {
+  background-color: rgb(14, 101, 235, 0.1);
 }
 
 .cell-data {
