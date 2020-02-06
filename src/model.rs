@@ -5,8 +5,7 @@ use std::fs;
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::option::Option;
-use std::panic;
-use stdweb::web::html_element::InputElement;
+use stdweb::unstable::TryInto;
 use stdweb::web::{document, IElement, IHtmlElement, INode, IParentNode};
 use wasm_bindgen::JsValue;
 use yew::events::{ClickEvent, IKeyboardEvent, KeyPressEvent};
@@ -18,9 +17,7 @@ use crate::coordinate::{Col, Coordinate, Row};
 use crate::grammar::{Grammar, Interactive, Kind, Lookup};
 use crate::session::Session;
 use crate::style::Style;
-use crate::util::{
-    apply_definition_grammar, move_grammar, non_zero_u32_tuple, resize, resize_cells,
-};
+use crate::util::{apply_definition_grammar, dom_resize, move_grammar, non_zero_u32_tuple, resize};
 use crate::view::{view_grammar, view_menu_bar, view_side_nav, view_tab_bar};
 use crate::{coord, coord_col, coord_row, row_col_vec};
 
@@ -34,29 +31,20 @@ pub struct Model {
     view_root: Coordinate,
     pub first_select_cell: Option<Coordinate>,
     pub last_select_cell: Option<Coordinate>,
-
     pub active_cell: Option<Coordinate>,
     pub suggestions: Vec<Coordinate>,
     pub col_widths: HashMap<Col, f64>,
     pub row_heights: HashMap<Row, f64>,
-
     pub select_grammar: Vec<Coordinate>,
-
-    // tabs correspond to sessions
     pub sessions: Vec<Session>,
     pub current_session_index: usize,
-
-    // side menus
     pub side_menus: Vec<SideMenu>,
     pub open_side_menu: Option<i32>,
-
+    pub focus_node_ref: NodeRef,
+    pub link: ComponentLink<Model>,
     console: ConsoleService,
     reader: ReaderService,
-
-    pub link: ComponentLink<Model>,
     tasks: Vec<ReaderTask>,
-
-    pub focus_node_ref: NodeRef,
 }
 
 #[derive(Debug)]
@@ -110,6 +98,11 @@ pub enum Action {
     ),
 
     ToggleLookup(Coordinate),
+
+    DefnUpdateName(Coordinate, /* name */ String),
+    DefnUpdateRule(Coordinate, /* rule Row  */ Row),
+    DefnAddRule(Coordinate), // adds a new column, points rule coordinate to bottom of ~meta~ sub-table
+                             // Definition Rules are represented as grammars
 }
 
 impl Model {
@@ -200,22 +193,26 @@ impl Component for Model {
         let meta_grammar = Grammar {
             name: "meta".to_string(),
             style: Style::default(),
-            kind: Kind::Grid(row_col_vec![(1, 1), (2, 1)]),
+            kind: Kind::Grid(row_col_vec![(1, 1), (2, 1), (3, 1)]),
         };
         let mut m = Model {
             view_root: coord!("root"),
             col_widths: hashmap! {
                coord_col!("root","A") => 90.0,
                coord_col!("root","B") => 90.0,
+               coord_col!("meta","A") => 180.0,
+               coord_col!("meta-A3","A") => 90.0,
+               coord_col!("meta-A3","B") => 180.0,
             },
             row_heights: hashmap! {
                coord_row!("root","1") => 30.0,
                coord_row!("root","2") => 30.0,
                coord_row!("root","3") => 30.0,
+               coord_row!("meta","1") => 180.0,
             },
             active_cell: Some(coord!("root-A1")),
             suggestions: vec![coord!("meta-A1"), coord!("meta-A2"), coord!("meta-A3")],
-            // suggestions: vec![],
+
             console: ConsoleService::new(),
             reader: ReaderService::new(),
 
@@ -236,8 +233,29 @@ impl Component for Model {
                     coord!("root-B2") => Grammar::default(),
                     coord!("root-B3") => Grammar::default(),
                     coord!("meta")    => meta_grammar.clone(),
-                    coord!("meta-A1") => Grammar::suggestion("js grammar".to_string(), "This is js".to_string()),
-                    coord!("meta-A2") => Grammar::suggestion("java grammar".to_string(), "This is java".to_string()),
+                    coord!("meta-A1") => Grammar::text("js grammar".to_string(), "This is js".to_string()),
+                    coord!("meta-A2") => Grammar::text("java grammar".to_string(), "This is java".to_string()),
+                    coord!("meta-A3") => Grammar {
+                        name: "defn".to_string(),
+                        style: Style::default(),
+                        kind: Kind::Defn(
+                            "".to_string(),
+                            coord!("meta-A3"),
+                            vec![
+                                ("".to_string(), coord!("meta-A3-B1")),
+                            ],
+                        ),
+                    },
+                    coord!("meta-A3-A1")    => Grammar::default(),
+                    coord!("meta-A3-B1")    => Grammar {
+                        name: "root".to_string(),
+                        style: Style::default(),
+                        kind: Kind::Grid(row_col_vec![ (1,1), (2,1), (1,2), (2,2) ]),
+                    },
+                    coord!("meta-A3-B1-A1") => Grammar::text("".to_string(), "custom grammar".to_string()),
+                    coord!("meta-A3-B1-A2") => Grammar::default(),
+                    coord!("meta-A3-B1-B1") => Grammar::default(),
+                    coord!("meta-A3-B1-B2") => Grammar::default(),
                 },
             }],
 
@@ -268,7 +286,7 @@ impl Component for Model {
 
             focus_node_ref: NodeRef::default(),
         };
-        apply_definition_grammar(&mut m, coord!("meta-A3"));
+        // apply_definition_grammar(&mut m, coord!("meta-A3"));
         m
     }
 
@@ -325,7 +343,9 @@ impl Component for Model {
                     source_coord,
                     dest_coord.clone(),
                 );
-                resize_cells(&mut self.get_session_mut().grammars, dest_coord);
+                let row_height = self.row_heights.get(&dest_coord.full_row()).unwrap();
+                let col_width = self.col_widths.get(&dest_coord.full_col()).unwrap();
+                resize(self, dest_coord, *row_height, *col_width);
                 true
             }
 
@@ -385,7 +405,6 @@ impl Component for Model {
                         // we'll call out to regular JS to do this using the `js!` macro.
                         // Note that yew::services::reader::File::name() calls "file.name" under the
                         // hood (https://docs.rs/stdweb/0.4.20/src/stdweb/webapi/file.rs.html#23)
-                        use stdweb::unstable::TryInto;
                         let full_file_name : String = js!(
                             if (!!@{&file}.webkitRelativePath) {
                                 return @{&file}.webkitRelativePath;
@@ -658,6 +677,13 @@ impl Component for Model {
                 };
                 true
             }
+
+            Action::DefnUpdateName(coord, name) => false,
+            Action::DefnUpdateRule(coord, rule_row) => false,
+            Action::DefnAddRule(coord) => {
+                // TODO adds a new column, points rule coordinate to bottom of ~meta~ sub-table
+                false
+            }
         }
     }
 
@@ -682,12 +708,5 @@ impl Component for Model {
                 </div>
             </div>
         }
-    }
-
-    fn mounted(&mut self) -> ShouldRender {
-        if let Some(input) = self.focus_node_ref.try_into::<InputElement>() {
-            input.focus();
-        }
-        false
     }
 }
