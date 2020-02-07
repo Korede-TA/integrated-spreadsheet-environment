@@ -176,12 +176,17 @@ pub fn resize(m: &mut Model, coord: Coordinate, row_height: f64, col_width: f64)
 }
 
 pub fn resize_diff(m: &mut Model, coord: Coordinate, row_height_diff: f64, col_width_diff: f64) {
+    let additional_offset = if m.resizing.is_none() {
+        2.0 /* if not resizing, account for internal borders width */
+    } else {
+        0.0
+    };
     if let Some(parent_coord) = coord.parent() {
         if let Some(row_height) = m.row_heights.get_mut(&coord.full_row()) {
-            *row_height += row_height_diff + /* horizontal border width */ 2.0;
+            *row_height += row_height_diff + additional_offset;
         }
         if let Some(col_width) = m.col_widths.get_mut(&coord.full_col()) {
-            *col_width += col_width_diff + /* vertical border height */ 2.0;
+            *col_width += col_width_diff + additional_offset;
         }
         resize_diff(m, parent_coord, row_height_diff, col_width_diff);
     }

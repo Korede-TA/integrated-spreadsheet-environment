@@ -44,6 +44,7 @@ pub struct Model {
     pub side_menus: Vec<SideMenu>,
     pub open_side_menu: Option<i32>,
     pub focus_node_ref: NodeRef,
+    pub resizing: Option<Coordinate>,
     pub link: ComponentLink<Model>,
     console: ConsoleService,
     reader: ReaderService,
@@ -54,6 +55,13 @@ pub struct Model {
 pub struct SideMenu {
     pub name: String,
     pub icon_path: String,
+}
+
+pub enum ResizeMsg {
+    Start(Coordinate),
+    X(f64),
+    Y(f64),
+    End,
 }
 
 // ACTIONS
@@ -90,6 +98,8 @@ pub enum Action {
 
     InsertRow,
     InsertCol,
+
+    Resize(ResizeMsg),
 
     // Alerts and stuff
     Alert(String),
@@ -283,6 +293,8 @@ impl Component for Model {
                 },
             ],
             open_side_menu: None,
+
+            resizing: None,
 
             link,
             tasks: vec![],
@@ -642,6 +654,31 @@ impl Component for Model {
                 }
                 true
             }
+            Action::Resize(msg) => {
+                match msg {
+                    ResizeMsg::Start(coord) => {
+                        info! {"drag start"};
+                        self.resizing = Some(coord);
+                    }
+                    ResizeMsg::X(offset_x) => {
+                        if let Some(coord) = self.resizing.clone() {
+                            info! {"drag x: {}", offset_x};
+                            resize_diff(self, coord, 0.0, offset_x);
+                        }
+                    }
+                    ResizeMsg::Y(offset_y) => {
+                        if let Some(coord) = self.resizing.clone() {
+                            info! {"drag y: {}", offset_y};
+                            resize_diff(self, coord, offset_y, 0.0);
+                        }
+                    }
+                    ResizeMsg::End => {
+                        info! {"drag end"};
+                        self.resizing = None;
+                    }
+                }
+                true
+            }
             Action::Lookup(source_coord, lookup_type) => {
                 match lookup_type {
                     Lookup::Cell(dest_coord) => {
@@ -720,6 +757,7 @@ impl Component for Model {
 
     fn view(&self) -> Html {
         let active_cell = self.active_cell.clone();
+        let is_resizing = self.resizing.is_some();
         html! {
             <div>
 
@@ -730,10 +768,29 @@ impl Component for Model {
                 { view_tab_bar(&self) }
 
                 <div class="main">
-                    <div id="grammars" class="grid-wrapper" onkeypress=self.link.callback(move |e : KeyPressEvent| {
-                        // Global Key-Shortcuts
-                        Action::Noop
-                    })>
+                    <div id="grammars" class="grid-wrapper"
+                        onkeypress=self.link.callback(move |e : KeyPressEvent| {
+                            // Global Key-Shortcuts
+                            Action::Noop
+                        })
+                        onmouseup=self.link.callback(move |e : MouseUpEvent| {
+                            if is_resizing.clone() {
+                                Action::Resize(ResizeMsg::End)
+                            } else {
+                                Action::Noop
+                            }
+                        })
+                        onmousemove=self.link.callback(move |e : MouseMoveEvent| {
+                            if is_resizing.clone() {
+                                if e.movement_x() > e.movement_y() {
+                                    Action::Resize(ResizeMsg::X(e.movement_x() as f64))
+                                } else {
+                                    Action::Resize(ResizeMsg::Y(e.movement_y() as f64))
+                                }
+                            } else {
+                                Action::Noop
+                            }
+                        })>
                         { view_grammar(&self, coord!{"root"}) }
                     </div>
                 </div>

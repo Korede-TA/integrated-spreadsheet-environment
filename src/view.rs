@@ -1,16 +1,16 @@
-use crate::coordinate::Coordinate;
-use crate::grammar::{Grammar, Interactive, Kind, Lookup};
-use crate::model::{Action, Model, SideMenu};
-use crate::style::get_style;
 use std::collections::hash_map::Keys;
 use std::num::NonZeroU32;
 use std::ops::Deref;
-use yew::events::{ClickEvent, IKeyboardEvent, IMouseEvent};
+use yew::events::{ClickEvent, IKeyboardEvent, IMouseEvent, KeyPressEvent};
 use yew::prelude::*;
 use yew::services::reader::File;
 use yew::virtual_dom::VList;
 use yew::{html, ChangeData, Html, InputData};
 
+use crate::coordinate::Coordinate;
+use crate::grammar::{Grammar, Interactive, Kind, Lookup};
+use crate::model::{Action, Model, ResizeMsg, SideMenu};
+use crate::style::get_style;
 use crate::util::non_zero_u32_tuple;
 
 pub fn view_side_nav(m: &Model) -> Html {
@@ -540,16 +540,53 @@ pub fn view_input_grammar(
                     } else { NodeRef::default() }
                 }
                 value=value,
-                oninput=m.link.callback(move |e : InputData| Action::ChangeInput(coord.clone(), e.value)),
-                onclick=m.link.callback(move |e : ClickEvent|
-                    {
-                        if e.shift_key() {
-                            return Action::SetSelectedCells(shift_select_cell.clone());
+                onkeypress=m.link.callback(move |e : KeyPressEvent| {
+                    if e.code() == "Tab" && suggestions_len > 0 {
+                        if let Some(input) = first_suggestion_ref.try_into::<HtmlElement>() {
+                            input.focus();
                         }
-                        return Action::SetActiveCell(new_active_cell.clone());
-                    }),
-            >
+                        Action::Noop
+                    }
+                        Action::Noop
+                    } else if e.code() == "Space" && has_lookup_prefix {
+                        info!{"toggling lookup"}
+                        Action::ToggleLookup(current_coord.clone())
+                    } else if e.key() == "g" && e.ctrl_key() && is_active {
+                        Action::AddNestedGrid(current_coord.clone(), (3, 3))
+                    } else { Action::Noop }
+                })
+                oninput=m.link.callback(move |e : InputData| Action::ChangeInput(coord.clone(), e.value))
+                onclick=m.link.callback(move |_ : ClickEvent| {
+                    if e.shift_key() {
+                        Action::SetSelectedCells(shift_select_cell.clone())
+                    } else {
+                        Action::SetActiveCell(new_active_cell.clone()) 
+                    }
+                })
+                onmousedown=m.link.callback(move |e: MouseDownEvent| {
+                    // TODO: get this actually working
+                    // Some details:
+                    // - initially used DragStartEvent, but that doesn't get triggered so switched to
+                    // MouseDownEvent
+                    // - now splitting this into multiple events
+                    info!{"drag start"};
+                    let (offset_x, offset_y) = {
+                        // compute the distance from the right and bottom borders that resizing is
+                        // allowed
+                        let target = HtmlElement::try_from(e.target().unwrap()).unwrap();
+                        let rect = target.get_bounding_client_rect();
+                        (rect.get_width() - e.offset_x(), rect.get_height() - e.offset_y())
+                    };
+                    info!{"offset: {} {}", offset_x, offset_y};
+                    let draggable_area = 4.0;
+                    if offset_x < draggable_area  || offset_y < draggable_area {
+                        Action::Resize(ResizeMsg::Start(drag_coord.clone()))
+                    } else {
+                        Action::Noop
+                    }
+                })>
             </div>
+            { suggestions }
         </div>
     }
 }

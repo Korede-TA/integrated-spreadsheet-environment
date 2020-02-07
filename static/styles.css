@@ -69,6 +69,20 @@ body {
   outline: none;
 }
 
+.variant {
+  display: flex;
+}
+
+.repitition-column {
+  display: flex;
+  flex-direction: column;
+}
+
+.repitition-row {
+  display: flex;
+  flex-direction: row;
+}
+
 .suggestion {
   position: relative;
 }
