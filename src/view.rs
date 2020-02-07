@@ -1,17 +1,18 @@
-use std::ops::Deref;
-use std::default::Default;
 use std::collections::hash_map::Keys;
+use std::default::Default;
+use std::ops::Deref;
+use stdweb::unstable::TryFrom;
+use stdweb::web::event::IEvent;
+use stdweb::web::{HtmlElement, IHtmlElement};
 use yew::prelude::*;
-use yew::virtual_dom::{VList};
-use yew::services::reader::{File};
-use stdweb::web::{IHtmlElement, HtmlElement};
+use yew::services::reader::File;
+use yew::virtual_dom::VList;
 
 use crate::model::{Action,Model,SideMenu};
 use crate::grammar::{Grammar, Kind, Interactive, Lookup};
 use crate::coordinate::Coordinate;
 use crate::style::get_style;
 use crate::util::non_zero_u32_tuple;
-
 
 pub fn view_side_nav(m: &Model) -> Html {
     let mut side_menu_nodes = VList::new();
@@ -31,8 +32,8 @@ pub fn view_side_nav(m: &Model) -> Html {
         } else {
             side_menu_nodes.add_child(html! {
                 <button onclick=m.link.callback(move |e| Action::SetActiveMenu(Some(index as i32)))>
-                    <img 
-                        src={side_menu.icon_path.clone()} 
+                    <img
+                        src={side_menu.icon_path.clone()}
                         width="40px" alt={side_menu.name.clone()}>
                     </img>
                 </button>
@@ -56,8 +57,8 @@ pub fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html {
                 <div class="side-menu-section">
                     {"THIS IS Home MENU"}
                 </div>
-            } 
-        },
+            }
+        }
         "File Explorer" => {
             html! {
                 <div class="side-menu-section">
@@ -93,8 +94,8 @@ pub fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html {
                     <input type="button" value="Save" onclick=m.link.callback(|_| Action::SaveSession())>
                     </input>
                 </div>
-            } 
-        },
+            }
+        }
         "Settings" => {
             html! {
                 <div class="side-menu-section">
@@ -108,7 +109,7 @@ pub fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html {
                     // (which isn't standard, but supported in chrome) to get an array of files in
                     // the dirctory
                     // https://developer.mozilla.org/en-US/docs/Web/API/HTMLInputElement/webkitdirectory
-                    <input 
+                    <input
                         type="file"
                         webkitdirectory=""
                         onchange=m.link.callback(|value| {
@@ -128,27 +129,26 @@ pub fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html {
                     })>
                     </input>
                 </div>
-            } 
-        },
+            }
+        }
         "Info" => {
             html! {
                 <div class="side-menu-section">
                     {"THIS IS info MENU"}
                 </div>
-            } 
-        },
+            }
+        }
 
-        _ => html! {<> </>}
-
+        _ => html! {<> </>},
     }
 }
 
 pub fn view_menu_bar(m: &Model) -> Html {
     html! {
         <div class="menu-bar horizontal-bar">
-            <input 
+            <input
                 class="active-cell-indicator"
-                disabled=true 
+                disabled=true
                 // TODO: clicking on this should highlight
                 // the active cell
                 value={
@@ -214,28 +214,24 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
     let is_active = m.active_cell.clone() == Some(coord.clone());
     if let Some(grammar) = m.get_session().grammars.get(&coord) {
         match grammar.kind.clone() {
-            Kind::Text(value) => {
-                view_text_grammar(m, &coord, value)
-            }
+            Kind::Text(value) => view_text_grammar(m, &coord, value),
             Kind::Input(value) => {
-                let suggestions = m.suggestions
-                        .get(&coord)
-                        .unwrap_or(&m.default_suggestions)
-                        .iter()
-                        .filter_map(|suggestion_coord| {
-                            if let Some(suggestion_grammar) = m.get_session().grammars.get(&suggestion_coord) {
-                                Some((suggestion_coord.clone(), suggestion_grammar.clone()))
-                            } else {
-                                None
-                            }
-                        }).collect();
-                view_input_grammar(
-                    m,
-                    coord.clone(),
-                    suggestions,
-                    value,
-                    is_active,
-                )
+                let suggestions = m
+                    .suggestions
+                    .get(&coord)
+                    .unwrap_or(&m.default_suggestions)
+                    .iter()
+                    .filter_map(|suggestion_coord| {
+                        if let Some(suggestion_grammar) =
+                            m.get_session().grammars.get(&suggestion_coord)
+                        {
+                            Some((suggestion_coord.clone(), suggestion_grammar.clone()))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                view_input_grammar(m, coord.clone(), suggestions, value, is_active)
             }
             Kind::Interactive(name, Interactive::Button()) => {
                 html! {
@@ -251,7 +247,7 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
             }
             Kind::Interactive(name, Interactive::Slider(value, min, max)) => {
                 html! {
-                    <div 
+                    <div
                         class=format!{"cell row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
                         id=format!{"cell-{}", coord.to_string()}
                         style={ get_style(&m, &coord) }>
@@ -273,19 +269,27 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                     </div>
                 }
             }
-            Kind::Grid(sub_coords) => {
-                view_grid_grammar(
-                    m,
-                    &coord,
-                    sub_coords.iter().map(|c| Coordinate::child_of(&coord, *c)).collect(),
-                )
-            }
+            Kind::Grid(sub_coords) => view_grid_grammar(
+                m,
+                &coord,
+                sub_coords
+                    .iter()
+                    .map(|c| Coordinate::child_of(&coord, *c))
+                    .collect(),
+            ),
             Kind::Lookup(value, lookup_type) => {
-                let suggestions : Vec<Coordinate> = m.get_session().grammars.keys()
-                                                            .filter_map(|lookup_c| if lookup_c.to_string().contains(value.deref()) {
-                                                                Some(lookup_c.clone())
-                                                            } else { None })
-                                                            .collect();
+                let suggestions: Vec<Coordinate> = m
+                    .get_session()
+                    .grammars
+                    .keys()
+                    .filter_map(|lookup_c| {
+                        if lookup_c.to_string().contains(value.deref()) {
+                            Some(lookup_c.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
                 view_lookup_grammar(m, &coord, suggestions, value, lookup_type, is_active)
             }
             Kind::Defn(name, defn_coord, sub_grammars) => {
@@ -294,9 +298,9 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                     &coord,
                     &defn_coord,
                     name,
-                    sub_grammars.iter()
-                        .map(|(name, c)| (name.clone(), m.get_session().grammars.get(c).cloned().unwrap_or_default()))
-                        .collect()
+                    sub_grammars, // .iter()
+                                  // .map(|(name, c)| (name.clone(), m.get_session().grammars.get(c).cloned().unwrap_or_default()))
+                                  // .collect()
                 )
             }
         }
@@ -310,21 +314,22 @@ pub fn view_defn_grammar(
     coord: &Coordinate,
     defn_coord: &Coordinate,
     name: String,
-    sub_grammars: Vec<(String, Grammar)>
+    sub_coordinates: Vec<(String, Coordinate)>,
 ) -> Html {
     let mut nodes = VList::new();
     let suggestions: Vec<(Coordinate, Grammar)> = vec![];
     let mut index = 1;
-    for (name, grammar) in sub_grammars {
+    for (name, coord) in sub_coordinates {
         let name_coord = Coordinate::child_of(defn_coord, non_zero_u32_tuple((index.clone(), 1)));
-        let grammar_coord = Coordinate::child_of(defn_coord, non_zero_u32_tuple((index.clone(), 2)));
+        let grammar_coord =
+            Coordinate::child_of(defn_coord, non_zero_u32_tuple((index.clone(), 2)));
         nodes.add_child(html! {
             <div>
                 { view_text_grammar(m, &name_coord, name) } // changes to the sub-rule name requires re-bindings
                 { view_grammar(m, grammar_coord) }  // any change to the grammar, reflects in the grammar map
             </div>
         });
-        index+=1;
+        index += 1;
     }
     let c = coord.clone();
     html! {
@@ -332,12 +337,38 @@ pub fn view_defn_grammar(
             class=format!{"cell grid row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
-            <input 
+            <input
                 class="cell"
                 value={name}
                 oninput=m.link.callback(move |e : InputData| Action::DefnUpdateName(c.clone(), e.value))>
             </input>
             { nodes }
+        </div>
+    }
+}
+
+pub fn view_defn_variant_grammar(
+    m: &Model,
+    coord: &Coordinate,
+    defn_coord: &Coordinate,
+    name: String,
+    sub_coords: Vec<Coordinate>,
+) -> Html {
+    let mut nodes = VList::new();
+
+    for c in sub_coords {
+        nodes.add_child(view_grammar(m, c.clone()));
+    }
+
+    html! {
+        <div
+            class=format!{"cell variant row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
+            id=format!{"cell-{}", coord.to_string()}
+            style={ get_style(&m, &coord) }>
+            { nodes }
+            <button onclick=m.link.callback(|_| Action::InsertCol)>
+                {"+"}
+            </button>
         </div>
     }
 }
@@ -348,11 +379,11 @@ pub fn view_lookup_grammar(
     suggestions: Vec<Coordinate>,
     value: String,
     lookup_type: Option<Lookup>,
-    is_active: bool
+    is_active: bool,
 ) -> Html {
     let suggestions_div = if is_active {
         let mut suggestions_nodes = VList::new();
-        for lookup_coord in suggestions { 
+        for lookup_coord in suggestions {
             let dest = coord.clone();
             let source = lookup_coord.clone();
             suggestions_nodes.add_child(html!{
@@ -362,7 +393,7 @@ pub fn view_lookup_grammar(
                 </a>
             })
         }
-        html!{
+        html! {
             <div class="suggestion-content">
                 { suggestions_nodes }
             </div>
@@ -370,24 +401,28 @@ pub fn view_lookup_grammar(
     } else {
         html! { <></> }
     };
-    let active_cell_class = if is_active { "cell-active" } else { "cell-inactive" };
+    let active_cell_class = if is_active {
+        "cell-active"
+    } else {
+        "cell-inactive"
+    };
     let c = coord.clone();
     let to_toggle = coord.clone();
-    let can_toggle : bool = value.clone().deref() == "";
+    let can_toggle: bool = value.clone().deref() == "";
     html! {
         <div
             class=format!{"cell suggestion row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
             <b>{ "$" }</b>
-            <input 
+            <div contenteditable=true
                 class={ format!{ "cell-data {}", active_cell_class } }
                 placeholder="coordinate"
                 value=value
-                ref={ 
-                    if is_active { 
-                        m.focus_node_ref.clone() 
-                    } else { NodeRef::default() } 
+                ref={
+                    if is_active {
+                        m.focus_node_ref.clone()
+                    } else { NodeRef::default() }
                 }
                 onkeydown=m.link.callback(move |e : KeyDownEvent| {
                     if e.code() == "Backspace" && can_toggle {
@@ -395,7 +430,7 @@ pub fn view_lookup_grammar(
                     } else { Action::Noop }
                 })
                 oninput=m.link.callback(move |e : InputData| Action::ChangeInput(c.clone(), e.value))>
-            </input>
+            </div>
             { suggestions_div }
         </div>
     }
@@ -408,14 +443,20 @@ pub fn view_input_grammar(
     value: String,
     is_active: bool,
 ) -> Html {
-    let active_cell_class = if is_active { "cell-active" } else { "cell-inactive" };
+    let active_cell_class = if is_active {
+        "cell-active"
+    } else {
+        "cell-inactive"
+    };
     let suggestions_len = suggestions.len();
     let first_suggestion_ref = NodeRef::default();
     let suggestions = if value.clone() != "" && is_active {
         let mut suggestion_nodes = VList::new();
         let mut is_first_suggestion = true;
         for (s_coord, s_grammar) in suggestions {
-            if !s_grammar.name.contains(value.clone().deref()) { continue }
+            if !s_grammar.name.contains(value.clone().deref()) {
+                continue;
+            }
             let c = coord.clone();
             suggestion_nodes.add_child(html! {
                 <a 
@@ -431,31 +472,32 @@ pub fn view_input_grammar(
             });
             is_first_suggestion = false;
         }
-        html!{
+        html! {
             <div class="suggestion-content">
                 { suggestion_nodes }
             </div>
         }
     } else {
-        html!{ <></> }
+        html! { <></> }
     };
 
     let new_active_cell = coord.clone();
-    let has_lookup_prefix : bool = value.clone() == "$";
+    let has_lookup_prefix: bool = value.clone() == "$";
     let current_coord = coord.clone();
-    
+    let drag_coord = coord.clone();
+
     html! {
         <div
             class=format!{ "cell suggestion row-{} col-{}", coord.row_to_string(), coord.col_to_string() }
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
-            <input 
+            <div contenteditable=true
                 class={ format!{ "cell-data {}", active_cell_class } }
                 value=value
-                ref={ 
-                    if is_active { 
-                        m.focus_node_ref.clone() 
-                    } else { NodeRef::default() } 
+                ref={
+                    if is_active {
+                        m.focus_node_ref.clone()
+                    } else { NodeRef::default() }
                 }
                 onkeypress=m.link.callback(move |e : KeyPressEvent| {
                     if e.code() == "Tab" && suggestions_len > 0 {

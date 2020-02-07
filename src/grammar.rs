@@ -1,14 +1,11 @@
+use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
+use std::default::Default;
 use std::num::NonZeroU32;
 use std::ops::Deref;
-use std::cmp::Ordering;
 use std::option::Option;
-use std::default::Default;
-use serde::{Serialize, Deserialize};
 
-use crate::coordinate::{
-    Coordinate,
-    Row, Col,
-};
+use crate::coordinate::{Col, Coordinate, Row};
 use crate::style::Style;
 
 // Grammar is the main data-type representing
@@ -19,8 +16,8 @@ pub struct Grammar {
     pub style: Style,
     pub kind: Kind,
 }
-js_serializable!( Grammar );
-js_deserializable!( Grammar );
+js_serializable!(Grammar);
+js_deserializable!(Grammar);
 
 // Kinds of grammars in the system.
 // Since this is an Enum, a Grammar's kind field
@@ -44,18 +41,26 @@ pub enum Kind {
     Lookup(String, Option<Lookup>),
 
     // Definition grammar
-    // the second coordinate is the top-level coordinate of the cell in the meta-table where this
-    // definition, or definition sub-rule is defined
-    Defn(String, /* definition coord */ Coordinate, Vec<(String, Coordinate)>)
+    // sort of like a mirror to the meta-table that creates new grammars and
+    // specifies valid completions
+    Defn(
+        /* binding name */ String,
+        /* definition coord */ Coordinate,
+        /* rule names and coordinates */ Vec<(String, Coordinate)>,
+    ),
 }
-js_serializable!( Kind );
-js_deserializable!( Kind );
+js_serializable!(Kind);
+js_deserializable!(Kind);
 
 // Kinds of lookup grammars
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Lookup {
     Cell(Coordinate),
-    Range { parent: Coordinate, start: (NonZeroU32, NonZeroU32), end: (NonZeroU32, NonZeroU32) },
+    Range {
+        parent: Coordinate,
+        start: (NonZeroU32, NonZeroU32),
+        end: (NonZeroU32, NonZeroU32),
+    },
     Row(Row),
     Col(Col),
 }
@@ -85,47 +90,61 @@ impl Grammar {
                 let mut grid_area_str = "\"".to_string();
                 let mut prev_row = 1;
                 let mut sub_coords = sub_coords.clone();
-                sub_coords.sort_by(|(a_row, a_col), (b_row, b_col)| 
+                sub_coords.sort_by(|(a_row, a_col), (b_row, b_col)| {
                     if a_row < b_row {
                         Ordering::Less
                     } else if a_row == b_row {
-                        if a_col < b_col { Ordering::Less } else { Ordering::Greater }
-                    } else { Ordering::Greater }
-                );
+                        if a_col < b_col {
+                            Ordering::Less
+                        } else {
+                            Ordering::Greater
+                        }
+                    } else {
+                        Ordering::Greater
+                    }
+                });
                 for (row, col) in sub_coords {
                     if row.get() > prev_row {
                         grid_area_str.pop();
                         grid_area_str += "\"\n\"";
                     }
                     let sub_coord = Coordinate::child_of(coord, (row.clone(), col.clone()));
-                    grid_area_str += format!{"cell-{} ", sub_coord.to_string()}.deref();
+                    grid_area_str += format! {"cell-{} ", sub_coord.to_string()}.deref();
                     prev_row = row.get();
                 }
                 grid_area_str.pop();
                 grid_area_str += "\"";
-                format!{
+                format! {
                     "display: grid;\ngrid-area: cell-{};\nheight: fit-content;\nwidth: fit-content !important;\ngrid-template-areas: \n{};\n",
                     coord.to_string(),
                     grid_area_str,
                 }
-            },
-            Kind::Lookup(_, _) => format!{
+            }
+            Kind::Lookup(_, _) => format! {
                 "{}display: inline-flex; grid-area: cell-{}; background: white;\n", self.style.to_string(), coord.to_string()
             },
-            _ => format!{"{}grid-area: cell-{};\n", self.style.to_string(), coord.to_string()},
+            _ => format! {"{}grid-area: cell-{};\n", self.style.to_string(), coord.to_string()},
         }
     }
 
-    pub fn text(alias : String, value: String) -> Grammar {
+    pub fn text(name: String, value: String) -> Grammar {
         Grammar {
-            name: alias,
+            name: name,
             style: Style::default(),
             kind: Kind::Text(value),
         }
     }
 
+    pub fn input(name: String, value: String) -> Grammar {
+        Grammar {
+            name: name,
+            style: Style::default(),
+            kind: Kind::Input(value),
+        }
+    }
+
     pub fn as_grid(rows: NonZeroU32, cols: NonZeroU32) -> Grammar {
-        let mut grid : Vec<(NonZeroU32, NonZeroU32)> = Vec::new();
+        let mut grid: Vec<(NonZeroU32, NonZeroU32)> = Vec::new();
         for i in 1..(rows.get() + 1) {
             for j in 1..(cols.get() + 1) {
                 grid.push((NonZeroU32::new(i).unwrap(), NonZeroU32::new(j).unwrap()));
@@ -139,8 +158,6 @@ impl Grammar {
         }
     }
 }
-
-
 
 #[macro_export]
 macro_rules! grammar_table {
