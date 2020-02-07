@@ -14,10 +14,12 @@ use yew::services::reader::{File, FileData, ReaderService, ReaderTask};
 use yew::services::ConsoleService;
 
 use crate::coordinate::{Col, Coordinate, Row};
-use crate::grammar::{Grammar, Interactive, Kind, Lookup};
+use crate::grammar::{Grammar, Kind, Lookup};
 use crate::session::Session;
 use crate::style::Style;
-use crate::util::{apply_definition_grammar, dom_resize, move_grammar, non_zero_u32_tuple, resize};
+use crate::util::{
+    apply_definition_grammar, dom_resize, move_grammar, non_zero_u32_tuple, resize, resize_diff,
+};
 use crate::view::{view_grammar, view_menu_bar, view_side_nav, view_tab_bar};
 use crate::{coord, coord_col, coord_row, row_col_vec};
 
@@ -32,7 +34,8 @@ pub struct Model {
     pub first_select_cell: Option<Coordinate>,
     pub last_select_cell: Option<Coordinate>,
     pub active_cell: Option<Coordinate>,
-    pub suggestions: Vec<Coordinate>,
+    pub default_suggestions: Vec<Coordinate>,
+    pub suggestions: HashMap<Coordinate, Vec<Coordinate>>,
     pub col_widths: HashMap<Col, f64>,
     pub row_heights: HashMap<Row, f64>,
     pub select_grammar: Vec<Coordinate>,
@@ -211,7 +214,8 @@ impl Component for Model {
                coord_row!("meta","1") => 180.0,
             },
             active_cell: Some(coord!("root-A1")),
-            suggestions: vec![coord!("meta-A1"), coord!("meta-A2"), coord!("meta-A3")],
+            default_suggestions: vec![coord!("meta-A1"), coord!("meta-A2"), coord!("meta-A3")],
+            suggestions: HashMap::new(),
 
             console: ConsoleService::new(),
             reader: ReaderService::new(),
@@ -252,10 +256,9 @@ impl Component for Model {
                         style: Style::default(),
                         kind: Kind::Grid(row_col_vec![ (1,1), (2,1), (1,2), (2,2) ]),
                     },
-                    coord!("meta-A3-B1-A1") => Grammar::text("".to_string(), "custom grammar".to_string()),
-                    coord!("meta-A3-B1-A2") => Grammar::default(),
-                    coord!("meta-A3-B1-B1") => Grammar::default(),
-                    coord!("meta-A3-B1-B2") => Grammar::default(),
+                    coord!("meta-A3-B1-A1") => Grammar::input("".to_string(), "sub-grammar name".to_string()),
+                    coord!("meta-A3-B1-B1") => Grammar::text("".to_string(), "+".to_string()),
+                    coord!("meta-A3-B1-C1") => Grammar::default(),
                 },
             }],
 
@@ -542,8 +545,8 @@ impl Component for Model {
                 resize(
                     self,
                     coord,
-                    (rows as f64) * (/* default row height */30.0),
-                    (cols as f64) * (/* default col width */90.0),
+                    (rows as f64) * (/* default row height */tmp_heigt),
+                    (cols as f64) * (/* default col width */tmp_width),
                 );
                 true
             }
@@ -678,8 +681,36 @@ impl Component for Model {
                 true
             }
 
-            Action::DefnUpdateName(coord, name) => false,
-            Action::DefnUpdateRule(coord, rule_row) => false,
+            /*
+             * The following actions determine how the "defn" grammar behaves. It serves three main
+             * roles:
+             * 1) Defining grammars to be suggested in the interface
+             * 2) Specifying valid sub-grammars to be completed into various slots in the
+             *    interface.
+             * 3) Defining how grammars connect with respective drivers and have values evaluated
+             *    and passed back to the interface.
+             */
+            Action::DefnUpdateName(coord, name) => {
+                // updates the name of a new or existing grammar.
+                let defn_name_coord = Coordinate::child_of(&coord, non_zero_u32_tuple((1, 1)));
+                if let Some(g) = self.get_session_mut().grammars.get_mut(&coord) {
+                    match g {
+                        Grammar {
+                            kind: Kind::Input(_),
+                            ..
+                        } => {
+                            info! {"updating defn name: {}", &name};
+                            g.kind = Kind::Input(name);
+                        }
+                        _ => (),
+                    }
+                }
+                true
+            }
+            Action::DefnUpdateRule(coord, rule_row) => {
+                let rule_row_coord = {};
+                true
+            }
             Action::DefnAddRule(coord) => {
                 // TODO adds a new column, points rule coordinate to bottom of ~meta~ sub-table
                 false
