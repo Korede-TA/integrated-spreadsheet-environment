@@ -514,7 +514,7 @@ pub fn view_input_grammar(
                 })
                 oninput=m.link.callback(move |e : InputData| Action::ChangeInput(coord.clone(), e.value))
                 onclick=m.link.callback(move |_ : ClickEvent| Action::SetActiveCell(new_active_cell.clone()))>
-            </input>
+            </div>
             { suggestions }
         </div>
     }
