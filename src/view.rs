@@ -4,9 +4,7 @@ use stdweb::web::{HtmlElement, IHtmlElement};
 use yew::prelude::*;
 use yew::services::reader::File;
 use yew::virtual_dom::VList;
-
 use crate::coordinate::Coordinate;
-use crate::get_grid;
 use crate::grammar::{Grammar, Interactive, Kind, Lookup};
 use crate::model::{Action, Model, SideMenu};
 use crate::style::get_style;
@@ -268,25 +266,18 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                 }
             }
             Kind::Grid(sub_coords) => {
-                let v = get_grid!(sub_coords);
                 view_grid_grammar(
                     m,
                     &coord,
-                    v.iter().map(|c| Coordinate::child_of(&coord, *c)).collect(),
+                    sub_coords.iter().map(|c| Coordinate::child_of(&coord, *c)).collect(),
                 )
             }
             Kind::Lookup(value, lookup_type) => {
-                let suggestions: Vec<Coordinate> = m.tabs[m.current_tab]
-                    .grammars
-                    .keys()
-                    .filter_map(|lookup_c| {
-                        if lookup_c.to_string().contains(value.deref()) {
-                            Some(lookup_c.clone())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
+                let suggestions : Vec<Coordinate> = m.tabs[m.current_tab].grammars.keys()
+                                                            .filter_map(|lookup_c| if lookup_c.to_string().contains(value.deref()) {
+                                                                Some(lookup_c.clone())
+                                                            } else { None })
+                                                            .collect();
                 view_lookup_grammar(m, &coord, suggestions, value, lookup_type, is_active)
             }
         }

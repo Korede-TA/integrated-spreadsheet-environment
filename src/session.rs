@@ -1,13 +1,12 @@
-use serde::{
-    ser::{SerializeSeq, SerializeStruct, SerializeStructVariant, Serializer},
-    Deserialize, Serialize,
-};
 use std::collections::HashMap;
 use std::option::Option;
+use serde::{
+	ser::{SerializeStruct, SerializeSeq, SerializeStructVariant ,Serializer},
+	Deserialize, Serialize,
+};
 
 use crate::coordinate::Coordinate;
-use crate::get_grid;
-use crate::grammar::{Grammar, Interactive, Kind};
+use crate::grammar::{Grammar, Kind, Interactive};
 use crate::style::Style;
 
 // Session encapsulates the serializable state of the application that gets stored to disk
@@ -19,8 +18,8 @@ pub struct Session {
     pub meta: Grammar,
     pub grammars: HashMap<Coordinate, Grammar>,
 }
-js_serializable!(Session);
-js_deserializable!(Session);
+js_serializable!( Session );
+js_deserializable!( Session );
 
 impl Serialize for Session {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -28,6 +27,7 @@ impl Serialize for Session {
         S: Serializer,
     {
         let mut state = serializer.serialize_struct("Session", 3)?;
+        state.serialize_field("title", &self.title)?;
         state.serialize_field("root", &self.root)?;
         state.serialize_field("meta", &self.meta)?;
         state.serialize_field("grammars", &self.grammars)?;
@@ -114,10 +114,9 @@ impl Serialize for Kind {
                 sv.end()
             }
             Kind::Grid(v) => {
-                let list = get_grid!(v);
-                let mut seq = serializer.serialize_seq(Some(list.len()))?;
-                for e in list {
-                    seq.serialize_element(&e)?;
+                let mut seq = serializer.serialize_seq(Some(v.len()))?;
+                for e in v {
+                    seq.serialize_element(e)?;
                 }
                 seq.end()
             }
@@ -136,10 +135,20 @@ impl Serialize for Coordinate {
     where
         S: Serializer,
     {
+        /*
         let mut seq = serializer.serialize_seq(Some(self.row_cols.len()))?;
         for e in self.row_cols.clone() {
-            seq.serialize_element(&e)?;
+            let (a, b) = e;
+            let s = format!("{}-{}",&a,&b);
+            seq.serialize_element(&s)?;
         }
         seq.end()
+        */
+        let s = "";
+        for e in self.row_cols.clone() {
+            let (a, b) = e;
+            let s = format!("{}-{}-{}",s,&a,&b);
+        }
+        serializer.serialize_str(s)
     }
 }

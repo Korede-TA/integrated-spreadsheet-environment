@@ -2,10 +2,7 @@ use std::cmp::Ordering;
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::option::Option;
-
-use crate::get_grid;
 use serde::{Deserialize, Serialize};
-
 use crate::coordinate::{Col, Coordinate, Row};
 use crate::style::Style;
 
@@ -16,7 +13,6 @@ pub struct Grammar {
     pub name: String,
     pub style: Style,
     pub kind: Kind,
-    pub grid_list: Vec<(NonZeroU32, NonZeroU32)>,
 }
 js_serializable!(Grammar);
 js_deserializable!(Grammar);
@@ -32,7 +28,7 @@ pub enum Kind {
     // Readable and writable text grammar
     Input(String),
     // Structural grammar that nests a grid of grammars
-    Grid((NonZeroU32, NonZeroU32)),
+    Grid(Vec<(NonZeroU32, NonZeroU32)>),
 
     // Interactive Grammars
     Interactive(String, Interactive),
@@ -70,76 +66,58 @@ impl Grammar {
             name: "".to_string(),
             style: Style::default(),
             kind: Kind::Input("".to_string()),
-            grid_list: vec![(
-                std::num::NonZeroU32::new(1).unwrap(),
-                std::num::NonZeroU32::new(1).unwrap(),
-            )],
         }
     }
 
     pub fn style(&self, coord: &Coordinate) -> String {
-        match &self.kind {
-            Kind::Grid(sub_coords) => {
-                let mut grid_area_str = "\"".to_string();
-                let mut prev_row = 1;
-                let mut grid = get_grid!(sub_coords);
-
-                grid.sort_by(|(a_row, a_col), (b_row, b_col)| {
-                    if a_row < b_row {
-                        Ordering::Less
-                    } else if a_row == b_row {
-                        if a_col < b_col {
+            match &self.kind {
+                Kind::Grid(sub_coords) => {
+                    let mut grid_area_str = "\"".to_string();
+                    let mut prev_row = 1;
+                    let mut sub_coords = sub_coords.clone();
+                    sub_coords.sort_by(|(a_row, a_col), (b_row, b_col)| 
+                        if a_row < b_row {
                             Ordering::Less
-                        } else {
-                            Ordering::Greater
+                        } else if a_row == b_row {
+                            if a_col < b_col { Ordering::Less } else { Ordering::Greater }
+                        } else { Ordering::Greater }
+                    );
+                    for (row, col) in sub_coords {
+                        if row.get() > prev_row {
+                            grid_area_str.pop();
+                            grid_area_str += "\"\n\"";
                         }
-                    } else {
-                        Ordering::Greater
+                        let sub_coord = Coordinate::child_of(coord, (row.clone(), col.clone()));
+                        grid_area_str += format!{"cell-{} ", sub_coord.to_string()}.deref();
+                        prev_row = row.get();
                     }
-                });
-                for (row, col) in grid {
-                    if row.get() > prev_row {
-                        grid_area_str.pop();
-                        grid_area_str += "\"\n\"";
+                    grid_area_str.pop();
+                    grid_area_str += "\"";
+                    format!{
+                        "display: grid;\ngrid-area: cell-{};\nheight: fit-content;\nwidth: fit-content !important;\ngrid-template-areas: \n{};\n",
+                        coord.to_string(),
+                        grid_area_str,
                     }
-                    let grid = Coordinate::child_of(coord, (row.clone(), col.clone()));
-                    grid_area_str += format! {"cell-{} ", grid.to_string()}.deref();
-                    prev_row = row.get();
-                }
-                grid_area_str.pop();
-                grid_area_str += "\"";
-                format! {
-                    "display: grid;\ngrid-area: cell-{};\nheight: fit-content;\nwidth: fit-content !important;\ngrid-template-areas: \n{};\n",
-                    coord.to_string(),
-                    grid_area_str,
-                }
+                },
+                Kind::Lookup(_, _) => format!{
+                    "{}display: inline-flex; grid-area: cell-{}; background: white;\n", self.style.to_string(), coord.to_string()
+                },
+                _ => format!{"{}grid-area: cell-{};\n", self.style.to_string(), coord.to_string()},
             }
-            Kind::Lookup(_, _) => format! {
-                "{}display: inline-flex; grid-area: cell-{}; background: white;\n", self.style.to_string(), coord.to_string()
-            },
-            _ => format! {"{}grid-area: cell-{};\n", self.style.to_string(), coord.to_string()},
         }
-    }
 
     pub fn suggestion(alias: String, value: String) -> Grammar {
         Grammar {
             name: alias,
             style: Style::default(),
             kind: Kind::Text(value),
-            grid_list: vec![(
-                std::num::NonZeroU32::new(1).unwrap(),
-                std::num::NonZeroU32::new(1).unwrap(),
-            )],
         }
     }
 
     pub fn as_grid(rows: NonZeroU32, cols: NonZeroU32) -> Grammar {
-        let mut grid = vec![(
-            std::num::NonZeroU32::new(1).unwrap(),
-            std::num::NonZeroU32::new(1).unwrap(),
-        )];
-        for i in 2..(rows.get() + 1) {
-            for j in 2..(cols.get() + 1) {
+        let mut grid : Vec<(NonZeroU32, NonZeroU32)> = Vec::new();
+        for i in 1..(rows.get() + 1) {
+            for j in 1..(cols.get() + 1) {
                 grid.push((NonZeroU32::new(i).unwrap(), NonZeroU32::new(j).unwrap()));
             }
         }
@@ -147,33 +125,7 @@ impl Grammar {
         Grammar {
             name: "".to_string(),
             style: Style::default(),
-            kind: Kind::Grid((rows, cols)),
-            grid_list: grid,
+            kind: Kind::Grid(grid),
         }
     }
-}
-
-#[macro_export]
-macro_rules! get_grid {
-    ( $sub_coords:tt ) => {{
-        let mut col = 1;
-        let mut row = 2;
-        let mut c = vec![(
-            std::num::NonZeroU32::new(1).unwrap(),
-            std::num::NonZeroU32::new(1).unwrap(),
-        )];
-        while col < $sub_coords.1.get() + 1 {
-            c.push((
-                std::num::NonZeroU32::new(row.clone()).unwrap(),
-                std::num::NonZeroU32::new(col.clone()).unwrap(),
-            ));
-            if row == $sub_coords.0.get() {
-                row = 1;
-                col += 1;
-            } else {
-                row += 1;
-            }
-        }
-        c
-    }};
 }
