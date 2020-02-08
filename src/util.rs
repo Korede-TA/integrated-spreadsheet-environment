@@ -6,7 +6,7 @@ use std::option::Option;
 use stdweb::web::{document, HtmlElement, IHtmlElement, INonElementParentNode};
 use stdweb::unstable::TryFrom;
 
-use crate::coordinate::{Coordinate, Row, Col};
+use crate::coordinate::{Coordinate};
 use crate::grammar::{Grammar, Kind};
 use crate::model::Model;
 use crate::style::Style;
@@ -119,14 +119,14 @@ pub fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
         kind: Kind::Grid(row_col_vec![(1,1), (2,1), (3,1)]),
     };
 
-    m.grammars.insert(root_coord, defn);
-    m.grammars.insert(defn_name_coord, defn_name);
-    m.grammars.insert(defn_label_coord, defn_label);
-    m.grammars.insert(defn_body_coord, defn_body);
-    m.grammars.insert(defn_body_A1_coord, defn_body_A1);
-    m.grammars.insert(defn_body_A2_coord, defn_body_A2);
-    m.grammars.insert(defn_body_B1_coord, defn_body_B1);
-    m.grammars.insert(defn_body_B2_coord, defn_body_B2);
+    m.tabs[m.current_tab].grammars.insert(root_coord, defn);
+    m.tabs[m.current_tab].grammars.insert(defn_name_coord, defn_name);
+    m.tabs[m.current_tab].grammars.insert(defn_label_coord, defn_label);
+    m.tabs[m.current_tab].grammars.insert(defn_body_coord, defn_body);
+    m.tabs[m.current_tab].grammars.insert(defn_body_A1_coord, defn_body_A1);
+    m.tabs[m.current_tab].grammars.insert(defn_body_A2_coord, defn_body_A2);
+    m.tabs[m.current_tab].grammars.insert(defn_body_B1_coord, defn_body_B1);
+    m.tabs[m.current_tab].grammars.insert(defn_body_B2_coord, defn_body_B2);
 }
 
 pub fn resize(m: &mut Model, coord: Coordinate, row_height: f64, col_width: f64) {
@@ -151,10 +151,10 @@ pub fn resize(m: &mut Model, coord: Coordinate, row_height: f64, col_width: f64)
 pub fn resize_diff(m: &mut Model, coord: Coordinate, row_height_diff: f64, col_width_diff: f64) {
     if let Some(parent_coord) = coord.parent() {
         if let Some(row_height) = m.row_heights.get_mut(&coord.full_row()) {
-            *row_height = row_height_diff + /* horizontal border width */ 2.0; 
+            *row_height += row_height_diff + /* horizontal border width */ 2.0; 
         }
         if let Some(col_width) = m.col_widths.get_mut(&coord.full_col()) {
-            *col_width = col_width_diff + /* vertical border height */ 2.0;
+            *col_width += col_width_diff + /* vertical border height */ 2.0;
         }
         resize_diff(m, parent_coord, row_height_diff, col_width_diff);
     }

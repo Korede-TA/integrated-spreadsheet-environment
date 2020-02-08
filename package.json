@@ -7,7 +7,7 @@
     "dev": "watch 'npm run start' src",
     "test": "echo \"Error: no test specified\" && exit 1",
     "start-cargo": "cargo watch -w src/ -s './scripts/build.sh && electron .'",
-    "start": "webpack --config ./webpack.config.js && electron dist/index.html",
+    "start": "webpack --config ./webpack.config.js && electron dist/main.js",
     "watch": "cargo watch -w src/ -w static/styles.css -s 'npm run start'"
   },
   "repository": {

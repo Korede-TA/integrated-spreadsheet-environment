@@ -47,14 +47,9 @@ use crate::model::Model;
  * data type NonZeroU32 (non-zero unsigned 32-bit integer) as a type for such values
  */
 
-
-
-
-
 #[wasm_bindgen]
 pub fn run_app() -> Result<(), JsValue> {
     web_logger::init();
-//    console_error_panic_hook::set_once();
     panic::set_hook(Box::new(console_error_panic_hook::hook));
     yew::start_app::<Model>();
     Ok(())

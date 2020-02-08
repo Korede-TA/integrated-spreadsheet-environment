@@ -2,10 +2,12 @@ use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::cmp::Ordering;
 use std::option::Option;
-use serde::Deserialize;
+use serde::{Serialize, Deserialize};
 
-use crate::coordinate::Coordinate;
-use crate::model::Model;
+use crate::coordinate::{
+    Coordinate,
+    Row, Col,
+};
 use crate::style::Style;
 
 // Grammar is the main data-type representing
@@ -24,13 +26,32 @@ js_deserializable!( Grammar );
 // can only be set to one these variants at a time
 #[derive(Deserialize, Debug, Clone)]
 pub enum Kind {
+    // Read-only text grammar
     Text(String),
+
+    // Readable and writable text grammar
     Input(String),
-    Interactive(String, Interactive),
+
+    // Structural grammar that nests a grid of grammars
     Grid(Vec<(NonZeroU32, NonZeroU32)>),
+
+    // Interactive Grammars
+    Interactive(String, Interactive),
+
+    // Lookup grammar
+    Lookup(String, Option<Lookup>),
 }
 js_serializable!( Kind );
 js_deserializable!( Kind );
+
+// Kinds of lookup grammars
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum Lookup {
+    Cell(Coordinate),
+    Range { parent: Coordinate, start: (NonZeroU32, NonZeroU32), end: (NonZeroU32, NonZeroU32) },
+    Row(Row),
+    Col(Col),
+}
 
 // Kinds of interactive grammars
 #[derive(Deserialize, Debug, Clone)]
@@ -78,6 +99,9 @@ impl Grammar {
                     coord.to_string(),
                     grid_area_str,
                 }
+            },
+            Kind::Lookup(_, _) => format!{
+                "{}display: inline-flex; grid-area: cell-{}; background: white;\n", self.style.to_string(), coord.to_string()
             },
             _ => format!{"{}grid-area: cell-{};\n", self.style.to_string(), coord.to_string()},
         }
