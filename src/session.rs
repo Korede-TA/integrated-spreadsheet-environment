@@ -1,12 +1,12 @@
+use serde::{
+    ser::{SerializeSeq, SerializeStruct, SerializeStructVariant, Serializer},
+    Deserialize, Serialize,
+};
 use std::collections::HashMap;
 use std::option::Option;
-use serde::{
-	ser::{SerializeStruct, SerializeSeq, SerializeStructVariant ,Serializer},
-	Deserialize, Serialize,
-};
 
 use crate::coordinate::Coordinate;
-use crate::grammar::{Grammar, Kind, Interactive};
+use crate::grammar::{Grammar, Interactive, Kind};
 use crate::style::Style;
 
 // Session encapsulates the serializable state of the application that gets stored to disk
@@ -18,8 +18,8 @@ pub struct Session {
     pub meta: Grammar,
     pub grammars: HashMap<Coordinate, Grammar>,
 }
-js_serializable!( Session );
-js_deserializable!( Session );
+js_serializable!(Session);
+js_deserializable!(Session);
 
 impl Serialize for Session {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -147,7 +147,7 @@ impl Serialize for Coordinate {
         let s = "";
         for e in self.row_cols.clone() {
             let (a, b) = e;
-            let s = format!("{}-{}-{}",s,&a,&b);
+            let s = format!("{}-{}-{}", s, &a, &b);
         }
         serializer.serialize_str(s)
     }

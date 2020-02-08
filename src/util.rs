@@ -1,3 +1,8 @@
+use crate::coordinate::Coordinate;
+use crate::grammar::{Grammar, Kind};
+use crate::model::Model;
+use crate::row_col_vec;
+use crate::style::Style;
 use std::char::from_u32;
 use std::collections::HashMap;
 use std::num::NonZeroU32;
@@ -5,11 +10,6 @@ use std::ops::Deref;
 use std::option::Option;
 use stdweb::unstable::TryFrom;
 use stdweb::web::{document, HtmlElement, IHtmlElement, INonElementParentNode};
-use crate::coordinate::Coordinate;
-use crate::grammar::{Grammar, Kind};
-use crate::model::Model;
-use crate::row_col_vec;
-use crate::style::Style;
 
 pub fn move_grammar(map: &mut HashMap<Coordinate, Grammar>, source: Coordinate, dest: Coordinate) {
     if let Some(source_grammar) = map.clone().get(&source) {
@@ -19,7 +19,7 @@ pub fn move_grammar(map: &mut HashMap<Coordinate, Grammar>, source: Coordinate, 
                 move_grammar(
                     map,
                     Coordinate::child_of(&source, sub_coord),
-                    Coordinate::child_of(&dest, sub_coord)
+                    Coordinate::child_of(&dest, sub_coord),
                 );
             }
         }
@@ -177,18 +177,26 @@ pub fn resize_diff(m: &mut Model, coord: Coordinate, row_height_diff: f64, col_w
 pub fn resize_cells(map: &mut HashMap<Coordinate, Grammar>, on: Coordinate) {
     let (height, width) = {
         let element = HtmlElement::try_from(
-            document().get_element_by_id(format!{"cell-{}", on.to_string()}.deref()).unwrap()).unwrap();
+            document()
+                .get_element_by_id(format! {"cell-{}", on.to_string()}.deref())
+                .unwrap(),
+        )
+        .unwrap();
         let rect = element.get_bounding_client_rect();
         (rect.get_height(), rect.get_width())
     };
-    info!{"expanding...: H {}px, W {}px", height.clone(), width.clone()}
+    info! {"expanding...: H {}px, W {}px", height.clone(), width.clone()}
     let on_grammar = map.get_mut(&on).unwrap();
     on_grammar.style.height = height.clone();
     on_grammar.style.width = width.clone();
-    let parent_kind = on.parent().and_then(|p| map.get(&p)).map(|g| g.kind.clone());
+    let parent_kind = on
+        .parent()
+        .and_then(|p| map.get(&p))
+        .map(|g| g.kind.clone());
     if let Some(Kind::Grid(neighbors_coords)) = parent_kind {
         for (row, col) in neighbors_coords {
-            if let Some(cell) = map.get_mut(&Coordinate::child_of(&on, (row.clone(), col.clone()))) {
+            if let Some(cell) = map.get_mut(&Coordinate::child_of(&on, (row.clone(), col.clone())))
+            {
                 if row == on.row() {
                     cell.style.height = height.clone();
                 } else if col == on.col() {
