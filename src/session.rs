@@ -6,7 +6,9 @@ use std::collections::HashMap;
 use std::option::Option;
 
 use crate::coordinate::Coordinate;
-use crate::grammar::{Grammar, Interactive, Kind};
+
+use crate::grammar::{Grammar, Kind, Interactive};
+
 use crate::style::Style;
 
 // Session encapsulates the serializable state of the application that gets stored to disk

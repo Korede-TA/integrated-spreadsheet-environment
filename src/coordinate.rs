@@ -3,9 +3,6 @@ use std::num::NonZeroU32;
 use std::option::Option;
 use std::panic;
 
-use crate::grammar::{Grammar, Kind};
-use crate::model::Model;
-use crate::style::Style;
 use crate::util::coord_show;
 use serde::{Deserialize, Serialize};
 
@@ -201,11 +198,9 @@ impl Coordinate {
     }
 }
 
+
 #[derive(Serialize, Deserialize, Debug, Clone, Hash)]
-pub struct Row(
-    /* parent */ pub Coordinate,
-    /* row_index */ pub NonZeroU32,
-);
+pub struct Row(/* parent */ pub Coordinate, /* row_index */ pub NonZeroU32);
 
 impl PartialEq for Row {
     fn eq(&self, other: &Self) -> bool {
@@ -216,10 +211,8 @@ impl PartialEq for Row {
 impl Eq for Row {}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash)]
-pub struct Col(
-    /* parent */ pub Coordinate,
-    /* col_index */ pub NonZeroU32,
-);
+pub struct Col(/* parent */ pub Coordinate, /* col_index */ pub NonZeroU32);
+
 
 impl PartialEq for Col {
     fn eq(&self, other: &Self) -> bool {
