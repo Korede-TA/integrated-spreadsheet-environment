@@ -608,6 +608,7 @@ impl Component for Model {
             Action::DeleteRow => {
                 //Taking Active cell
                 if let Some(coord) = self.active_cell.clone() {
+                    //Have to initialize many things for them to work in loop
                     let mut next_row = coord.clone();
                     let mut grammars = self.tabs[self.current_tab].grammars.clone();
                     let mut row_coords1 = self.query_row(next_row.full_row());
@@ -628,20 +629,13 @@ impl Component for Model {
 
                         //each grammar copied
                         for i in row_coords2.clone() {
-                            //info!("Copy - {:?}", grammars[&i]);
                             temp.insert(u, grammars[&i].clone());
-                            //info!("Copy - {:?}", temp);
                             u += 1;
                         }
-                        //info!("gonna temp - {:?}", row_coords2);
-                        //info!("Temp - {:?}", temp);
                         u = 0;
-                        //info!("length: {}", temp.len().to_string());
-                        //each grammar replace and last row deleted
 
                         if temp.len() == 0 {
                             let parent = next_row.parent().unwrap();
-                            //info!("3 - {:?}",row_coords1);
                             if let Some(Grammar {
                                 kind: Kind::Grid(sub_coords),
                                 name,
@@ -652,18 +646,12 @@ impl Component for Model {
 
                                 for c in row_coords1.clone() {
                                     for i in (0..new_row_coords.len()).rev() {
-                                        //info!("3.here - {:?}",new_row_coords[i]);
                                         if new_row_coords[i] == (c.row(), c.col()) {
                                             new_row_coords.remove(i);
+                                            grammars.remove(&Coordinate::child_of(&parent.clone(), (c.row(), c.col())));
                                         }
                                     }
-
-                                    //info!("3.3 - {:?}",c);
-                                    //info!("3.4 - {:?}",new_row_coords);
-                                    // new_row_coords.retain(|&x| x != (c.row(),c.col()));
                                 }
-                                //info!("3.2 - {:?}",new_row_coords);
-                                //grammars[&parent].kind = crate::grammar::Kind::Grid(s);
                                 grammars.remove(&parent);
                                 grammars.remove(&next_row);
                                 grammars.insert(
@@ -674,20 +662,14 @@ impl Component for Model {
                                         style: style.clone(),
                                     },
                                 );
-
-                                // info!("3.6 - {:?}",grammars[&parent]);
                                 break;
                             }
                         } else {
-                            //info!("Pass2 - {:?}", row_coords1);
+                            // info!("XD {:?}", row_coords1);
+                            // info!("Temp {:?}", temp);
                             for c in (0..row_coords1.len()).rev() {
-                                // info!("Gonna pass - {:?}", temp[u]);
-                                //info!("Pass1 - {:?} - {}", c, u);
-
-                                //let mut gram = grammars.get_mut(&c).unwrap();
                                 grammars.insert(row_coords1[c].clone(), temp[u].clone());
                                 u += 1;
-                                //info!("Pass2 - {:?}", grammars[&row_coords1[c]]);
                             }
                             u = 0;
                         }
@@ -695,7 +677,6 @@ impl Component for Model {
                         row_coords1 = row_coords2.clone();
                         next_row = below_coord;
                     }
-                    //info!("{:?}",grammars);
                     self.tabs[self.current_tab].grammars = grammars;
                 }
                 true
@@ -703,6 +684,7 @@ impl Component for Model {
             Action::DeleteCol => {
                 //Taking Active cell
                 if let Some(coord) = self.active_cell.clone() {
+                    //Have to initialize many things for them to work in loop
                     let mut next_col = coord.clone();
                     let mut grammars = self.to_session().grammars.clone();
                     let mut col_coords1 = self.query_col(next_col.full_col());
@@ -731,19 +713,12 @@ impl Component for Model {
 
                         //each grammar copied
                         for i in col_coords2.clone() {
-                            //info!("Copy - {:?}", grammars[&i]);
                             temp.insert(u, grammars[&i].clone());
-                            //info!("Copy - {:?}", temp);
                             u += 1;
                         }
-                        //info!("gonna temp - {:?}", col_coords2);
-                        //info!("Temp - {:?}", temp);
                         u = 0;
-
-                        //each grammar replace and last col deleted
                         if temp.len() == 0 {
                             let parent = next_col.parent().unwrap();
-                            ////info!("3 - {:?}",col_coords1);
                             if let Some(Grammar {
                                 kind: Kind::Grid(sub_coords),
                                 name,
@@ -754,16 +729,12 @@ impl Component for Model {
 
                                 for c in col_coords1.clone() {
                                     for i in (0..new_col_coords.len()).rev() {
-                                        ////info!("3.here - {:?}",new_col_coords[i]);
                                         if new_col_coords[i] == (c.row(), c.col()) {
                                             new_col_coords.remove(i);
+                                            grammars.remove(&Coordinate::child_of(&parent.clone(), (c.row(), c.col())));
                                         }
                                     }
-
-                                    ////info!("3.3 - {:?}",c);
-                                    ////info!("3.4 - {:?}",new_col_coords);
                                 }
-                                //info!("3.2 - {:?}",new_col_coords);
                                 grammars.remove(&parent);
                                 grammars.remove(&next_col);
                                 grammars.insert(
@@ -774,17 +745,12 @@ impl Component for Model {
                                         style: style.clone(),
                                     },
                                 );
-
-                                // //info!("3.6 - {:?}",grammars[&parent]);
                                 break;
                             }
                         } else {
-                            //info!("Pass2 - {:?}", col_coords1);
                             for c in (0..col_coords1.len()).rev() {
-                                ////info!("Pass1 - {:?} - {}", c, u);
                                 grammars.insert(col_coords1[c].clone(), temp[u].clone());
                                 u += 1;
-                                // //info!("Pass2 - {:?}", grammars[&col_coords1[c]]);
                             }
                             u = 0;
                         }
