@@ -50,6 +50,16 @@ pub enum Lookup {
     },
     Row(Row),
     Col(Col),
+
+}
+
+// Kinds of lookup grammars
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum Lookup {
+    Cell(Coordinate),
+    Range { parent: Coordinate, start: (NonZeroU32, NonZeroU32), end: (NonZeroU32, NonZeroU32) },
+    Row(Row),
+    Col(Col),
 }
 
 // Kinds of interactive grammars
@@ -108,7 +118,10 @@ impl Grammar {
             Kind::Lookup(_, _) => format! {
                 "{}display: inline-flex; grid-area: cell-{}; background: white;\n", self.style.to_string(), coord.to_string()
             },
-            _ => format! {"{}grid-area: cell-{};\n", self.style.to_string(), coord.to_string()},
+            Kind::Lookup(_, _) => format!{
+                "{}display: inline-flex; grid-area: cell-{}; background: white;\n", self.style.to_string(), coord.to_string()
+            },
+            _ => format!{"{}grid-area: cell-{};\n", self.style.to_string(), coord.to_string()},
         }
     }
 

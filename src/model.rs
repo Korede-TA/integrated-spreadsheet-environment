@@ -4,12 +4,14 @@ use std::fs;
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::option::Option;
+
 use std::panic;
 use std::vec::Vec;
 use yew::prelude::*;
 use yew::services::reader::{File, FileData, ReaderService, ReaderTask};
 use yew::services::ConsoleService;
 //TODO
+//To make it run
 // use node_sys::fs as node_fs;
 // use node_sys::Buffer;
 // use js_sys::{
@@ -23,6 +25,7 @@ use wasm_bindgen::JsValue;
 
 use crate::coordinate::{Col, Coordinate, Row};
 use crate::grammar::{Grammar, Kind, Lookup};
+
 use crate::session::Session;
 use crate::style::Style;
 use crate::util::{
@@ -109,15 +112,14 @@ pub enum Action {
     // Alerts and stuff
     Alert(String),
 
-    Lookup(
-        /* source: */ Coordinate,
-        /* lookup_type: */ Lookup,
-    ),
+    Lookup(/* source: */ Coordinate, /* lookup_type: */ Lookup),
+
 
     ToggleLookup(Coordinate),
 }
 
 impl Model {
+
     // only use this if you need a COPY of the current session
     // i.e. not changing its values
     pub fn to_session(&self) -> Session {
@@ -131,6 +133,7 @@ impl Model {
     }
 
     fn query_parent(&self, coord_parent: Coordinate) -> Vec<Coordinate> {
+
         self.to_session()
             .grammars
             .keys()
@@ -216,6 +219,7 @@ impl Component for Model {
             console: ConsoleService::new(),
             reader: ReaderService::new(),
 
+
             tabs: vec![Session {
                 title: "my session".to_string(),
                 root: root_grammar.clone(),
@@ -280,6 +284,7 @@ impl Component for Model {
             Action::ChangeInput(coord, new_value) => {
                 if let Some(g) = self.tabs[self.current_tab].grammars.get_mut(&coord) {
                     match g {
+
                         Grammar {
                             kind: Kind::Input(_),
                             ..
@@ -295,6 +300,7 @@ impl Component for Model {
                             g.kind = Kind::Lookup(new_value, lookup_type.clone());
                         }
                         _ => (),
+
                     }
                 }
                 true
@@ -306,11 +312,13 @@ impl Component for Model {
             }
 
             Action::DoCompletion(source_coord, dest_coord) => {
+
                 move_grammar(
                     &mut self.tabs[self.current_tab].grammars,
                     source_coord,
                     dest_coord.clone(),
                 );
+
                 resize_cells(&mut self.tabs[self.current_tab].grammars, dest_coord);
                 true
             }
@@ -334,6 +342,7 @@ impl Component for Model {
                 true
             }
             //TODO
+            //To make it run
             Action::SaveSession() => {
                 //     let session = self.to_session();
                 //     let j = serde_json::to_string(&session.clone());
@@ -342,8 +351,15 @@ impl Component for Model {
                 //     let jsbuffer = Buffer::from_string(&JsString::from(j.unwrap()), None);
                 //     let jscallback = Function::new_no_args("{}");
                 //     node_fs::append_file(&jsfilename, &jsbuffer, None, &jscallback);
+
                 false
             }
+            Action::SetSessionTitle(name) => {
+                // cant use to_session() here since we're actually changing it
+                self.tabs[self.current_tab].title = name;
+                true
+            }
+
             Action::SetSessionTitle(name) => {
                 // cant use to_session() here since we're actually changing it
                 self.tabs[self.current_tab].title = name;
@@ -474,9 +490,11 @@ impl Component for Model {
 
                     for sub_coord in sub_coords {
                         let new_coord = Coordinate::child_of(&coord, sub_coord);
+
                         self.tabs[self.current_tab]
                             .grammars
                             .insert(new_coord.clone(), Grammar::default());
+
                         // initialize row & col heights as well
                         if !self.row_heights.contains_key(&new_coord.clone().full_row()) {
                             self.row_heights
@@ -504,6 +522,7 @@ impl Component for Model {
                     (rows as f64) * (/* default row height */tmp_heigt), //30.0),
                     (cols as f64) * (/* default col width */tmp_width),
                 ); //90.0));
+
                 true
             }
             Action::InsertCol => {
@@ -530,6 +549,7 @@ impl Component for Model {
                         style,
                     }) = self.to_session().grammars.get(&parent)
                     {
+
                         let mut new_sub_coords = sub_coords.clone();
                         let mut grammars = self.to_session().grammars.clone();
                         for c in new_col_coords {
@@ -590,7 +610,6 @@ impl Component for Model {
                             );
                             new_sub_coords.push(c);
                         }
-                        //info!("3 - {:?}",new_sub_coords);
                         grammars.insert(
                             parent,
                             Grammar {
@@ -599,7 +618,7 @@ impl Component for Model {
                                 style: style.clone(),
                             },
                         );
-                        //info!("4 - {:?}",grammars );
+
                         self.tabs[self.current_tab].grammars = grammars;
                     }
                 }
@@ -796,6 +815,7 @@ impl Component for Model {
                     _ => {
                         info! { "[Action::ToggleLookup] cannot toggle non-Input/Lookup kind of grammar" }
                     }
+
                 };
                 true
             }
@@ -815,11 +835,7 @@ impl Component for Model {
 
                 <div class="main">
                     <div id="grammars" class="grid-wrapper" onkeypress=self.link.callback(move |e : KeyPressEvent| {
-                        if e.key() == "g" && e.ctrl_key() {
-                            if let Some(coord) = active_cell.clone() {
-                                return Action::AddNestedGrid(coord.clone(), (3, 3));
-                            }
-                        }
+                        // Global Key-Shortcuts
                         Action::Noop
                     })>
                         { view_grammar(&self, coord!{"root"}) }
@@ -828,4 +844,12 @@ impl Component for Model {
             </div>
         }
     }
+
+    fn mounted(&mut self) -> ShouldRender {
+        if let Some(input) = self.focus_node_ref.try_into::<InputElement>() {
+            input.focus();
+        }
+        false
+    }
+
 }

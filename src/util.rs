@@ -11,6 +11,7 @@ use std::option::Option;
 use stdweb::unstable::TryFrom;
 use stdweb::web::{document, HtmlElement, IHtmlElement, INonElementParentNode};
 
+
 pub fn move_grammar(map: &mut HashMap<Coordinate, Grammar>, source: Coordinate, dest: Coordinate) {
     if let Some(source_grammar) = map.clone().get(&source) {
         map.insert(dest.clone(), source_grammar.clone());
@@ -140,6 +141,7 @@ pub fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
     m.tabs[m.current_tab]
         .grammars
         .insert(defn_body_B2_coord, defn_body_B2);
+
 }
 
 pub fn resize(m: &mut Model, coord: Coordinate, row_height: f64, col_width: f64) {

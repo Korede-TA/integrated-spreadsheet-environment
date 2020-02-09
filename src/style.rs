@@ -2,7 +2,7 @@ use serde::Deserialize;
 use std::option::Option;
 
 use crate::coordinate::Coordinate;
-use crate::grammar::{Grammar, Kind};
+use crate::grammar::{Kind};
 use crate::model::Model;
 
 // Style contains the relevant CSS properties for styling
@@ -52,6 +52,7 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
         .expect("no grammar with this coordinate");
     if coord.row_cols.len() == 1 {
         // root or meta
+
         return grammar.style(coord);
     }
     if let Kind::Grid(_) = grammar.kind {
