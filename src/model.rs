@@ -1,24 +1,21 @@
+use electron_sys::ipc_renderer;
 use pest::Parser;
 use std::collections::HashMap;
 use std::fs;
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::option::Option;
+use std::panic;
+use stdweb::web::html_element::InputElement;
+use stdweb::web::{document, IElement, IHtmlElement, INode, IParentNode};
+use wasm_bindgen::JsValue;
 use yew::events::{ClickEvent, IKeyboardEvent, KeyPressEvent};
 use yew::prelude::*;
-use yew::services::{ConsoleService};
 use yew::services::reader::{File, FileData, ReaderService, ReaderTask};
-use pest::Parser;
-use std::fs;
-use std::panic;
-use electron_sys::{ipc_renderer};
-use wasm_bindgen::JsValue;
-use stdweb::web::{document, IElement, IHtmlElement, INode, IParentNode};
-use stdweb::web::html_element::{InputElement};
+use yew::services::ConsoleService;
 
+use crate::coordinate::{Col, Coordinate, Row};
 use crate::grammar::{Grammar, Interactive, Kind, Lookup};
-use crate::style::Style;
-use crate::coordinate::{Coordinate, Row, Col};
 use crate::session::Session;
 use crate::style::Style;
 use crate::util::{
@@ -46,8 +43,8 @@ pub struct Model {
     pub select_grammar: Vec<Coordinate>,
 
     // tabs correspond to sessions
-    pub tabs: Vec<Session>,
-    pub current_tab: usize,
+    pub sessions: Vec<Session>,
+    pub current_session_index: usize,
 
     // side menus
     pub side_menus: Vec<SideMenu>,
@@ -107,27 +104,38 @@ pub enum Action {
     Alert(String),
 
     SetSelectedCells(Coordinate),
-    Lookup(/* source: */ Coordinate, /* lookup_type: */ Lookup),
+    Lookup(
+        /* source: */ Coordinate,
+        /* lookup_type: */ Lookup,
+    ),
 
     ToggleLookup(Coordinate),
 }
 
 impl Model {
+    pub fn get_session(&self) -> &Session {
+        &self.sessions[self.current_session_index]
+    }
+
+    pub fn get_session_mut(&mut self) -> &mut Session {
+        &mut self.sessions[self.current_session_index]
+    }
 
     // only use this if you need a COPY of the current session
     // i.e. not changing its values
     pub fn to_session(&self) -> Session {
-        return self.tabs[self.current_tab].clone();
+        return self.get_session().clone();
     }
 
     fn load_session(&mut self, session: Session) {
-        self.tabs[self.current_tab].root = session.root;
-        self.tabs[self.current_tab].meta = session.meta;
-        self.tabs[self.current_tab].grammars = session.grammars;
+        self.get_session_mut().root = session.root;
+        self.get_session_mut().meta = session.meta;
+        self.get_session_mut().grammars = session.grammars;
     }
 
     fn query_parent(&self, coord_parent: Coordinate) -> Vec<Coordinate> {
-        self.grammars
+        self.get_session()
+            .grammars
             .keys()
             .clone()
             .filter_map(|k| {
@@ -141,7 +149,8 @@ impl Model {
     }
 
     fn query_col(&self, coord_col: Col) -> Vec<Coordinate> {
-        self.grammars
+        self.get_session()
+            .grammars
             .keys()
             .clone()
             .filter_map(|k| {
@@ -159,7 +168,8 @@ impl Model {
     }
 
     fn query_row(&self, coord_row: Row) -> Vec<Coordinate> {
-        self.grammars
+        self.get_session()
+            .grammars
             .keys()
             .clone()
             .filter_map(|k| {
@@ -213,27 +223,25 @@ impl Component for Model {
             first_select_cell: None,
             last_select_cell: None,
 
-            tabs: vec![
-                Session{
-                    title: "my session".to_string(),
-                    root: root_grammar.clone(),
-                    meta: meta_grammar.clone(),
-                    grammars: hashmap! {
-                        coord!("root")    => root_grammar.clone(),
-                        coord!("root-A1") => Grammar::default(),
-                        coord!("root-A2") => Grammar::default(),
-                        coord!("root-A3") => Grammar::default(),
-                        coord!("root-B1") => Grammar::default(),
-                        coord!("root-B2") => Grammar::default(),
-                        coord!("root-B3") => Grammar::default(),
-                        coord!("meta")    => meta_grammar.clone(),
-                        coord!("meta-A1") => Grammar::suggestion("js grammar".to_string(), "This is js".to_string()),
-                        coord!("meta-A2") => Grammar::suggestion("java grammar".to_string(), "This is java".to_string()),
-                    }
-                }
-            ],
+            sessions: vec![Session {
+                title: "my session".to_string(),
+                root: root_grammar.clone(),
+                meta: meta_grammar.clone(),
+                grammars: hashmap! {
+                    coord!("root")    => root_grammar.clone(),
+                    coord!("root-A1") => Grammar::default(),
+                    coord!("root-A2") => Grammar::default(),
+                    coord!("root-A3") => Grammar::default(),
+                    coord!("root-B1") => Grammar::default(),
+                    coord!("root-B2") => Grammar::default(),
+                    coord!("root-B3") => Grammar::default(),
+                    coord!("meta")    => meta_grammar.clone(),
+                    coord!("meta-A1") => Grammar::suggestion("js grammar".to_string(), "This is js".to_string()),
+                    coord!("meta-A2") => Grammar::suggestion("java grammar".to_string(), "This is java".to_string()),
+                },
+            }],
 
-            current_tab: 0,
+            current_session_index: 0,
 
             side_menus: vec![
                 SideMenu {
@@ -285,7 +293,7 @@ impl Component for Model {
                             ..
                         },
                     ) => {
-                        self.console.log(&new_value);
+                        info! {"{}", &new_value};
                         g.kind = Kind::Text(new_value);
                     }
                     _ => (),
@@ -306,8 +314,12 @@ impl Component for Model {
             }
 
             Action::DoCompletion(source_coord, dest_coord) => {
-                move_grammar(&mut self.tabs[self.current_tab].grammars, source_coord, dest_coord.clone());
-                resize_cells(&mut self.tabs[self.current_tab].grammars, dest_coord);
+                move_grammar(
+                    &mut self.get_session_mut().grammars,
+                    source_coord,
+                    dest_coord.clone(),
+                );
+                resize_cells(&mut self.get_session_mut().grammars, dest_coord);
                 true
             }
 
@@ -337,7 +349,7 @@ impl Component for Model {
                 use js_sys::{
                     JsString,
                     Function
-                };  
+                };
                 let session = self.to_session();
                 let j = serde_json::to_string(&session.clone());
                 let filename = session.title.to_string();
@@ -345,18 +357,17 @@ impl Component for Model {
                 let jsbuffer = Buffer::from_string(&JsString::from(j.unwrap()), None);
                 let jscallback = Function::new_no_args("{}");
                 node_fs::append_file(&jsfilename, &jsbuffer, None, &jscallback);
-                false
                 */
+                false
             }
 
             Action::SetSessionTitle(name) => {
-                // cant use to_session() here since we're actually changing it
-                self.tabs[self.current_tab].title = name;
+                self.get_session_mut().title = name;
                 true
             }
 
             Action::ReadDriverFiles(files_list) => {
-                // Get the main file and miscellaneous/additional files from the drivers list 
+                // Get the main file and miscellaneous/additional files from the drivers list
                 let (main_file, misc_files) = {
                     let (main_file_as_vec, misc_files) : (Vec<File>, Vec<File>) = files_list.iter().fold((Vec::new(), Vec::new()), |accum, file| { 
                         // Iter::partition is used to divide a list into two given a certain condition.
@@ -392,15 +403,20 @@ impl Component for Model {
                         };
                         new_accum
                     });
-                    // the `partition` call above gives us a tuple of two Vecs (Vec, Vec) where the first Vec 
+                    // the `partition` call above gives us a tuple of two Vecs (Vec, Vec) where the first Vec
                     // should have only one element, so we'll convert it to a (Vec::Item, Vec).
                     // If this has an error, then there's something wrong with how the driver
                     // directory is organized.
-                    (main_file_as_vec.first().unwrap().clone(), misc_files.clone())
+                    (
+                        main_file_as_vec.first().unwrap().clone(),
+                        misc_files.clone(),
+                    )
                 };
 
                 // upload misc files so they can be served by electron to be used by main driver file
-                let upload_callback = self.link.callback(|file_data| Action::UploadDriverMiscFile(file_data));
+                let upload_callback = self
+                    .link
+                    .callback(|file_data| Action::UploadDriverMiscFile(file_data));
                 for file in misc_files {
                     let task = self.reader.read_file(file, upload_callback.clone());
                     self.tasks.push(task);
@@ -409,8 +425,9 @@ impl Component for Model {
                 // Load main driver file. After this task has been scheduled and executed, the
                 // driver is ready for use.
                 self.tasks.push(
-                    self.reader.read_file(main_file, 
-                        self.link.callback(Action::LoadDriverMainFile)));
+                    self.reader
+                        .read_file(main_file, self.link.callback(Action::LoadDriverMainFile)),
+                );
 
                 false
             }
@@ -422,9 +439,9 @@ impl Component for Model {
                 // See here for documentation how to communicate between the main and renderer proess in Electron:
                 //   https://www.tutorialspoint.com/electron/electron_inter_process_communication.htm
                 // And here, for the documentation for the electon_sys Rust bindings for electron.ipcRenderer:
-                //   https://docs.rs/electron-sys/0.4.0/electron_sys/struct.IpcRenderer.html 
-                
-                let args : [JsValue; 2] = [
+                //   https://docs.rs/electron-sys/0.4.0/electron_sys/struct.IpcRenderer.html
+
+                let args: [JsValue; 2] = [
                     JsValue::from_str(file_data.name.deref()),
                     JsValue::from_str(std::str::from_utf8(&file_data.content).unwrap()),
                 ];
@@ -433,7 +450,7 @@ impl Component for Model {
             }
 
             Action::LoadDriverMainFile(main_file_data) => {
-                info!{"Loading Driver: {}", &main_file_data.name};
+                info! {"Loading Driver: {}", &main_file_data.name};
                 let file_contents = std::str::from_utf8(&main_file_data.content).unwrap();
                 // dump file contents into script tag and attach to the DOM
                 let script = document().create_element("script").unwrap();
@@ -445,7 +462,6 @@ impl Component for Model {
                 head.append_child(&script);
                 true
             }
-
 
             Action::AddNestedGrid(coord, (rows, cols)) => {
                 // height and width initial values
@@ -459,37 +475,45 @@ impl Component for Model {
 
                     let current_width = self.col_widths[&coord.full_col()];
                     let current_height = self.row_heights[&coord.full_row()];
-                    
+
                     // check if active cell row height and width is greater than default value
                     if current_width > tmp_width {
                         // set height argument to active cell height if greater
                         //Get the actual amount of cell being created and use it instead of "3" being HARD CODED.
-                        tmp_width = current_width/3.0; 
+                        tmp_width = current_width / 3.0;
                     }
                     if current_height > tmp_heigt {
                         // set width argument to active cell width if greater
                         //Get the actual amount of cell being created and use it instead of "3" being HARD CODED.
-                        tmp_heigt = current_height/3.0;
+                        tmp_heigt = current_height / 3.0;
                     }
 
                     for sub_coord in sub_coords {
                         let new_coord = Coordinate::child_of(&coord, sub_coord);
-                        self.tabs[self.current_tab].grammars.insert(new_coord.clone(), Grammar::default());
+                        self.get_session_mut()
+                            .grammars
+                            .insert(new_coord.clone(), Grammar::default());
                         // initialize row & col heights as well
                         if !self.row_heights.contains_key(&new_coord.clone().full_row()) {
-                            self.row_heights.insert(new_coord.clone().full_row(), tmp_heigt); //30.0);
+                            self.row_heights
+                                .insert(new_coord.clone().full_row(), tmp_heigt);
+                            //30.0);
                         }
                         if !self.col_widths.contains_key(&new_coord.clone().full_col()) {
-                            self.col_widths.insert(new_coord.clone().full_col(), tmp_width);//90.0);
+                            self.col_widths
+                                .insert(new_coord.clone().full_col(), tmp_width);
+                            //90.0);
                         }
                     }
                 }
-                if let Some(parent) =
-                    Coordinate::parent(&coord).and_then(|p| self.grammars.get_mut(&p))
+                if let Some(parent) = Coordinate::parent(&coord)
+                    .and_then(|p| self.get_session_mut().grammars.get_mut(&p))
                 {
                     parent.kind = grammar.clone().kind; // make sure the parent gets set to Kind::Grid
                 }
-                self.get_session().grammars.insert(coord.clone(), grammar);
+                self.get_session_mut()
+                    .grammars
+                    .insert(coord.clone(), grammar);
                 resize(
                     self,
                     coord,
@@ -549,7 +573,7 @@ impl Component for Model {
                     // find the bottom-most coord
                     let mut bottom_most_coord = coord.clone();
                     while let Some(below_coord) = bottom_most_coord.neighbor_below() {
-                        if self.tabs[self.current_tab].grammars.contains_key(&below_coord) {
+                        if self.get_session().grammars.contains_key(&below_coord) {
                             bottom_most_coord = below_coord;
                         } else {
                             break;
@@ -569,7 +593,7 @@ impl Component for Model {
                     }) = self.get_session().grammars.get(&parent)
                     {
                         let mut new_sub_coords = sub_coords.clone();
-                        let mut grammars = self.tabs[self.current_tab].grammars.clone();
+                        let mut grammars = self.get_session().grammars.clone();
                         for c in new_row_coords {
                             grammars.insert(
                                 Coordinate::child_of(&parent.clone(), c),
@@ -585,7 +609,7 @@ impl Component for Model {
                                 style: style.clone(),
                             },
                         );
-                        self.get_session().grammars = grammars;
+                        self.get_session_mut().grammars = grammars;
                     }
                 }
                 true
@@ -593,22 +617,38 @@ impl Component for Model {
             Action::Lookup(source_coord, lookup_type) => {
                 match lookup_type {
                     Lookup::Cell(dest_coord) => {
-                        move_grammar(&mut self.grammars, source_coord, dest_coord.clone());
+                        move_grammar(
+                            &mut self.get_session_mut().grammars,
+                            source_coord,
+                            dest_coord.clone(),
+                        );
                     }
-                    _ => ()
+                    _ => (),
                 }
                 false
             }
 
             Action::ToggleLookup(coord) => {
-                match self.grammars.get_mut(&coord) {
-                Some(g @ Grammar {kind: Kind::Input(_), ..}) => {
-                    g.kind = Kind::Lookup("".to_string(), None);
-                },
-                Some(g @ Grammar {kind: Kind::Lookup(_, _), ..}) => {
-                    g.kind = Kind::Input("".to_string());
-                },
-                _ => info!{ "[Action::ToggleLookup] cannot toggle non-Input/Lookup kind of grammar" },
+                match self.get_session_mut().grammars.get_mut(&coord) {
+                    Some(
+                        g @ Grammar {
+                            kind: Kind::Input(_),
+                            ..
+                        },
+                    ) => {
+                        g.kind = Kind::Lookup("".to_string(), None);
+                    }
+                    Some(
+                        g @ Grammar {
+                            kind: Kind::Lookup(_, _),
+                            ..
+                        },
+                    ) => {
+                        g.kind = Kind::Input("".to_string());
+                    }
+                    _ => {
+                        info! { "[Action::ToggleLookup] cannot toggle non-Input/Lookup kind of grammar" }
+                    }
                 };
                 true
             }
@@ -644,5 +684,4 @@ impl Component for Model {
         }
         false
     }
-
 }
