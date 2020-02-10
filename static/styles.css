@@ -49,17 +49,21 @@ body {
 
 .cell:active {
   outline: none;
+  
 }
 
-.cell.selected {
-  background-color: rgba(14, 101, 235, 0.1);
+
+.cell-data.selection {
+  background-color: rgb(14, 101, 235, 0.1);
 }
 
 .cell-data {
   font-family: "Lucida Console", Monaco, monospace;
   font-size: 20px;
   padding: 0px;
+  background-color: None;
 }
+
 
 .cell-data:active {
   outline: none;

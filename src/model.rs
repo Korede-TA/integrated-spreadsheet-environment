@@ -1,64 +1,49 @@
+use pest::Parser;
 use std::collections::HashMap;
+use std::fs;
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::option::Option;
+use yew::events::{ClickEvent, IKeyboardEvent, KeyPressEvent};
 use yew::prelude::*;
 use yew::services::{ConsoleService};
 use yew::services::reader::{File, FileData, ReaderService, ReaderTask};
 use pest::Parser;
 use std::fs;
 use std::panic;
-use node_sys::fs as node_fs;
-use node_sys::Buffer;
-use js_sys::{
-    JsString,
-    Function
-};
 use electron_sys::{ipc_renderer};
 use wasm_bindgen::JsValue;
 use stdweb::web::{document, IElement, IHtmlElement, INode, IParentNode};
 use stdweb::web::html_element::{InputElement};
 
-use crate::grammar::{Grammar, Kind, Lookup};
+use crate::grammar::{Grammar, Interactive, Kind, Lookup};
 use crate::style::Style;
 use crate::coordinate::{Coordinate, Row, Col};
 use crate::session::Session;
+use crate::style::Style;
 use crate::util::{
-    resize_cells, 
-    resize, 
-    apply_definition_grammar, 
-    non_zero_u32_tuple, 
-    move_grammar
+    apply_definition_grammar, move_grammar, non_zero_u32_tuple, resize, resize_cells,
 };
-use crate::view::{
-    view_grammar,
-    view_menu_bar,
-    view_side_nav,
-    view_tab_bar
-};
-use crate::{
-    row_col_vec, 
-    coord, 
-    coord_row, 
-    coord_col
-};
-
+use crate::view::{view_grammar, view_menu_bar, view_side_nav, view_tab_bar};
+use crate::{coord, coord_col, coord_row, row_col_vec};
 
 #[derive(Parser)]
 #[grammar = "coordinate.pest"]
 pub struct CoordinateParser;
 
-
 // Model contains the entire state of the application
 #[derive(Debug)]
 pub struct Model {
     view_root: Coordinate,
+    pub first_select_cell: Option<Coordinate>,
+    pub last_select_cell: Option<Coordinate>,
 
     pub active_cell: Option<Coordinate>,
     pub suggestions: Vec<Coordinate>,
-
     pub col_widths: HashMap<Col, f64>,
     pub row_heights: HashMap<Row, f64>,
+
+    pub select_grammar: Vec<Coordinate>,
 
     // tabs correspond to sessions
     pub tabs: Vec<Session>,
@@ -94,7 +79,10 @@ pub enum Action {
 
     SetActiveCell(Coordinate),
 
-    DoCompletion(/* source: */ Coordinate, /* destination */ Coordinate),
+    DoCompletion(
+        /* source: */ Coordinate,
+        /* destination */ Coordinate,
+    ),
 
     SetActiveMenu(Option<i32>),
 
@@ -118,6 +106,7 @@ pub enum Action {
     // Alerts and stuff
     Alert(String),
 
+    SetSelectedCells(Coordinate),
     Lookup(/* source: */ Coordinate, /* lookup_type: */ Lookup),
 
     ToggleLookup(Coordinate),
@@ -138,31 +127,53 @@ impl Model {
     }
 
     fn query_parent(&self, coord_parent: Coordinate) -> Vec<Coordinate> {
-        self.to_session().grammars.keys().clone().filter_map(|k| {
-            if k.parent() == Some(coord_parent.clone()) {
-                Some(k.clone())
-            } else { None }
-        }).collect()
+        self.grammars
+            .keys()
+            .clone()
+            .filter_map(|k| {
+                if k.parent() == Some(coord_parent.clone()) {
+                    Some(k.clone())
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     fn query_col(&self, coord_col: Col) -> Vec<Coordinate> {
-        self.to_session().grammars.keys().clone().filter_map(|k| {
-            if k.row_cols.len() == 1 /* ignore root & meta */ {
-                None
-            } else if k.full_col() == coord_col {
-                Some(k.clone())
-            } else { None }
-        }).collect()
+        self.grammars
+            .keys()
+            .clone()
+            .filter_map(|k| {
+                if k.row_cols.len() == 1
+                /* ignore root & meta */
+                {
+                    None
+                } else if k.full_col() == coord_col {
+                    Some(k.clone())
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     fn query_row(&self, coord_row: Row) -> Vec<Coordinate> {
-        self.to_session().grammars.keys().clone().filter_map(|k| {
-            if k.row_cols.len() == 1 /* ignore root & meta */ {
-                None
-            } else if k.full_row() == coord_row {
-                Some(k.clone())
-            } else { None }
-        }).collect()
+        self.grammars
+            .keys()
+            .clone()
+            .filter_map(|k| {
+                if k.row_cols.len() == 1
+                /* ignore root & meta */
+                {
+                    None
+                } else if k.full_row() == coord_row {
+                    Some(k.clone())
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 }
 
@@ -174,12 +185,12 @@ impl Component for Model {
         let root_grammar = Grammar {
             name: "root".to_string(),
             style: Style::default(),
-            kind: Kind::Grid(row_col_vec![ (1,1), (2,1), (3,1), (1,2), (2,2), (3,2) ]),
+            kind: Kind::Grid(row_col_vec![(1, 1), (2, 1), (3, 1), (1, 2), (2, 2), (3, 2)]),
         };
         let meta_grammar = Grammar {
             name: "meta".to_string(),
             style: Style::default(),
-            kind: Kind::Grid(row_col_vec![ (1,1), (2,1) ]),
+            kind: Kind::Grid(row_col_vec![(1, 1), (2, 1)]),
         };
         let mut m = Model {
             view_root: coord!("root"),
@@ -193,11 +204,14 @@ impl Component for Model {
                coord_row!("root","3") => 30.0,
             },
             active_cell: Some(coord!("root-A1")),
-            suggestions: vec![ coord!("meta-A1"), coord!("meta-A2"), coord!("meta-A3") ],
+            suggestions: vec![coord!("meta-A1"), coord!("meta-A2"), coord!("meta-A3")],
             // suggestions: vec![],
-
             console: ConsoleService::new(),
             reader: ReaderService::new(),
+
+            select_grammar: vec![],
+            first_select_cell: None,
+            last_select_cell: None,
 
             tabs: vec![
                 Session{
@@ -250,7 +264,7 @@ impl Component for Model {
         m
     }
 
-    // The update function is split into sub-update functions that 
+    // The update function is split into sub-update functions that
     // are specifc to each EventType
     fn update(&mut self, event_type: Self::Message) -> ShouldRender {
         match event_type {
@@ -263,24 +277,31 @@ impl Component for Model {
             }
 
             Action::ChangeInput(coord, new_value) => {
-                if let Some(g) = self.tabs[self.current_tab].grammars.get_mut(&coord) {
-                    match g {
-                        Grammar { kind: Kind::Input(_), .. } => {
-                            self.console.log(&new_value);
-                            g.kind = Kind::Input(new_value);
+                let old_grammar = self.get_session_mut().grammars.get_mut(&coord);
+                match old_grammar {
+                    Some(
+                        g @ Grammar {
+                            kind: Kind::Text(_),
+                            ..
                         },
-                        Grammar { kind: Kind::Lookup(_, lookup_type), .. } => {
-                            self.console.log(&new_value);
-                            g.kind = Kind::Lookup(new_value, lookup_type.clone());
-                        },
-                        _ => ()
+                    ) => {
+                        self.console.log(&new_value);
+                        g.kind = Kind::Text(new_value);
                     }
+                    _ => (),
                 }
-                true
+                false
             }
 
             Action::SetActiveCell(coord) => {
-                self.active_cell = Some(coord);
+                self.first_select_cell = Some(coord.clone());
+                self.last_select_cell = None;
+                self.active_cell = Some(coord.clone());
+                true
+            }
+
+            Action::SetSelectedCells(coord) => {
+                self.last_select_cell = Some(coord.clone());
                 true
             }
 
@@ -303,12 +324,20 @@ impl Component for Model {
             }
 
             Action::LoadSession(file_data) => {
-                let session : Session = serde_json::from_str(format!{"{:?}", file_data}.deref()).unwrap();
+                let session: Session =
+                    serde_json::from_str(format! {"{:?}", file_data}.deref()).unwrap();
                 self.load_session(session);
                 true
             }
 
             Action::SaveSession() => {
+                /* TODO: uncomment when this is working
+                use node_sys::fs as node_fs;
+                use node_sys::Buffer;
+                use js_sys::{
+                    JsString,
+                    Function
+                };  
                 let session = self.to_session();
                 let j = serde_json::to_string(&session.clone());
                 let filename = session.title.to_string();
@@ -317,6 +346,7 @@ impl Component for Model {
                 let jscallback = Function::new_no_args("{}");
                 node_fs::append_file(&jsfilename, &jsbuffer, None, &jscallback);
                 false
+                */
             }
 
             Action::SetSessionTitle(name) => {
@@ -454,13 +484,18 @@ impl Component for Model {
                         }
                     }
                 }
-                if let Some(parent) = Coordinate::parent(&coord).and_then(|p| self.tabs[self.current_tab].grammars.get_mut(&p)) {
+                if let Some(parent) =
+                    Coordinate::parent(&coord).and_then(|p| self.grammars.get_mut(&p))
+                {
                     parent.kind = grammar.clone().kind; // make sure the parent gets set to Kind::Grid
                 }
-                self.tabs[self.current_tab].grammars.insert(coord.clone(), grammar);
-                resize(self, coord,
-                    (rows as f64) * (/* default row height */ tmp_heigt),//30.0),
-                    (cols as f64) * (/* default col width */ tmp_width));//90.0));
+                self.get_session().grammars.insert(coord.clone(), grammar);
+                resize(
+                    self,
+                    coord,
+                    (rows as f64) * (/* default row height */30.0),
+                    (cols as f64) * (/* default col width */90.0),
+                );
                 true
             }
             Action::InsertCol => {
@@ -470,28 +505,41 @@ impl Component for Model {
                     while let Some(right_coord) = right_most_coord.neighbor_right() {
                         if self.to_session().grammars.contains_key(&right_coord) {
                             right_most_coord = right_coord;
-                        } else { break }
+                        } else {
+                            break;
+                        }
                     }
 
                     let right_most_col_coords = self.query_col(right_most_coord.full_col());
-                    let new_col_coords = right_most_col_coords.iter().map(|c| {
-                        (c.row(), NonZeroU32::new(c.col().get() + 1).unwrap())
-                    });
+                    let new_col_coords = right_most_col_coords
+                        .iter()
+                        .map(|c| (c.row(), NonZeroU32::new(c.col().get() + 1).unwrap()));
 
                     let parent = coord.parent().unwrap();
-                    if let Some(Grammar{ kind: Kind::Grid(sub_coords), name, style }) = self.to_session().grammars.get(&parent) {
+                    if let Some(Grammar {
+                        kind: Kind::Grid(sub_coords),
+                        name,
+                        style,
+                    }) = self.get_session().grammars.get(&parent)
+                    {
                         let mut new_sub_coords = sub_coords.clone();
                         let mut grammars = self.to_session().grammars.clone();
                         for c in new_col_coords {
-                            grammars.insert(Coordinate::child_of(&parent.clone(), c), Grammar::default());
+                            grammars.insert(
+                                Coordinate::child_of(&parent.clone(), c),
+                                Grammar::default(),
+                            );
                             new_sub_coords.push(c);
                         }
-                        grammars.insert(parent, Grammar {
-                            kind: Kind::Grid(new_sub_coords.clone()),
-                            name: name.clone(),
-                            style: style.clone()
-                        });
-                        self.tabs[self.current_tab].grammars = grammars;
+                        grammars.insert(
+                            parent,
+                            Grammar {
+                                kind: Kind::Grid(new_sub_coords.clone()),
+                                name: name.clone(),
+                                style: style.clone(),
+                            },
+                        );
+                        self.get_session_mut().grammars = grammars;
                     }
                 }
                 true
@@ -503,28 +551,41 @@ impl Component for Model {
                     while let Some(below_coord) = bottom_most_coord.neighbor_below() {
                         if self.tabs[self.current_tab].grammars.contains_key(&below_coord) {
                             bottom_most_coord = below_coord;
-                        } else { break }
+                        } else {
+                            break;
+                        }
                     }
 
                     let bottom_most_row_coords = self.query_row(bottom_most_coord.full_row());
-                    let new_row_coords = bottom_most_row_coords.iter().map(|c| {
-                        (NonZeroU32::new(c.row().get() + 1).unwrap(), c.col())
-                    });
+                    let new_row_coords = bottom_most_row_coords
+                        .iter()
+                        .map(|c| (NonZeroU32::new(c.row().get() + 1).unwrap(), c.col()));
 
                     let parent = coord.parent().unwrap();
-                    if let Some(Grammar{ kind: Kind::Grid(sub_coords), name, style }) = self.tabs[self.current_tab].grammars.get(&parent) {
+                    if let Some(Grammar {
+                        kind: Kind::Grid(sub_coords),
+                        name,
+                        style,
+                    }) = self.get_session().grammars.get(&parent)
+                    {
                         let mut new_sub_coords = sub_coords.clone();
                         let mut grammars = self.tabs[self.current_tab].grammars.clone();
                         for c in new_row_coords {
-                            grammars.insert(Coordinate::child_of(&parent.clone(), c), Grammar::default());
+                            grammars.insert(
+                                Coordinate::child_of(&parent.clone(), c),
+                                Grammar::default(),
+                            );
                             new_sub_coords.push(c);
                         }
-                        grammars.insert(parent, Grammar {
-                            kind: Kind::Grid(new_sub_coords.clone()),
-                            name: name.clone(),
-                            style: style.clone()
-                        });
-                        self.tabs[self.current_tab].grammars = grammars;
+                        grammars.insert(
+                            parent,
+                            Grammar {
+                                kind: Kind::Grid(new_sub_coords.clone()),
+                                name: name.clone(),
+                                style: style.clone(),
+                            },
+                        );
+                        self.get_session().grammars = grammars;
                     }
                 }
                 true
@@ -555,7 +616,6 @@ impl Component for Model {
     }
 
     fn view(&self) -> Html {
-
         let active_cell = self.active_cell.clone();
         html! {
             <div>
@@ -586,4 +646,3 @@ impl Component for Model {
     }
 
 }
-

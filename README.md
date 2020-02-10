@@ -24,6 +24,9 @@ cd integrated-spreadsheet-environment/
 cargo update
 npm install
 ```
+# Debugging electron with VS code
+Create lauch.json and add "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/electron" to the file.
+
 
 # Documentation
 
