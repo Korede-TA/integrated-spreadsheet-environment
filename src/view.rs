@@ -375,8 +375,9 @@ pub fn view_input_grammar(
     let active_cell_class = if is_active { "cell-active" } else { "cell-inactive" };
     let suggestions_len = suggestions.len();
     let first_suggestion_ref = NodeRef::default();
+    let mut suggestion_nodes = VList::new();
     let suggestions = if value.clone() != "" && is_active {
-        let mut suggestion_nodes = VList::new();
+
         let mut is_first_suggestion = true;
         for (s_coord, s_grammar) in suggestions {
             if !s_grammar.name.contains(value.clone().deref()) { continue }
@@ -393,7 +394,7 @@ pub fn view_input_grammar(
                 </a>
             })         
         }     
-    } 
+    };
 
     let suggestions = html!{
         <div class="suggestion-content">
