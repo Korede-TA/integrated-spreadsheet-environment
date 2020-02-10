@@ -213,21 +213,21 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
         match grammar.kind.clone() {
             Kind::Text(value) => view_text_grammar(m, &coord, value),
             Kind::Input(value) => {
-                let suggestions = m
-                    .suggestions
-                    .iter()
-                    .filter_map(|suggestion_coord| {
-                        if let Some(suggestion_grammar) =
-                            m.tabs[m.current_tab].grammars.get(&suggestion_coord)
-                        {
-                            Some((suggestion_coord.clone(), suggestion_grammar.clone()))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-                view_input_grammar(m, coord.clone(), suggestions, value, is_active)
-
+                let is_active = m.active_cell.clone() == Some(coord.clone());   
+                let suggestions = m.suggestions.iter().filter_map(|suggestion_coord| {
+                    if let Some(suggestion_grammar) = m.tabs[m.current_tab].grammars.get(&suggestion_coord) {
+                        Some((suggestion_coord.clone(), suggestion_grammar.clone()))
+                    } else {
+                        None
+                    }
+                }).collect();
+                view_input_grammar(
+                    m,
+                    coord.clone(),
+                    suggestions,
+                    value,
+                    is_active,
+                )
             }
             Kind::Interactive(name, Interactive::Button()) => {
                 html! {
@@ -391,53 +391,78 @@ pub fn view_input_grammar(
                     onclick=m.link.callback(move |_ : ClickEvent| Action::DoCompletion(s_coord.clone(), c.clone()))>
                     { &s_grammar.name }
                 </a>
-            });
-            is_first_suggestion = false;
-        }
-        html!{
-            <div class="suggestion-content">
-                { suggestion_nodes }
-            </div>
-        }
-    } else {
-        html!{ <></> }
+            })         
+        }     
+    } 
 
+    let suggestions = html!{
+        <div class="suggestion-content">
+            { suggestion_nodes }
+        </div>
     };
 
     let new_active_cell = coord.clone();
-    let has_lookup_prefix : bool = value.clone() == "$";
-    let current_coord = coord.clone();
+    // Method for holding shift key to select cells
+    let shift_select_cell = coord.clone();
+    let mut first_select_cell  = m.first_select_cell.clone();
+    let mut last_select_cell  = m.last_select_cell.clone();  
+
+    let mut first_select_row = 0;
+    let mut first_select_col = 0;
+    let mut last_select_row = 0;
+    let mut last_select_col = 0;
+
+    let mut min_select_row  = 0;
+    let mut max_select_row  = 0;
+    let mut min_select_col = 0;
+    let mut max_select_col = 0;
+    
+    if first_select_cell.is_some() && last_select_cell.is_some() {
+        first_select_row = first_select_cell.as_ref().unwrap().row().get();
+        first_select_col = first_select_cell.as_ref().unwrap().col().get();      
+        last_select_row = last_select_cell.as_ref().unwrap().row().get();
+        last_select_col = last_select_cell.as_ref().unwrap().col().get();
+        if first_select_row < last_select_row {
+            min_select_row = first_select_row;
+            max_select_row = last_select_row;
+        } else {
+            min_select_row = last_select_row;
+            max_select_row = first_select_row;
+        }
+        if first_select_col < last_select_col {
+            min_select_col = first_select_col;
+            max_select_col = last_select_col;
+        } else {
+            min_select_col = last_select_col;
+            max_select_col = first_select_col;
+        }      
+    }
+    
     
     html! {
         <div
-            class=format!{ "cell suggestion row-{} col-{}", coord.row_to_string(), coord.col_to_string() }
+            class=format!{"cell suggestion row-{} col-{}", coord.row_to_string(), coord.col_to_string(),}
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
             <input
-                class={ format!{ "cell-data {}", active_cell_class } }
-                value=value
-                ref={ 
-                    if is_active { 
-                        m.focus_node_ref.clone() 
-                    } else { NodeRef::default() } 
-                }
-                onkeypress=m.link.callback(move |e : KeyPressEvent| {
-                    //TODO
-                    // if e.code() == "Tab" && suggestions_len > 0 {
-                    //     if let Ok(input) = first_suggestion_ref.try_into::<HtmlElement>() {
-                    //         input.focus();
-                    //     }
-                    //     Action::Noop
-                    // } else 
-                    if e.code() == "Space" && has_lookup_prefix {
-                        info!{"toggling lookup"}
-                        Action::ToggleLookup(current_coord.clone())
-                    } else if e.key() == "g" && e.ctrl_key() && is_active {
-                        Action::AddNestedGrid(current_coord.clone(), (3, 3))
-                    } else { Action::Noop }
-                })
-                oninput=m.link.callback(move |e : InputData| Action::ChangeInput(coord.clone(), e.value))
-                onclick=m.link.callback(move |_ : ClickEvent| Action::SetActiveCell(new_active_cell.clone()))>
+                class={ format!{ "cell-data {} {}", active_cell_class, 
+                if min_select_row <= coord.row().get() && coord.row().get() <= max_select_row 
+                && min_select_col <= coord.col().get() && coord.col().get() <= max_select_col {
+                    "selection"          
+                } else {
+                    ""
+                }   
+            } },
+                value=value,
+                oninput=m.link.callback(move |e : InputData| Action::ChangeInput(coord.clone(), e.value)),
+                onclick=m.link.callback(move |e : ClickEvent|                    
+                    {                       
+                        if e.shift_key() {
+                            return Action::SetSelectedCells(shift_select_cell.clone());
+                        } 
+                        return Action::SetActiveCell(new_active_cell.clone());                 
+                    }),                        
+            >
             </input>
             { suggestions }
         </div>
@@ -456,7 +481,7 @@ pub fn view_text_grammar(m: &Model, coord: &Coordinate, value: String) -> Html {
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
             { value }
-        </div>
+        </div>  
     }
 }
 
