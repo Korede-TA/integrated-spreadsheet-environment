@@ -1,6 +1,9 @@
 use std::collections::hash_map::Keys;
 use std::num::NonZeroU32;
 use std::ops::Deref;
+use stdweb::traits::IEvent;
+use stdweb::unstable::{TryFrom, TryInto};
+use stdweb::web::{HtmlElement, IHtmlElement};
 use yew::events::{ClickEvent, IKeyboardEvent, IMouseEvent, KeyPressEvent};
 use yew::prelude::*;
 use yew::services::reader::File;
@@ -539,14 +542,12 @@ pub fn view_input_grammar(
                         m.focus_node_ref.clone()
                     } else { NodeRef::default() }
                 }
-                value=value,
                 onkeypress=m.link.callback(move |e : KeyPressEvent| {
                     if e.code() == "Tab" && suggestions_len > 0 {
-                        if let Some(input) = first_suggestion_ref.try_into::<HtmlElement>() {
-                            input.focus();
-                        }
-                        Action::Noop
-                    }
+                        // TODO: fix this as part of focus ticket
+                        // if let Some(input) = first_suggestion_ref.try_into::<HtmlElement>() {
+                        //     input.focus();
+                        // }
                         Action::Noop
                     } else if e.code() == "Space" && has_lookup_prefix {
                         info!{"toggling lookup"}
@@ -556,11 +557,11 @@ pub fn view_input_grammar(
                     } else { Action::Noop }
                 })
                 oninput=m.link.callback(move |e : InputData| Action::ChangeInput(coord.clone(), e.value))
-                onclick=m.link.callback(move |_ : ClickEvent| {
+                onclick=m.link.callback(move |e : ClickEvent| {
                     if e.shift_key() {
                         Action::SetSelectedCells(shift_select_cell.clone())
                     } else {
-                        Action::SetActiveCell(new_active_cell.clone()) 
+                        Action::SetActiveCell(new_active_cell.clone())
                     }
                 })
                 onmousedown=m.link.callback(move |e: MouseDownEvent| {

@@ -782,7 +782,7 @@ impl Component for Model {
                         })
                         onmousemove=self.link.callback(move |e : MouseMoveEvent| {
                             if is_resizing.clone() {
-                                if e.movement_x() > e.movement_y() {
+                                if e.movement_x().abs() > e.movement_y().abs() {
                                     Action::Resize(ResizeMsg::X(e.movement_x() as f64))
                                 } else {
                                     Action::Resize(ResizeMsg::Y(e.movement_y() as f64))
