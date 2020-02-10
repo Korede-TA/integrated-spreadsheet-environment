@@ -9,6 +9,7 @@ use stdweb::web::{HtmlElement, IHtmlElement};
 use yew::prelude::*;
 use yew::services::reader::File;
 use yew::virtual_dom::VList;
+use crate::stdweb::unstable::TryInto;
 
 pub fn view_side_nav(m: &Model) -> Html {
     let mut side_menu_nodes = VList::new();
@@ -288,7 +289,7 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                 view_lookup_grammar(m, &coord, suggestions, value, lookup_type, is_active)
             }
             Kind::Lookup(value, lookup_type) => {
-                let suggestions : Vec<Coordinate> = m.grammars.keys()
+                let suggestions : Vec<Coordinate> = m.to_session().grammars.keys()
                                                             .filter_map(|lookup_c| if lookup_c.to_string().contains(value.deref()) {
                                                                 Some(lookup_c.clone())
                                                             } else { None })
@@ -364,65 +365,6 @@ pub fn view_lookup_grammar(
     }
 }
 
-pub fn view_lookup_grammar(
-    m: &Model,
-    coord: &Coordinate,
-    suggestions: Vec<Coordinate>,
-    value: String,
-    lookup_type: Option<Lookup>,
-    is_active: bool
-) -> Html {
-    let suggestions_div = if is_active {
-        let mut suggestions_nodes = VList::new();
-        for lookup_coord in suggestions { 
-            let dest = coord.clone();
-            let source = lookup_coord.clone();
-            suggestions_nodes.add_child(html!{
-                <a tabindex=-1
-                    onclick=m.link.callback(move |_ : ClickEvent| Action::DoCompletion(source.clone(), dest.clone()))>
-                    { lookup_coord.to_string() }
-                </a>
-            })
-        }
-        html!{
-            <div class="suggestion-content">
-                { suggestions_nodes }
-            </div>
-        }
-    } else {
-        html! { <></> }
-    };
-    let active_cell_class = if is_active { "cell-active" } else { "cell-inactive" };
-    let c = coord.clone();
-    let to_toggle = coord.clone();
-    let can_toggle : bool = value.clone().deref() == "";
-    html! {
-        <div
-            class=format!{"cell suggestion row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
-            id=format!{"cell-{}", coord.to_string()}
-            style={ get_style(&m, &coord) }>
-            <b>{ "$" }</b>
-            <input 
-                class={ format!{ "cell-data {}", active_cell_class } }
-                placeholder="coordinate"
-                value=value
-                ref={ 
-                    if is_active { 
-                        m.focus_node_ref.clone() 
-                    } else { NodeRef::default() } 
-                }
-                onkeydown=m.link.callback(move |e : KeyDownEvent| {
-                    if e.code() == "Backspace" && can_toggle {
-                        Action::ToggleLookup(to_toggle.clone())
-                    } else { Action::Noop }
-                })
-                oninput=m.link.callback(move |e : InputData| Action::ChangeInput(c.clone(), e.value))>
-            </input>
-            { suggestions_div }
-        </div>
-    }
-}
-
 pub fn view_input_grammar(
     m: &Model,
     coord: Coordinate,
@@ -480,12 +422,14 @@ pub fn view_input_grammar(
                     } else { NodeRef::default() } 
                 }
                 onkeypress=m.link.callback(move |e : KeyPressEvent| {
-                    if e.code() == "Tab" && suggestions_len > 0 {
-                        if let Some(input) = first_suggestion_ref.try_into::<HtmlElement>() {
-                            input.focus();
-                        }
-                        Action::Noop
-                    } else if e.code() == "Space" && has_lookup_prefix {
+                    //TODO
+                    // if e.code() == "Tab" && suggestions_len > 0 {
+                    //     if let Ok(input) = first_suggestion_ref.try_into::<HtmlElement>() {
+                    //         input.focus();
+                    //     }
+                    //     Action::Noop
+                    // } else 
+                    if e.code() == "Space" && has_lookup_prefix {
                         info!{"toggling lookup"}
                         Action::ToggleLookup(current_coord.clone())
                     } else if e.key() == "g" && e.ctrl_key() && is_active {

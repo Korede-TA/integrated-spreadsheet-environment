@@ -1,38 +1,48 @@
-use pest::Parser;
 use std::collections::HashMap;
-use std::fs;
+// use stdweb::unstable::TryInto;
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::option::Option;
-
-use std::panic;
-use std::vec::Vec;
 use yew::prelude::*;
+use yew::services::{ConsoleService};
 use yew::services::reader::{File, FileData, ReaderService, ReaderTask};
-use yew::services::ConsoleService;
-//TODO
-//To make it run
+use pest::Parser;
+// use std::fs;
+use std::panic;
 // use node_sys::fs as node_fs;
 // use node_sys::Buffer;
 // use js_sys::{
 //     JsString,
 //     Function
 // };
-use electron_sys::ipc_renderer;
-use stdweb::web::html_element::InputElement;
-use stdweb::web::{document, IElement, IHtmlElement, INode, IParentNode};
+use electron_sys::{ipc_renderer};
 use wasm_bindgen::JsValue;
+use stdweb::web::{document, IElement, IHtmlElement, INode, IParentNode};
+use stdweb::web::html_element::{InputElement};
 
-use crate::coordinate::{Col, Coordinate, Row};
 use crate::grammar::{Grammar, Kind, Lookup};
-
-use crate::session::Session;
 use crate::style::Style;
+use crate::coordinate::{Coordinate, Row, Col};
+use crate::session::Session;
 use crate::util::{
-    apply_definition_grammar, move_grammar, non_zero_u32_tuple, resize, resize_cells,
+    resize_cells, 
+    resize, 
+    apply_definition_grammar, 
+    non_zero_u32_tuple, 
+    move_grammar
 };
-use crate::view::{view_grammar, view_menu_bar, view_side_nav, view_tab_bar};
-use crate::{coord, coord_col, coord_row, row_col_vec};
+use crate::view::{
+    view_grammar,
+    view_menu_bar,
+    view_side_nav,
+    view_tab_bar
+};
+use crate::{
+    row_col_vec, 
+    coord, 
+    coord_row, 
+    coord_col
+};
 
 #[derive(Parser)]
 #[grammar = "coordinate.pest"]
@@ -632,7 +642,7 @@ impl Component for Model {
                     let mut grammars = self.tabs[self.current_tab].grammars.clone();
                     let mut row_coords1 = self.query_row(next_row.full_row());
                     let parent = coord.parent().unwrap();
-
+            
                     let mut temp: Vec<Grammar> = vec![];
                     let mut u = 0;
                     let mut row_coords2 = self.query_row(next_row.full_row());
@@ -640,19 +650,19 @@ impl Component for Model {
                         std::num::NonZeroU32,
                         std::num::NonZeroU32,
                     )> = vec![];
-
+            
                     //Changing each rowfrom the one being deleted
                     while let Some(below_coord) = next_row.neighbor_below() {
                         temp.clear();
                         row_coords2 = self.query_row(below_coord.full_row());
-
+            
                         //each grammar copied
                         for i in row_coords2.clone() {
                             temp.insert(u, grammars[&i].clone());
                             u += 1;
                         }
                         u = 0;
-
+            
                         if temp.len() == 0 {
                             let parent = next_row.parent().unwrap();
                             if let Some(Grammar {
@@ -662,7 +672,7 @@ impl Component for Model {
                             }) = self.to_session().grammars.get(&parent)
                             {
                                 new_row_coords = sub_coords.clone();
-
+            
                                 for c in row_coords1.clone() {
                                     for i in (0..new_row_coords.len()).rev() {
                                         if new_row_coords[i] == (c.row(), c.col()) {
@@ -692,7 +702,7 @@ impl Component for Model {
                             }
                             u = 0;
                         }
-
+            
                         row_coords1 = row_coords2.clone();
                         next_row = below_coord;
                     }
@@ -708,7 +718,7 @@ impl Component for Model {
                     let mut grammars = self.to_session().grammars.clone();
                     let mut col_coords1 = self.query_col(next_col.full_col());
                     let parent = coord.parent().unwrap();
-
+            
                     let mut temp: Vec<Grammar> = vec![];
                     let mut u = 0;
                     let mut col_coords2 = self.query_col(next_col.full_col());
@@ -724,12 +734,12 @@ impl Component for Model {
                     {
                         let mut new_col_coords = sub_coords.clone();
                     }
-
+            
                     //Changing each colfrom the one being deleted
                     while let Some(right_coord) = next_col.neighbor_right() {
                         temp.clear();
                         col_coords2 = self.query_col(right_coord.full_col());
-
+            
                         //each grammar copied
                         for i in col_coords2.clone() {
                             temp.insert(u, grammars[&i].clone());
@@ -745,7 +755,7 @@ impl Component for Model {
                             }) = self.to_session().grammars.get(&parent)
                             {
                                 new_col_coords = sub_coords.clone();
-
+            
                                 for c in col_coords1.clone() {
                                     for i in (0..new_col_coords.len()).rev() {
                                         if new_col_coords[i] == (c.row(), c.col()) {
@@ -773,7 +783,7 @@ impl Component for Model {
                             }
                             u = 0;
                         }
-
+            
                         col_coords1 = col_coords2.clone();
                         next_col = right_coord;
                     }
@@ -781,6 +791,7 @@ impl Component for Model {
                 }
                 true
             }
+            
             Action::Lookup(source_coord, lookup_type) => {
                 match lookup_type {
                     Lookup::Cell(dest_coord) => {
@@ -845,11 +856,10 @@ impl Component for Model {
         }
     }
 
-    fn mounted(&mut self) -> ShouldRender {
-        if let Some(input) = self.focus_node_ref.try_into::<InputElement>() {
-            input.focus();
-        }
-        false
-    }
-
+    // fn mounted(&mut self) -> ShouldRender {
+    //     if let Ok(input) = self.focus_node_ref.try_into::<InputElement>().clone() {
+    //         input.focus();
+    //     }
+    //     false
+    // }
 }

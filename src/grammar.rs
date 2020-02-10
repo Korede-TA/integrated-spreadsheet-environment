@@ -1,10 +1,14 @@
-use crate::coordinate::{Col, Coordinate, Row};
-use crate::style::Style;
-use serde::{Deserialize, Serialize};
-use std::cmp::Ordering;
 use std::num::NonZeroU32;
 use std::ops::Deref;
+use std::cmp::Ordering;
 use std::option::Option;
+use serde::{Serialize, Deserialize};
+
+use crate::coordinate::{
+    Coordinate,
+    Row, Col,
+};
+use crate::style::Style;
 
 // Grammar is the main data-type representing
 // the contents of a cell
@@ -36,22 +40,8 @@ pub enum Kind {
     // Lookup grammar
     Lookup(String, Option<Lookup>),
 }
-js_serializable!(Kind);
-js_deserializable!(Kind);
-
-// Kinds of lookup grammars
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum Lookup {
-    Cell(Coordinate),
-    Range {
-        parent: Coordinate,
-        start: (NonZeroU32, NonZeroU32),
-        end: (NonZeroU32, NonZeroU32),
-    },
-    Row(Row),
-    Col(Col),
-
-}
+js_serializable!( Kind );
+js_deserializable!( Kind );
 
 // Kinds of lookup grammars
 #[derive(Serialize, Deserialize, Debug, Clone)]
