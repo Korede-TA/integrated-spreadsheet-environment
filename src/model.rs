@@ -5,8 +5,7 @@ use std::fs;
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::option::Option;
-use std::panic;
-use stdweb::web::html_element::InputElement;
+use stdweb::unstable::TryInto;
 use stdweb::web::{document, IElement, IHtmlElement, INode, IParentNode};
 use wasm_bindgen::JsValue;
 use yew::events::{ClickEvent, IKeyboardEvent, KeyPressEvent};
@@ -15,11 +14,11 @@ use yew::services::reader::{File, FileData, ReaderService, ReaderTask};
 use yew::services::ConsoleService;
 
 use crate::coordinate::{Col, Coordinate, Row};
-use crate::grammar::{Grammar, Interactive, Kind, Lookup};
+use crate::grammar::{Grammar, Kind, Lookup};
 use crate::session::Session;
 use crate::style::Style;
 use crate::util::{
-    apply_definition_grammar, move_grammar, non_zero_u32_tuple, resize, resize_cells,
+    apply_definition_grammar, dom_resize, move_grammar, non_zero_u32_tuple, resize, resize_diff,
 };
 use crate::view::{view_grammar, view_menu_bar, view_side_nav, view_tab_bar};
 use crate::{coord, coord_col, coord_row, row_col_vec};
@@ -34,35 +33,35 @@ pub struct Model {
     view_root: Coordinate,
     pub first_select_cell: Option<Coordinate>,
     pub last_select_cell: Option<Coordinate>,
-
     pub active_cell: Option<Coordinate>,
-    pub suggestions: Vec<Coordinate>,
+    pub default_suggestions: Vec<Coordinate>,
+    pub suggestions: HashMap<Coordinate, Vec<Coordinate>>,
     pub col_widths: HashMap<Col, f64>,
     pub row_heights: HashMap<Row, f64>,
-
     pub select_grammar: Vec<Coordinate>,
-
-    // tabs correspond to sessions
     pub sessions: Vec<Session>,
     pub current_session_index: usize,
-
-    // side menus
     pub side_menus: Vec<SideMenu>,
     pub open_side_menu: Option<i32>,
-
+    pub focus_node_ref: NodeRef,
+    pub resizing: Option<Coordinate>,
+    pub link: ComponentLink<Model>,
     console: ConsoleService,
     reader: ReaderService,
-
-    pub link: ComponentLink<Model>,
     tasks: Vec<ReaderTask>,
-
-    pub focus_node_ref: NodeRef,
 }
 
 #[derive(Debug)]
 pub struct SideMenu {
     pub name: String,
     pub icon_path: String,
+}
+
+pub enum ResizeMsg {
+    Start(Coordinate),
+    X(f64),
+    Y(f64),
+    End,
 }
 
 // ACTIONS
@@ -100,6 +99,8 @@ pub enum Action {
     InsertRow,
     InsertCol,
 
+    Resize(ResizeMsg),
+
     // Alerts and stuff
     Alert(String),
 
@@ -110,6 +111,11 @@ pub enum Action {
     ),
 
     ToggleLookup(Coordinate),
+
+    DefnUpdateName(Coordinate, /* name */ String),
+    DefnUpdateRule(Coordinate, /* rule Row  */ Row),
+    DefnAddRule(Coordinate), // adds a new column, points rule coordinate to bottom of ~meta~ sub-table
+                             // Definition Rules are represented as grammars
 }
 
 impl Model {
@@ -124,7 +130,7 @@ impl Model {
     // only use this if you need a COPY of the current session
     // i.e. not changing its values
     pub fn to_session(&self) -> Session {
-        return self.get_session().clone();
+        self.get_session().clone()
     }
 
     fn load_session(&mut self, session: Session) {
@@ -200,22 +206,27 @@ impl Component for Model {
         let meta_grammar = Grammar {
             name: "meta".to_string(),
             style: Style::default(),
-            kind: Kind::Grid(row_col_vec![(1, 1), (2, 1)]),
+            kind: Kind::Grid(row_col_vec![(1, 1), (2, 1), (3, 1)]),
         };
         let mut m = Model {
             view_root: coord!("root"),
             col_widths: hashmap! {
                coord_col!("root","A") => 90.0,
                coord_col!("root","B") => 90.0,
+               coord_col!("meta","A") => 180.0,
+               coord_col!("meta-A3","A") => 90.0,
+               coord_col!("meta-A3","B") => 180.0,
             },
             row_heights: hashmap! {
                coord_row!("root","1") => 30.0,
                coord_row!("root","2") => 30.0,
                coord_row!("root","3") => 30.0,
+               coord_row!("meta","1") => 180.0,
             },
             active_cell: Some(coord!("root-A1")),
-            suggestions: vec![coord!("meta-A1"), coord!("meta-A2"), coord!("meta-A3")],
-            // suggestions: vec![],
+            default_suggestions: vec![coord!("meta-A1"), coord!("meta-A2"), coord!("meta-A3")],
+            suggestions: HashMap::new(),
+
             console: ConsoleService::new(),
             reader: ReaderService::new(),
 
@@ -236,8 +247,28 @@ impl Component for Model {
                     coord!("root-B2") => Grammar::default(),
                     coord!("root-B3") => Grammar::default(),
                     coord!("meta")    => meta_grammar.clone(),
-                    coord!("meta-A1") => Grammar::suggestion("js grammar".to_string(), "This is js".to_string()),
-                    coord!("meta-A2") => Grammar::suggestion("java grammar".to_string(), "This is java".to_string()),
+                    coord!("meta-A1") => Grammar::text("js grammar".to_string(), "This is js".to_string()),
+                    coord!("meta-A2") => Grammar::text("java grammar".to_string(), "This is java".to_string()),
+                    coord!("meta-A3") => Grammar {
+                        name: "defn".to_string(),
+                        style: Style::default(),
+                        kind: Kind::Defn(
+                            "".to_string(),
+                            coord!("meta-A3"),
+                            vec![
+                                ("".to_string(), coord!("meta-A3-B1")),
+                            ],
+                        ),
+                    },
+                    coord!("meta-A3-A1")    => Grammar::default(),
+                    coord!("meta-A3-B1")    => Grammar {
+                        name: "root".to_string(),
+                        style: Style::default(),
+                        kind: Kind::Grid(row_col_vec![ (1,1), (2,1), (1,2), (2,2) ]),
+                    },
+                    coord!("meta-A3-B1-A1") => Grammar::input("".to_string(), "sub-grammar name".to_string()),
+                    coord!("meta-A3-B1-B1") => Grammar::text("".to_string(), "+".to_string()),
+                    coord!("meta-A3-B1-C1") => Grammar::default(),
                 },
             }],
 
@@ -263,12 +294,14 @@ impl Component for Model {
             ],
             open_side_menu: None,
 
+            resizing: None,
+
             link,
             tasks: vec![],
 
             focus_node_ref: NodeRef::default(),
         };
-        apply_definition_grammar(&mut m, coord!("meta-A3"));
+        // apply_definition_grammar(&mut m, coord!("meta-A3"));
         m
     }
 
@@ -285,18 +318,24 @@ impl Component for Model {
             }
 
             Action::ChangeInput(coord, new_value) => {
-                let old_grammar = self.get_session_mut().grammars.get_mut(&coord);
-                match old_grammar {
-                    Some(
-                        g @ Grammar {
-                            kind: Kind::Text(_),
+                if let Some(g) = self.get_session_mut().grammars.get_mut(&coord) {
+                    match g {
+                        Grammar {
+                            kind: Kind::Input(_),
                             ..
-                        },
-                    ) => {
-                        info! {"{}", &new_value};
-                        g.kind = Kind::Text(new_value);
+                        } => {
+                            info!("{}", &new_value);
+                            g.kind = Kind::Input(new_value);
+                        }
+                        Grammar {
+                            kind: Kind::Lookup(_, lookup_type),
+                            ..
+                        } => {
+                            info!("{}", &new_value);
+                            g.kind = Kind::Lookup(new_value, lookup_type.clone());
+                        }
+                        _ => (),
                     }
-                    _ => (),
                 }
                 false
             }
@@ -319,7 +358,9 @@ impl Component for Model {
                     source_coord,
                     dest_coord.clone(),
                 );
-                resize_cells(&mut self.get_session_mut().grammars, dest_coord);
+                let row_height = self.row_heights.get(&dest_coord.full_row()).unwrap();
+                let col_width = self.col_widths.get(&dest_coord.full_col()).unwrap();
+                resize(self, dest_coord, *row_height, *col_width);
                 true
             }
 
@@ -379,7 +420,6 @@ impl Component for Model {
                         // we'll call out to regular JS to do this using the `js!` macro.
                         // Note that yew::services::reader::File::name() calls "file.name" under the
                         // hood (https://docs.rs/stdweb/0.4.20/src/stdweb/webapi/file.rs.html#23)
-                        use stdweb::unstable::TryInto;
                         let full_file_name : String = js!(
                             if (!!@{&file}.webkitRelativePath) {
                                 return @{&file}.webkitRelativePath;
@@ -517,8 +557,8 @@ impl Component for Model {
                 resize(
                     self,
                     coord,
-                    (rows as f64) * (/* default row height */30.0),
-                    (cols as f64) * (/* default col width */90.0),
+                    (rows as f64) * (/* default row height */tmp_heigt),
+                    (cols as f64) * (/* default col width */tmp_width),
                 );
                 true
             }
@@ -614,6 +654,31 @@ impl Component for Model {
                 }
                 true
             }
+            Action::Resize(msg) => {
+                match msg {
+                    ResizeMsg::Start(coord) => {
+                        info! {"drag start"};
+                        self.resizing = Some(coord);
+                    }
+                    ResizeMsg::X(offset_x) => {
+                        if let Some(coord) = self.resizing.clone() {
+                            info! {"drag x: {}", offset_x};
+                            resize_diff(self, coord, 0.0, offset_x);
+                        }
+                    }
+                    ResizeMsg::Y(offset_y) => {
+                        if let Some(coord) = self.resizing.clone() {
+                            info! {"drag y: {}", offset_y};
+                            resize_diff(self, coord, offset_y, 0.0);
+                        }
+                    }
+                    ResizeMsg::End => {
+                        info! {"drag end"};
+                        self.resizing = None;
+                    }
+                }
+                true
+            }
             Action::Lookup(source_coord, lookup_type) => {
                 match lookup_type {
                     Lookup::Cell(dest_coord) => {
@@ -652,11 +717,47 @@ impl Component for Model {
                 };
                 true
             }
+
+            /*
+             * The following actions determine how the "defn" grammar behaves. It serves three main
+             * roles:
+             * 1) Defining grammars to be suggested in the interface
+             * 2) Specifying valid sub-grammars to be completed into various slots in the
+             *    interface.
+             * 3) Defining how grammars connect with respective drivers and have values evaluated
+             *    and passed back to the interface.
+             */
+            Action::DefnUpdateName(coord, name) => {
+                // updates the name of a new or existing grammar.
+                let defn_name_coord = Coordinate::child_of(&coord, non_zero_u32_tuple((1, 1)));
+                if let Some(g) = self.get_session_mut().grammars.get_mut(&coord) {
+                    match g {
+                        Grammar {
+                            kind: Kind::Input(_),
+                            ..
+                        } => {
+                            info! {"updating defn name: {}", &name};
+                            g.kind = Kind::Input(name);
+                        }
+                        _ => (),
+                    }
+                }
+                true
+            }
+            Action::DefnUpdateRule(coord, rule_row) => {
+                let rule_row_coord = {};
+                true
+            }
+            Action::DefnAddRule(coord) => {
+                // TODO adds a new column, points rule coordinate to bottom of ~meta~ sub-table
+                false
+            }
         }
     }
 
     fn view(&self) -> Html {
         let active_cell = self.active_cell.clone();
+        let is_resizing = self.resizing.is_some();
         html! {
             <div>
 
@@ -667,21 +768,33 @@ impl Component for Model {
                 { view_tab_bar(&self) }
 
                 <div class="main">
-                    <div id="grammars" class="grid-wrapper" onkeypress=self.link.callback(move |e : KeyPressEvent| {
-                        // Global Key-Shortcuts
-                        Action::Noop
-                    })>
+                    <div id="grammars" class="grid-wrapper"
+                        onkeypress=self.link.callback(move |e : KeyPressEvent| {
+                            // Global Key-Shortcuts
+                            Action::Noop
+                        })
+                        onmouseup=self.link.callback(move |e : MouseUpEvent| {
+                            if is_resizing.clone() {
+                                Action::Resize(ResizeMsg::End)
+                            } else {
+                                Action::Noop
+                            }
+                        })
+                        onmousemove=self.link.callback(move |e : MouseMoveEvent| {
+                            if is_resizing.clone() {
+                                if e.movement_x().abs() > e.movement_y().abs() {
+                                    Action::Resize(ResizeMsg::X(e.movement_x() as f64))
+                                } else {
+                                    Action::Resize(ResizeMsg::Y(e.movement_y() as f64))
+                                }
+                            } else {
+                                Action::Noop
+                            }
+                        })>
                         { view_grammar(&self, coord!{"root"}) }
                     </div>
                 </div>
             </div>
         }
-    }
-
-    fn mounted(&mut self) -> ShouldRender {
-        if let Some(input) = self.focus_node_ref.try_into::<InputElement>() {
-            input.focus();
-        }
-        false
     }
 }

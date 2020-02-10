@@ -63,6 +63,19 @@ pub fn coord_show(row_cols: Vec<(u32, u32)>) -> Option<String> {
 pub fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
     // definition grammar contains the name of the grammar and then the list of
     // different parts of the grammar
+    //
+    //  ------------------------------
+    //  | Definition |    { name }   |
+    //  ------------------------------
+    //  |----------------------------|
+    //  || {rule name} | { rule     ||
+    //  ||             |  grammar } ||
+    //  ||-------------|------------||
+    //  ||             |            ||
+    //  ||             |            ||
+    //  |--------(expandable)--------|
+    //  ------------------------------
+    //
     let defn_label_coord = Coordinate::child_of(&root_coord, non_zero_u32_tuple((1, 1)));
     let mut defn_label_style = Style::default();
     defn_label_style.font_weight = 600;
@@ -163,19 +176,24 @@ pub fn resize(m: &mut Model, coord: Coordinate, row_height: f64, col_width: f64)
 }
 
 pub fn resize_diff(m: &mut Model, coord: Coordinate, row_height_diff: f64, col_width_diff: f64) {
+    let additional_offset = if m.resizing.is_none() {
+        2.0 /* if not resizing, account for internal borders width */
+    } else {
+        0.0
+    };
     if let Some(parent_coord) = coord.parent() {
         if let Some(row_height) = m.row_heights.get_mut(&coord.full_row()) {
-            *row_height += row_height_diff + /* horizontal border width */ 2.0;
+            *row_height += row_height_diff + additional_offset;
         }
         if let Some(col_width) = m.col_widths.get_mut(&coord.full_col()) {
-            *col_width += col_width_diff + /* vertical border height */ 2.0;
+            *col_width += col_width_diff + additional_offset;
         }
         resize_diff(m, parent_coord, row_height_diff, col_width_diff);
     }
 }
 
-// when a cell is expanded, grow cells in the same row/column as well
-pub fn resize_cells(map: &mut HashMap<Coordinate, Grammar>, on: Coordinate) {
+// Use width and height values from DOM to resize element
+pub fn dom_resize(m: &mut Model, on: Coordinate) {
     let (height, width) = {
         let element = HtmlElement::try_from(
             document()
@@ -187,6 +205,8 @@ pub fn resize_cells(map: &mut HashMap<Coordinate, Grammar>, on: Coordinate) {
         (rect.get_height(), rect.get_width())
     };
     info! {"expanding...: H {}px, W {}px", height.clone(), width.clone()}
+    resize(m, on, height, width);
+    /*
     let on_grammar = map.get_mut(&on).unwrap();
     on_grammar.style.height = height.clone();
     on_grammar.style.width = width.clone();
@@ -206,6 +226,7 @@ pub fn resize_cells(map: &mut HashMap<Coordinate, Grammar>, on: Coordinate) {
             }
         }
     }
+    */
 }
 
 // macro for easily defining a vector of non-zero tuples
