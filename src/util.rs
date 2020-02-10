@@ -60,6 +60,61 @@ pub fn coord_show(row_cols: Vec<(u32, u32)>) -> Option<String> {
     }
 }
 
+pub fn apply_defn_variant_grammar(m: &mut Model, root_coord: Coordinate) {
+    let variant_label_coord = Coordinate::child_of(&root_coord, non_zero_u32_tuple((1, 1)));
+    let mut variant_label_style = Style::default();
+    variant_label_style.font_weight = 600;
+    m.col_widths.insert(variant_label_coord.full_col(), 184.0); // set width of col
+    let variant_label = Grammar {
+        name: "variant_label".to_string(),
+        style: variant_label_style,
+        kind: Kind::Text("variants".to_string()),
+    };
+
+    let variant_body_coord = Coordinate::child_of(&root_coord, non_zero_u32_tuple((2, 1)));
+    let mut variant_body =
+        Grammar::as_grid(NonZeroU32::new(2).unwrap(), NonZeroU32::new(1).unwrap());
+    variant_body.name = "variant_body".to_string();
+
+    let variant_grammar_str = "variant_grammar".to_string();
+
+    let variant_body_A1_coord =
+        Coordinate::child_of(&variant_body_coord, non_zero_u32_tuple((1, 1)));
+    let variant_body_A1 = Grammar {
+        name: variant_grammar_str.clone(),
+        style: Style::default(),
+        kind: Kind::Input(String::new()),
+    };
+
+    let variant_body_B1_coord =
+        Coordinate::child_of(&variant_body_coord, non_zero_u32_tuple((1, 2)));
+    let variant_body_B1 = Grammar {
+        name: variant_grammar_str.clone(),
+        style: Style::default(),
+        kind: Kind::Input(String::new()),
+    };
+
+    let variant = Grammar {
+        name: "defn_variant".to_string(),
+        style: Style::default(),
+        kind: Kind::Grid(row_col_vec![(1, 1), (2, 1), (3, 1)]),
+    };
+
+    m.get_session_mut().grammars.insert(root_coord, variant);
+    m.get_session_mut()
+        .grammars
+        .insert(variant_label_coord, variant_label);
+    m.get_session_mut()
+        .grammars
+        .insert(variant_body_coord, variant_body);
+    m.get_session_mut()
+        .grammars
+        .insert(variant_body_A1_coord, variant_body_A1);
+    m.get_session_mut()
+        .grammars
+        .insert(variant_body_B1_coord, variant_body_B1);
+}
+
 pub fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
     // definition grammar contains the name of the grammar and then the list of
     // different parts of the grammar
@@ -98,30 +153,33 @@ pub fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
     let mut defn_body = Grammar::as_grid(NonZeroU32::new(2).unwrap(), NonZeroU32::new(2).unwrap());
     defn_body.name = "defn_body".to_string();
 
+    let defn_subrule_name_str = "defn_subrule_name".to_string();
+    let defn_subrule_grammar_str = "defn_subrule_grammar".to_string();
+
     let defn_body_A1_coord = Coordinate::child_of(&defn_body_coord, non_zero_u32_tuple((1, 1)));
     let defn_body_A1 = Grammar {
-        name: "".to_string(),
+        name: defn_subrule_name_str.clone(),
         style: Style::default(),
         kind: Kind::Input(String::new()),
     };
 
     let defn_body_A2_coord = Coordinate::child_of(&defn_body_coord, non_zero_u32_tuple((2, 1)));
     let defn_body_A2 = Grammar {
-        name: "".to_string(),
+        name: defn_subrule_grammar_str.clone(),
         style: Style::default(),
         kind: Kind::Input(String::new()),
     };
 
     let defn_body_B1_coord = Coordinate::child_of(&defn_body_coord, non_zero_u32_tuple((1, 2)));
     let defn_body_B1 = Grammar {
-        name: "".to_string(),
+        name: defn_subrule_name_str.clone(),
         style: Style::default(),
         kind: Kind::Input(String::new()),
     };
 
     let defn_body_B2_coord = Coordinate::child_of(&defn_body_coord, non_zero_u32_tuple((2, 2)));
     let defn_body_B2 = Grammar {
-        name: "".to_string(),
+        name: defn_subrule_grammar_str.clone(),
         style: Style::default(),
         kind: Kind::Input(String::new()),
     };
@@ -131,6 +189,8 @@ pub fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
         style: Style::default(),
         kind: Kind::Grid(row_col_vec![(1, 1), (2, 1), (3, 1)]),
     };
+
+    let defn_grammar_col = defn_body_A1_coord.full_col();
 
     m.get_session_mut().grammars.insert(root_coord, defn);
     m.get_session_mut()
@@ -154,6 +214,8 @@ pub fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
     m.get_session_mut()
         .grammars
         .insert(defn_body_B2_coord, defn_body_B2);
+
+    m.col_widths.insert(defn_grammar_col, 110.0);
 }
 
 pub fn resize(m: &mut Model, coord: Coordinate, row_height: f64, col_width: f64) {
@@ -178,7 +240,7 @@ pub fn resize(m: &mut Model, coord: Coordinate, row_height: f64, col_width: f64)
 pub fn resize_diff(m: &mut Model, coord: Coordinate, row_height_diff: f64, col_width_diff: f64) {
     if let Some(parent_coord) = coord.parent() {
         if let Some(row_height) = m.row_heights.get_mut(&coord.full_row()) {
-            *row_height += row_height_diff + /* horizontal border width */ 2.0; 
+            *row_height += row_height_diff + /* horizontal border width */ 2.0;
         }
         if let Some(col_width) = m.col_widths.get_mut(&coord.full_col()) {
             *col_width += col_width_diff + /* vertical border height */ 2.0;

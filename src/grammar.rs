@@ -49,6 +49,13 @@ pub enum Kind {
         /* rule names and coordinates */ Vec<(String, Coordinate)>,
     ),
 }
+
+// pub enum Defn {
+//     Variant(Vec<(NonZeroU32, NonZeroU32)>),
+//     Repitition((NonZeroU32, NonZeroU32)),
+//     Ru
+// }
+
 js_serializable!(Kind);
 js_deserializable!(Kind);
 

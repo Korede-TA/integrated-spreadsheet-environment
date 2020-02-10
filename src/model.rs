@@ -20,7 +20,8 @@ use crate::grammar::{Grammar, Kind, Lookup};
 use crate::session::Session;
 use crate::style::Style;
 use crate::util::{
-    apply_definition_grammar, dom_resize, move_grammar, non_zero_u32_tuple, resize, resize_diff,
+    apply_definition_grammar, apply_defn_variant_grammar, dom_resize, move_grammar,
+    non_zero_u32_tuple, resize, resize_diff,
 };
 use crate::view::{view_grammar, view_menu_bar, view_side_nav, view_tab_bar};
 use crate::{coord, coord_col, coord_row, row_col_vec};
@@ -142,7 +143,7 @@ impl Model {
             .collect()
     }
 
-    fn query_col(&self, coord_col: Col) -> Vec<Coordinate> {
+    pub fn query_col(&self, coord_col: Col) -> Vec<Coordinate> {
         self.to_session()
             .grammars
             .keys()
@@ -161,7 +162,7 @@ impl Model {
             .collect()
     }
 
-    fn query_row(&self, coord_row: Row) -> Vec<Coordinate> {
+    pub fn query_row(&self, coord_row: Row) -> Vec<Coordinate> {
         self.to_session()
             .grammars
             .keys()
@@ -235,6 +236,7 @@ impl Component for Model {
                     coord!("meta-A2") => Grammar::text("java grammar".to_string(), "This is java".to_string()),
 
                     // below we define a sample grammar
+                    /*
                     coord!("meta-A3") => Grammar {
                         name: "defn".to_string(),
                         style: Style::default(),
@@ -255,6 +257,7 @@ impl Component for Model {
                     coord!("meta-A3-B1-A1") => Grammar::input("".to_string(), "sub-grammar name".to_string()),
                     coord!("meta-A3-B1-B1") => Grammar::text("".to_string(), "+".to_string()),
                     coord!("meta-A3-B1-C1") => Grammar::default(),
+                    */
                 },
             }],
 
@@ -285,7 +288,8 @@ impl Component for Model {
 
             focus_node_ref: NodeRef::default(),
         };
-        // apply_definition_grammar(&mut m, coord!("meta-A3"));
+        apply_definition_grammar(&mut m, coord!("meta-A3"));
+        apply_defn_variant_grammar(&mut m, coord!("meta-A4"));
         m
     }
 
@@ -704,7 +708,6 @@ impl Component for Model {
     }
 
     fn view(&self) -> Html {
-
         let active_cell = self.active_cell.clone();
         html! {
             <div>

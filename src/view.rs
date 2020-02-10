@@ -1,5 +1,7 @@
+use pest::Parser;
 use std::collections::hash_map::Keys;
 use std::default::Default;
+use std::num::NonZeroU32;
 use std::ops::Deref;
 use stdweb::unstable::TryFrom;
 use stdweb::web::event::IEvent;
@@ -8,11 +10,18 @@ use yew::prelude::*;
 use yew::services::reader::File;
 use yew::virtual_dom::VList;
 
-use crate::model::{Action,Model,SideMenu};
-use crate::grammar::{Grammar, Kind, Interactive, Lookup};
+use crate::coord;
 use crate::coordinate::Coordinate;
+use crate::grammar::{Grammar, Interactive, Kind, Lookup};
+use crate::meta::transform_from_meta_representation;
+use crate::model::{Action, Model, SideMenu};
 use crate::style::get_style;
+use crate::suggestion::*;
 use crate::util::non_zero_u32_tuple;
+
+#[derive(Parser)]
+#[grammar = "coordinate.pest"]
+pub struct CoordinateParser;
 
 pub fn view_side_nav(m: &Model) -> Html {
     let mut side_menu_nodes = VList::new();
@@ -213,26 +222,16 @@ pub fn view_tab_bar(m: &Model) -> Html {
 pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
     let is_active = m.active_cell.clone() == Some(coord.clone());
     if let Some(grammar) = m.get_session().grammars.get(&coord) {
-        match grammar.kind.clone() {
+        let (kind, input_suggestions) = transform_from_meta_representation(m, coord.clone());
+        match kind {
             Kind::Text(value) => view_text_grammar(m, &coord, value),
-            Kind::Input(value) => {
-                let suggestions = m
-                    .suggestions
-                    .get(&coord)
-                    .unwrap_or(&m.default_suggestions)
-                    .iter()
-                    .filter_map(|suggestion_coord| {
-                        if let Some(suggestion_grammar) =
-                            m.get_session().grammars.get(&suggestion_coord)
-                        {
-                            Some((suggestion_coord.clone(), suggestion_grammar.clone()))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-                view_input_grammar(m, coord.clone(), suggestions, value, is_active)
-            }
+            Kind::Input(value) => view_input_grammar(
+                m,
+                coord.clone(),
+                get_suggestions(m, coord.clone()),
+                value,
+                is_active,
+            ),
             Kind::Interactive(name, Interactive::Button()) => {
                 html! {
                     <div
@@ -520,7 +519,7 @@ pub fn view_input_grammar(
     }
 }
 
-pub fn view_text_grammar(m: &Model, coord: &Coordinate, value : String) -> Html {
+pub fn view_text_grammar(m: &Model, coord: &Coordinate, value: String) -> Html {
     html! {
         <div
             class=format!{"cell text row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
