@@ -154,7 +154,7 @@ impl Serialize for Coordinate {
         let s = "";
         for e in self.row_cols.clone() {
             let (a, b) = e;
-            let s = format!("{}-{}-{}", s, &a, &b);
+            let _s = format!("{}-{}-{}", s, &a, &b);
         }
         serializer.serialize_str(s)
     }

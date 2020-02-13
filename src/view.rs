@@ -1,8 +1,8 @@
-use std::collections::hash_map::Keys;
-use std::num::NonZeroU32;
+
+
 use std::ops::Deref;
 use stdweb::traits::IEvent;
-use stdweb::unstable::{TryFrom, TryInto};
+use stdweb::unstable::{TryFrom};
 use stdweb::web::{HtmlElement, IHtmlElement};
 use yew::events::{ClickEvent, IKeyboardEvent, IMouseEvent, KeyPressEvent};
 use yew::prelude::*;
@@ -322,9 +322,9 @@ pub fn view_defn_grammar(
     sub_coordinates: Vec<(String, Coordinate)>,
 ) -> Html {
     let mut nodes = VList::new();
-    let suggestions: Vec<(Coordinate, Grammar)> = vec![];
+    let _suggestions: Vec<(Coordinate, Grammar)> = vec![];
     let mut index = 1;
-    for (name, coord) in sub_coordinates {
+    for (name, _coord) in sub_coordinates {
         let name_coord = Coordinate::child_of(defn_coord, non_zero_u32_tuple((index.clone(), 1)));
         let grammar_coord =
             Coordinate::child_of(defn_coord, non_zero_u32_tuple((index.clone(), 2)));
@@ -355,8 +355,8 @@ pub fn view_defn_grammar(
 pub fn view_defn_variant_grammar(
     m: &Model,
     coord: &Coordinate,
-    defn_coord: &Coordinate,
-    name: String,
+    _defn_coord: &Coordinate,
+    _name: String,
     sub_coords: Vec<Coordinate>,
 ) -> Html {
     let mut nodes = VList::new();
@@ -383,7 +383,7 @@ pub fn view_lookup_grammar(
     coord: &Coordinate,
     suggestions: Vec<Coordinate>,
     value: String,
-    lookup_type: Option<Lookup>,
+    _lookup_type: Option<Lookup>,
     is_active: bool,
 ) -> Html {
     let suggestions_div = if is_active {
@@ -457,7 +457,7 @@ pub fn view_input_grammar(
     let first_suggestion_ref = NodeRef::default();
     let suggestions = if value.clone() != "" && is_active {
         let mut suggestion_nodes = VList::new();
-        let mut is_first_suggestion = true;
+        let is_first_suggestion = true;
         for (s_coord, s_grammar) in suggestions {
             if !s_grammar.name.contains(value.clone().deref()) {
                 continue;
@@ -488,8 +488,8 @@ pub fn view_input_grammar(
     let new_active_cell = coord.clone();
     // Method for holding shift key to select cells
     let shift_select_cell = coord.clone();
-    let mut first_select_cell = m.first_select_cell.clone();
-    let mut last_select_cell = m.last_select_cell.clone();
+    let first_select_cell = m.first_select_cell.clone();
+    let last_select_cell = m.last_select_cell.clone();
 
     let mut first_select_row = 0;
     let mut first_select_col = 0;

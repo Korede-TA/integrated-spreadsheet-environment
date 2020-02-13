@@ -1,14 +1,14 @@
 use electron_sys::ipc_renderer;
 use pest::Parser;
 use std::collections::HashMap;
-use std::fs;
+
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::option::Option;
 use stdweb::unstable::TryInto;
-use stdweb::web::{document, IElement, IHtmlElement, INode, IParentNode};
+use stdweb::web::{document, IElement, INode, IParentNode};
 use wasm_bindgen::JsValue;
-use yew::events::{ClickEvent, IKeyboardEvent, KeyPressEvent};
+use yew::events::KeyPressEvent;
 use yew::prelude::*;
 use yew::services::reader::{File, FileData, ReaderService, ReaderTask};
 use yew::services::ConsoleService;
@@ -17,9 +17,7 @@ use crate::coordinate::{Col, Coordinate, Row};
 use crate::grammar::{Grammar, Kind, Lookup};
 use crate::session::Session;
 use crate::style::Style;
-use crate::util::{
-    apply_definition_grammar, dom_resize, move_grammar, non_zero_u32_tuple, resize, resize_diff,
-};
+use crate::util::{move_grammar, non_zero_u32_tuple, resize, resize_diff};
 use crate::view::{view_grammar, view_menu_bar, view_side_nav, view_tab_bar};
 use crate::{coord, coord_col, coord_row, row_col_vec};
 
@@ -211,7 +209,7 @@ impl Component for Model {
             style: Style::default(),
             kind: Kind::Grid(row_col_vec![(1, 1), (2, 1), (3, 1)]),
         };
-        let mut m = Model {
+        let m = Model {
             view_root: coord!("root"),
             col_widths: hashmap! {
                coord_col!("root","A") => 90.0,
@@ -665,7 +663,7 @@ impl Component for Model {
                     let mut next_row = coord.clone();
                     let mut grammars = self.get_session_mut().grammars.clone();
                     let mut row_coords1 = self.query_row(next_row.full_row());
-                    let parent = coord.parent().unwrap();
+                    let _parent = coord.parent().unwrap();
 
                     let mut temp: Vec<Grammar> = vec![];
                     let mut u = 0;
@@ -761,11 +759,11 @@ impl Component for Model {
                     )> = vec![];
                     if let Some(Grammar {
                         kind: Kind::Grid(sub_coords),
-                        name,
-                        style,
+                        name: _,
+                        style: _,
                     }) = self.get_session_mut().grammars.get(&parent)
                     {
-                        let mut new_col_coords = sub_coords.clone();
+                        let _new_col_coords = sub_coords.clone();
                     }
 
                     //Changing each colfrom the one being deleted
@@ -840,8 +838,11 @@ impl Component for Model {
                 info!("Selected {:?}", self.select_grammar);
                 if let Some(coord) = self.active_cell.clone() {
                     let parent = coord.parent().unwrap();
-                    if let Some(Grammar { kind, name, style }) =
-                        self.get_session_mut().grammars.get(&parent)
+                    if let Some(Grammar {
+                        kind: _,
+                        name: _,
+                        style: _,
+                    }) = self.get_session_mut().grammars.get(&parent)
                     {
                         let mut minrow = 1000;
                         let mut mincol = 1000;
@@ -985,7 +986,7 @@ impl Component for Model {
              */
             Action::DefnUpdateName(coord, name) => {
                 // updates the name of a new or existing grammar.
-                let defn_name_coord = Coordinate::child_of(&coord, non_zero_u32_tuple((1, 1)));
+                let _defn_name_coord = Coordinate::child_of(&coord, non_zero_u32_tuple((1, 1)));
                 if let Some(g) = self.get_session_mut().grammars.get_mut(&coord) {
                     match g {
                         Grammar {
@@ -1000,11 +1001,11 @@ impl Component for Model {
                 }
                 true
             }
-            Action::DefnUpdateRule(coord, rule_row) => {
-                let rule_row_coord = {};
+            Action::DefnUpdateRule(_coord, _rule_row) => {
+                let _rule_row_coord = {};
                 true
             }
-            Action::DefnAddRule(coord) => {
+            Action::DefnAddRule(_coord) => {
                 // TODO adds a new column, points rule coordinate to bottom of ~meta~ sub-table
                 false
             }
@@ -1012,7 +1013,7 @@ impl Component for Model {
     }
 
     fn view(&self) -> Html {
-        let active_cell = self.active_cell.clone();
+        let _active_cell = self.active_cell.clone();
         let is_resizing = self.resizing.is_some();
         html! {
             <div>
