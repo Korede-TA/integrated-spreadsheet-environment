@@ -110,6 +110,7 @@ pub enum Action {
     InsertCol,
     DeleteRow,
     DeleteCol,
+    Merge,
 
     // Alerts and stuff
     Alert(String),
@@ -483,7 +484,7 @@ impl Component for Model {
             }
 
             Action::AddNestedGrid(coord, (rows, cols)) => {
-                // height and width initial values
+                // height and width initial value
                 let mut tmp_heigt = 30.0;
                 let mut tmp_width = 90.0;
                 let (r, c) = non_zero_u32_tuple((rows, cols));
@@ -795,6 +796,42 @@ impl Component for Model {
                         next_col = right_coord;
                     }
                     self.tabs[self.current_tab].grammars = grammars;
+                }
+                true
+            }
+
+            Action::Merge => {
+                //Taking Active cell
+                if let Some(coord) = self.active_cell.clone() {
+                    let parent = coord.parent().unwrap();
+                    if let Some(Grammar {
+                        kind,
+                        name,
+                        style,
+                    }) = self.tabs[self.current_tab].grammars.get(&parent)
+                    {   
+                        let mut u = 0;
+                        let mut c1 = coord.clone(); 
+                        let row_ = self.query_row(coord.full_row()).clone();
+                        let l = row_.len();
+                        for i in row_{
+                            if i == coord { u = 1; }
+                            else if u == 1 { c1 = i;
+                                            break;}
+                        }
+                        // let parent = c1.parent().unwrap();
+                        let mut grammars = self.tabs[self.current_tab].grammars.get_mut(&c1).unwrap();
+                        grammars.style.visibility = "hidden".to_string();
+                        let w = grammars.style.width.clone();
+                        grammars.style.width = 0 as f64;
+
+                        // let parent = coord.parent().unwrap();
+                        let mut grammars = self.tabs[self.current_tab].grammars.get_mut(&coord).unwrap();
+                        grammars.style.grid_column = "1".to_string() + " / span " + "2 !important" ;
+                        grammars.style.width = grammars.style.width + w;
+                        //
+
+                    }
                 }
                 true
             }
