@@ -64,7 +64,7 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
         return grammar.style(coord);
     }
     if grammar.style.width > 90.0 || grammar.style.height > 30.0 {
-        return format!{
+        return format! {
             "{}\nwidth: {}px;\nheight: {}px;\n",
             grammar.style(coord), grammar.style.width, grammar.style.height,
         };
