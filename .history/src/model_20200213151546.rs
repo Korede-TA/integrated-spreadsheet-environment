@@ -120,8 +120,6 @@ pub enum Action {
 
     // Alerts and stuff
     Alert(String),
-    SetSelectedCells(Coordinate),
-
 }
 
 impl Model {
@@ -199,10 +197,6 @@ impl Component for Model {
 
             console: ConsoleService::new(),
             reader: ReaderService::new(),
-
-            select_grammar: vec![],
-            first_select_cell: None,
-            last_select_cell: None,
 
             tabs: vec![
                 Session{
@@ -282,17 +276,15 @@ impl Component for Model {
             }
 
             Action::SetActiveCell(coord) => {
-                self.active_cell = Some(coord);		                 
-                self.first_select_cell = Some(coord.clone());
-                self.last_select_cell = None;
-                self.active_cell = Some(coord.clone());
+                self.active_cell = Some(coord);
                 true
             }
 
-            Action::SetSelectedCells(coord) => {
-                self.last_select_cell = Some(coord.clone());
-                true		                 true
-            }		             }
+            Action::DoCompletion(source_coord, dest_coord) => {
+                move_grammar(&mut self.tabs[self.current_tab].grammars, source_coord, dest_coord.clone());
+                resize_cells(&mut self.tabs[self.current_tab].grammars, dest_coord);
+                true
+            }
 
             Action::SetActiveMenu(active_menu) => {
                 self.open_side_menu = active_menu;
