@@ -188,6 +188,10 @@ impl Model {
             })
             .collect()
     }
+
+//     fn arrange(&self, coord_row:Row) -> Vec<Coordinate>{
+
+//  }
 }
 
 impl Component for Model {
@@ -649,13 +653,17 @@ impl Component for Model {
                     while let Some(below_coord) = next_row.neighbor_below() {
                         temp.clear();
                         row_coords2 = self.query_row(below_coord.full_row());
-            
-                        //each grammar copied
-                        for i in row_coords2.clone() {
-                            temp.insert(u, grammars[&i].clone());
-                            u += 1;
+                        if row_coords2.len() != 0 {
+                            temp = std::vec::from_elem(grammars[&row_coords2[0]].clone(),row_coords2.len());
+
+
+                            //each grammar copied
+                            for i in row_coords2.clone() {
+                                u = i.col().get() as usize;
+                                temp.insert(u, grammars[&i].clone());
+                            }
+                            u = 0;
                         }
-                        u = 0;
             
                         if temp.len() == 0 {
                             let parent = next_row.parent().unwrap();
@@ -733,13 +741,18 @@ impl Component for Model {
                     while let Some(right_coord) = next_col.neighbor_right() {
                         temp.clear();
                         col_coords2 = self.query_col(right_coord.full_col());
-            
-                        //each grammar copied
-                        for i in col_coords2.clone() {
-                            temp.insert(u, grammars[&i].clone());
-                            u += 1;
+                        if col_coords2.len() != 0 {
+                            temp = std::vec::from_elem(grammars[&col_coords2[0]].clone(),col_coords2.len());
+
+
+                            //each grammar copied
+                            for i in col_coords2.clone() {
+                                u = i.col().get() as usize;
+                                temp.insert(u, grammars[&i].clone());
+                            }
+                            info!("{:?}", temp);
+                            u = 0;
                         }
-                        u = 0;
                         if temp.len() == 0 {
                             let parent = next_col.parent().unwrap();
                             if let Some(Grammar {
