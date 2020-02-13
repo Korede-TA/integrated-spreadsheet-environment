@@ -179,10 +179,13 @@ pub fn view_menu_bar(m: &Model) -> Html {
             <button class="menu-bar-button" onclick=m.link.callback(|_| Action::InsertCol)>
                 { "Insert Column" }
             </button>
-            <button class="menu-bar-button">
+            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::Merge)>
+                { "Merge" }
+            </button>
+            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::DeleteRow)>
                 { "Delete Row" }
             </button>
-            <button class="menu-bar-button">
+            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::DeleteCol)>
                 { "Delete Column" }
             </button>
         </div>

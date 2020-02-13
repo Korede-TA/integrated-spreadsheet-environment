@@ -98,6 +98,9 @@ pub enum Action {
 
     InsertRow,
     InsertCol,
+    DeleteRow,
+    DeleteCol,
+    Merge,
 
     Resize(ResizeMsg),
 
@@ -654,6 +657,254 @@ impl Component for Model {
                 }
                 true
             }
+
+            Action::DeleteRow => {
+                //Taking Active cell
+                if let Some(coord) = self.active_cell.clone() {
+                    //Have to initialize many things for them to work in loop
+                    let mut next_row = coord.clone();
+                    let mut grammars = self.get_session_mut().grammars.clone();
+                    let mut row_coords1 = self.query_row(next_row.full_row());
+                    let parent = coord.parent().unwrap();
+            
+                    let mut temp: Vec<Grammar> = vec![];
+                    let mut u = 0;
+                    let mut row_coords2 = self.query_row(next_row.full_row());
+                    let mut new_row_coords: std::vec::Vec<(
+                        std::num::NonZeroU32,
+                        std::num::NonZeroU32,
+                    )> = vec![];
+            
+                    //Changing each rowfrom the one being deleted
+                    while let Some(below_coord) = next_row.neighbor_below() {
+                        temp.clear();
+                        row_coords2 = self.query_row(below_coord.full_row());
+                        if row_coords2.len() != 0 {
+                            temp = std::vec::from_elem(grammars[&row_coords2[0]].clone(),row_coords2.len());
+
+
+                            //each grammar copied
+                            for i in row_coords2.clone() {
+                                u = i.col().get() as usize;
+                                temp.insert(u, grammars[&i].clone());
+                            }
+                            u = 0;
+                        }
+            
+                        if temp.len() == 0 {
+                            let parent = next_row.parent().unwrap();
+                            if let Some(Grammar {
+                                kind: Kind::Grid(sub_coords),
+                                name,
+                                style,
+                            }) = self.get_session_mut().grammars.get(&parent)
+                            {
+                                new_row_coords = sub_coords.clone();
+            
+                                for c in row_coords1.clone() {
+                                    for i in (0..new_row_coords.len()).rev() {
+                                        if new_row_coords[i] == (c.row(), c.col()) {
+                                            new_row_coords.remove(i);
+                                            grammars.remove(&Coordinate::child_of(&parent.clone(), (c.row(), c.col())));
+                                        }
+                                    }
+                                }
+                                grammars.remove(&parent);
+                                grammars.remove(&next_row);
+                                grammars.insert(
+                                    parent,
+                                    Grammar {
+                                        kind: Kind::Grid(new_row_coords.clone()),
+                                        name: name.clone(),
+                                        style: style.clone(),
+                                    },
+                                );
+                                break;
+                            }
+                        } else {
+                            // info!("XD {:?}", row_coords1);
+                            // info!("Temp {:?}", temp);
+                            for c in (0..row_coords1.len()).rev() {
+                                grammars.insert(row_coords1[c].clone(), temp[u].clone());
+                                u += 1;
+                            }
+                            u = 0;
+                        }
+            
+                        row_coords1 = row_coords2.clone();
+                        next_row = below_coord;
+                    }
+                    self.get_session_mut().grammars = grammars;
+                }
+                true
+            }
+            Action::DeleteCol => {
+                //Taking Active cell
+                if let Some(coord) = self.active_cell.clone() {
+                    //Have to initialize many things for them to work in loop
+                    let mut next_col = coord.clone();
+                    let mut grammars = self.get_session_mut().grammars.clone();
+                    let mut col_coords1 = self.query_col(next_col.full_col());
+                    let parent = coord.parent().unwrap();
+            
+                    let mut temp: Vec<Grammar> = vec![];
+                    let mut u = 0;
+                    let mut col_coords2 = self.query_col(next_col.full_col());
+                    let mut new_col_coords: std::vec::Vec<(
+                        std::num::NonZeroU32,
+                        std::num::NonZeroU32,
+                    )> = vec![];
+                    if let Some(Grammar {
+                        kind: Kind::Grid(sub_coords),
+                        name,
+                        style,
+                    }) = self.get_session_mut().grammars.get(&parent)
+                    {
+                        let mut new_col_coords = sub_coords.clone();
+                    }
+            
+                    //Changing each colfrom the one being deleted
+                    while let Some(right_coord) = next_col.neighbor_right() {
+                        temp.clear();
+                        col_coords2 = self.query_col(right_coord.full_col());
+                        if col_coords2.len() != 0 {
+                            temp = std::vec::from_elem(grammars[&col_coords2[0]].clone(),col_coords2.len());
+
+
+                            //each grammar copied
+                            for i in col_coords2.clone() {
+                                u = i.col().get() as usize;
+                                temp.insert(u, grammars[&i].clone());
+                            }
+                            info!("{:?}", temp);
+                            u = 0;
+                        }
+                        if temp.len() == 0 {
+                            let parent = next_col.parent().unwrap();
+                            if let Some(Grammar {
+                                kind: Kind::Grid(sub_coords),
+                                name,
+                                style,
+                            }) = self.get_session_mut().grammars.get(&parent)
+                            {
+                                new_col_coords = sub_coords.clone();
+            
+                                for c in col_coords1.clone() {
+                                    for i in (0..new_col_coords.len()).rev() {
+                                        if new_col_coords[i] == (c.row(), c.col()) {
+                                            new_col_coords.remove(i);
+                                            grammars.remove(&Coordinate::child_of(&parent.clone(), (c.row(), c.col())));
+                                        }
+                                    }
+                                }
+                                grammars.remove(&parent);
+                                grammars.remove(&next_col);
+                                grammars.insert(
+                                    parent,
+                                    Grammar {
+                                        kind: Kind::Grid(new_col_coords.clone()),
+                                        name: name.clone(),
+                                        style: style.clone(),
+                                    },
+                                );
+                                break;
+                            }
+                        } else {
+                            for c in (0..col_coords1.len()).rev() {
+                                grammars.insert(col_coords1[c].clone(), temp[u].clone());
+                                u += 1;
+                            }
+                            u = 0;
+                        }
+            
+                        col_coords1 = col_coords2.clone();
+                        next_col = right_coord;
+                    }
+                    self.get_session_mut().grammars = grammars;
+                }
+                true
+            }
+
+            Action::Merge => {
+                //Taking Active cell
+                info!("Selected {:?}", self.select_grammar);
+                if let Some(coord) = self.active_cell.clone() {
+                    let parent = coord.parent().unwrap();
+                    if let Some(Grammar {
+                        kind,
+                        name,
+                        style,
+                    }) = self.get_session_mut().grammars.get(&parent)
+                    {      
+                        let mut minrow = 1000;
+                        let mut mincol = 1000;
+                        let mut c1 = coord.clone(); 
+
+                        for i in self.select_grammar.clone() {
+                            info!{"{:?}", i};
+                            info!{"Before {} - {}", minrow, mincol};
+                            if i.col().get() <= minrow {
+                                if i.row().get() <= minrow{
+                                    minrow = i.row().get().clone();
+                                    mincol = i.col().get().clone();
+                                    c1 = i;
+                                    info!{"Here {} - {}", minrow, mincol};
+                                }
+
+                            }
+                        }
+                        let mut w = 0 as f64;
+                        let mut h = 0 as f64;
+
+                       // let mut Grammar = self.get_session_mut().grammars.clone();
+                        // let mut mGrammar = Grammar.get_mut(&c1).unwrap();
+                        
+                        for i in self.select_grammar.clone() {
+                            if c1 != i{
+                                let mut grammars = self.get_session_mut().grammars.get_mut(&i).unwrap();
+                                grammars.style.visibility = "hidden".to_string();
+                                if i.col().get() != minrow {
+                                    w += grammars.style.width.clone();
+                                    grammars.style.width = 0 as f64;
+                                }
+                                if i.row().get() <= minrow{
+                                    h += grammars.style.height.clone();
+                                    grammars.style.height = 0 as f64;
+                                }
+
+                            }
+                        }
+                        let mut mGrammar = self.get_session_mut().grammars.get_mut(&c1).unwrap();
+                        mGrammar.style.grid_column = "1".to_string() + " / span " + "2 !important" ;
+                        mGrammar.style.width = mGrammar.style.width + w;
+                        mGrammar.style.width = mGrammar.style.height + h;
+
+                        // let mut u = 0;
+                        // let mut c1 = coord.clone(); 
+                        // let row_ = self.query_row(coord.full_row()).clone();
+                        // let l = row_.len();
+                        // for i in row_{
+                        //     if i == coord { u = 1; }
+                        //     else if u == 1 { c1 = i;
+                        //                     break;}
+                        // }
+                        // // let parent = c1.parent().unwrap();
+                        // let mut grammars = self.get_session_mut().grammars.get_mut(&c1).unwrap();
+                        // grammars.style.visibility = "hidden".to_string();
+                        // let w = grammars.style.width.clone();
+                        // grammars.style.width = 0 as f64;
+
+                        // // let parent = coord.parent().unwrap();
+                        // let mut grammars = self.get_session_mut().grammars.get_mut(&coord).unwrap();
+                        // grammars.style.grid_column = "1".to_string() + " / span " + "2 !important" ;
+                        // grammars.style.width = grammars.style.width + w;
+                        // //
+
+                    }
+                }
+                true
+            }
+
             Action::Resize(msg) => {
                 match msg {
                     ResizeMsg::Start(coord) => {
