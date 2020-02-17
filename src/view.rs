@@ -2,6 +2,7 @@ use std::ops::Deref;
 use yew::{html, ChangeData, Html, InputData};
 use yew::events::{ClickEvent, IMouseEvent, IKeyboardEvent, KeyPressEvent};
 use yew::virtual_dom::{VList};
+use yew::services::dialog::DialogService;
 use std::num::NonZeroU32;
 use crate::model::{Action,Model,SideMenu};
 use crate::grammar::{Grammar, Kind, Interactive};
@@ -154,6 +155,9 @@ pub fn view_menu_bar(m: &Model) -> Html {
             <button class="menu-bar-button">
                 { "Delete Column" }
             </button>
+            <button class="menu-bar-button" onclick=m.link.callback(move |_ : ClickEvent| Action::MergeCells())>
+                { "Merge Cells" }
+            </button>
         </div>
     }
 }
@@ -287,40 +291,10 @@ pub fn view_input_grammar(
     let new_active_cell = coord.clone();
     // Method for holding shift key to select cells
     let shift_select_cell = coord.clone();
-    let mut first_select_cell  = m.first_select_cell.clone();
-    let mut last_select_cell  = m.last_select_cell.clone();  
-
-    let mut first_select_row = 0;
-    let mut first_select_col = 0;
-    let mut last_select_row = 0;
-    let mut last_select_col = 0;
-
-    let mut min_select_row  = 0;
-    let mut max_select_row  = 0;
-    let mut min_select_col = 0;
-    let mut max_select_col = 0;
-    
-    if first_select_cell.is_some() && last_select_cell.is_some() {
-        first_select_row = first_select_cell.as_ref().unwrap().row().get();
-        first_select_col = first_select_cell.as_ref().unwrap().col().get();      
-        last_select_row = last_select_cell.as_ref().unwrap().row().get();
-        last_select_col = last_select_cell.as_ref().unwrap().col().get();
-        if first_select_row < last_select_row {
-            min_select_row = first_select_row;
-            max_select_row = last_select_row;
-        } else {
-            min_select_row = last_select_row;
-            max_select_row = first_select_row;
-        }
-        if first_select_col < last_select_col {
-            min_select_col = first_select_col;
-            max_select_col = last_select_col;
-        } else {
-            min_select_col = last_select_col;
-            max_select_col = first_select_col;
-        }      
-    }
-    
+    let min_select_cell = m.min_select_cell.as_ref();
+    let max_select_cell = m.max_select_cell.as_ref();
+   
+  
     
     html! {
         <div
@@ -329,12 +303,13 @@ pub fn view_input_grammar(
             style={ get_style(&m, &coord) }>
             <input
                 class={ format!{ "cell-data {} {}", active_cell_class, 
-                if min_select_row <= coord.row().get() && coord.row().get() <= max_select_row 
-                && min_select_col <= coord.col().get() && coord.col().get() <= max_select_col {
-                    "selection"          
-                } else {
-                    ""
-                }   
+                if !min_select_cell.is_none() && !max_select_cell.is_none() 
+                    && min_select_cell.unwrap().row() <= coord.row() && coord.row() <= max_select_cell.unwrap().row() 
+                    && min_select_cell.unwrap().col() <= coord.col() && coord.col() <= max_select_cell.unwrap().col() {
+                        "selection"          
+                    } else {
+                        ""
+                    }           
             } },
                 value=value,
                 oninput=m.link.callback(move |e : InputData| Action::ChangeInput(coord.clone(), e.value)),
@@ -372,7 +347,7 @@ pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordina
 
     html! {
         <div
-            class=format!{"cell grid row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
+            class=format!{"cell grid row-{} col-{}; display: grid;", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
             { nodes }

@@ -37,6 +37,8 @@ pub struct Model {
     view_root: Coordinate,
     pub first_select_cell: Option<Coordinate>,
     pub last_select_cell: Option<Coordinate>,
+    pub min_select_cell: Option<Coordinate>,
+    pub max_select_cell: Option<Coordinate>,
 
     pub grammars: HashMap</*Key*/ Coordinate, /*Value*/ Grammar>,
     value: String, // what is this?????
@@ -105,6 +107,8 @@ pub enum Action {
     Alert(String),
 
     SetSelectedCells(Coordinate),
+
+    MergeCells(),
 }
 
 impl Model {
@@ -223,6 +227,8 @@ impl Component for Model {
             select_grammar: vec![],
             first_select_cell: None,
             last_select_cell: None,
+            min_select_cell: None,
+            max_select_cell: None,
 
             tabs: vec![
                 "Session 1".to_string(),
@@ -292,13 +298,49 @@ impl Component for Model {
 
             Action::SetActiveCell(coord) => {
                 self.first_select_cell = Some(coord.clone());
-                self.last_select_cell = None;
+                self.max_select_cell = None;
                 self.active_cell = Some(coord.clone());
                 true
             }
 
             Action::SetSelectedCells(coord) => {
                 self.last_select_cell = Some(coord.clone());
+                if self.first_select_cell.is_none() || self.last_select_cell.is_none() {
+                    return false;
+                }
+                let mut first_select_row = NonZeroU32::new(1).unwrap();
+                let mut first_select_col = NonZeroU32::new(1).unwrap();
+                let mut last_select_row = NonZeroU32::new(1).unwrap();
+                let mut last_select_col = NonZeroU32::new(1).unwrap();
+
+                let mut min_select_row = NonZeroU32::new(1).unwrap();
+                let mut max_select_row = NonZeroU32::new(1).unwrap();
+                let mut min_select_col = NonZeroU32::new(1).unwrap();
+                let mut max_select_col = NonZeroU32::new(1).unwrap();
+                first_select_row = self.first_select_cell.as_ref().unwrap().row();
+                first_select_col = self.first_select_cell.as_ref().unwrap().col();
+                last_select_row = self.last_select_cell.as_ref().unwrap().row();
+                last_select_col = self.last_select_cell.as_ref().unwrap().col();
+                if first_select_row < last_select_row {
+                    min_select_row = first_select_row;
+                    max_select_row = last_select_row;
+                } else {
+                    min_select_row = last_select_row;
+                    max_select_row = first_select_row;
+                }
+                if first_select_col < last_select_col {
+                    min_select_col = first_select_col;
+                    max_select_col = last_select_col;
+                } else {
+                    min_select_col = last_select_col;
+                    max_select_col = first_select_col;
+                }
+                self.min_select_cell = Some(Coordinate {
+                    row_cols: vec![(min_select_row, min_select_col)],
+                });
+                self.max_select_cell = Some(Coordinate {
+                    row_cols: vec![(max_select_row, max_select_col)],
+                });
                 true
             }
 
@@ -333,6 +375,67 @@ impl Component for Model {
                 let filename = "testfile";
                 fs::write(filename, j.unwrap()).expect("Unable to write to file!");
                 false
+            }
+
+            Action::MergeCells() => {
+                if self.min_select_cell.is_none() || self.max_select_cell.is_none() {
+                    return false;
+                }
+                let mut min_select_row = self.min_select_cell.as_ref().unwrap().row();
+                let mut max_select_row = self.max_select_cell.as_ref().unwrap().row();
+                let mut min_select_col = self.min_select_cell.as_ref().unwrap().col();
+                let mut max_select_col = self.max_select_cell.as_ref().unwrap().col();
+                let mut merge_height = 0.00;
+                let mut merge_width = 0.00;
+                let mut max_coord = Coordinate::default();
+                let mut max_grammar = Grammar::default();
+                let ref_grammas = self.grammars.clone();
+                for (coord, grammar) in &ref_grammas {
+                    if min_select_row <= coord.row()
+                        && coord.row() <= max_select_row
+                        && min_select_col <= coord.col()
+                        && coord.col() <= max_select_col
+                        && coord.to_string().contains("root-")
+                    {
+                        let coord_style = grammar.style.clone();
+                        if (coord.row() == max_select_row) && (coord.col() == max_select_col) {
+                            merge_width = merge_width + coord_style.width;
+                            merge_height = merge_height + coord_style.height;
+                            max_coord = coord.clone();
+                            max_grammar = grammar.clone();
+                            continue;
+                        } else if (coord.row() == max_select_row) && grammar.style.display == true {
+                            merge_width = merge_width + coord_style.width;
+                        } else if coord.col() == max_select_col && grammar.style.display == true {
+                            merge_height = merge_height + coord_style.height;
+                        }
+                        if (coord.row() != max_select_row) || (coord.col() != max_select_col) {
+                            let mut merge_coord = coord.clone();
+                            let mut merge_gramma = grammar.clone();
+                            merge_gramma.style.display = false;
+                            self.grammars.insert(merge_coord, merge_gramma);
+                            merge_height = merge_height + 1.00;
+                            merge_width = merge_width + 1.00;
+                        }
+                    }
+                }
+                max_grammar.style.width = merge_width - 1.00;
+                max_grammar.style.height = merge_height - 1.00;
+                if min_select_col.get() != max_select_col.get() {
+                    max_grammar.style.col_span[0] = min_select_col.get();
+                    max_grammar.style.col_span[1] = max_select_col.get();
+                }
+                if min_select_row.get() != max_select_row.get() {
+                    max_grammar.style.row_span[0] = min_select_row.get();
+                    max_grammar.style.row_span[1] = max_select_row.get();
+                }
+                info!(
+                    "Colum-span min col {}, max col {}",
+                    max_grammar.style.col_span[0].clone(),
+                    max_grammar.style.col_span[1].clone()
+                );
+                self.grammars.insert(max_coord, max_grammar);
+                true
             }
 
             Action::AddNestedGrid(coord, (rows, cols)) => {
