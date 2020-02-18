@@ -73,14 +73,27 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
     let col_span = &model.grammars.get(&coord).unwrap().style.col_span;
     let row_span = &model.grammars.get(&coord).unwrap().style.row_span;
     let disp = &model.grammars.get(&coord).unwrap().style.display;
+    let mut s_col_span = String::new();
+    let mut s_row_span = String::new();
+    if col_span[0] != col_span[1] {
+        s_col_span = format! {
+            "\ngrid-column-start: {}; grid-column: {} / span {};",
+            col_span[0].to_string(), col_span[0].to_string(), col_span[1].to_string(),
+        };
+    }
+
+    if row_span[0] != row_span[1] {
+        s_row_span = format! {
+            "\ngrid-row-start: {}; grid-row: {} / span {};",
+            row_span[0].to_string(), row_span[0].to_string(), row_span[1].to_string(),
+        };
+    }
     format! {
         "{}\nwidth: {}px;\nheight: {}px;
-            \n grid-column-start: {}; grid-column: {} / span {};
-            \n grid-row-start: {}; grid-row: {} / span {}; {}",
+        {} {} {}",
         grammar.style(coord), col_width, row_height,
-        col_span[0].to_string(), col_span[0].to_string(), col_span[1].to_string(),
-        row_span[0].to_string(), row_span[0].to_string(), row_span[1].to_string(), if !disp {
-            "display: none"
+        s_col_span, s_row_span, if !disp {
+            "\ndisplay: none;"
         } else {
             ""
         },

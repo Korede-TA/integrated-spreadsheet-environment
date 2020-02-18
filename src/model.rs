@@ -298,6 +298,8 @@ impl Component for Model {
 
             Action::SetActiveCell(coord) => {
                 self.first_select_cell = Some(coord.clone());
+                self.last_select_cell = None;
+                self.min_select_cell = None;
                 self.max_select_cell = None;
                 self.active_cell = Some(coord.clone());
                 true
@@ -335,6 +337,36 @@ impl Component for Model {
                     min_select_col = last_select_col;
                     max_select_col = first_select_col;
                 }
+
+                let ref_grammas = self.grammars.clone();
+                for (coord, grammar) in &ref_grammas {
+                    if min_select_row <= coord.row()
+                        && coord.row() <= max_select_row
+                        && min_select_col <= coord.col()
+                        && coord.col() <= max_select_col
+                        && coord.to_string().contains("root-")
+                    {
+                        let col_span = grammar.style.col_span;
+                        let row_span = grammar.style.row_span;
+                        if col_span[0] > 0 && col_span[1] > 0 {
+                            if col_span[0] < min_select_col.get() {
+                                min_select_col = NonZeroU32::new(col_span[0]).unwrap();
+                            }
+                            if col_span[1] > max_select_col.get() {
+                                max_select_col = NonZeroU32::new(col_span[1]).unwrap();
+                            }
+                        }
+                        if row_span[0] > 0 && row_span[1] > 0 {
+                            if row_span[0] < min_select_row.get() {
+                                min_select_row = NonZeroU32::new(row_span[0]).unwrap();
+                            }
+                            if row_span[1] > max_select_row.get() {
+                                max_select_row = NonZeroU32::new(row_span[1]).unwrap();
+                            }
+                        }
+                    }
+                }
+
                 self.min_select_cell = Some(Coordinate {
                     row_cols: vec![(min_select_row, min_select_col)],
                 });
@@ -389,8 +421,8 @@ impl Component for Model {
                 let mut merge_width = 0.00;
                 let mut max_coord = Coordinate::default();
                 let mut max_grammar = Grammar::default();
-                let ref_grammas = self.grammars.clone();
-                for (coord, grammar) in &ref_grammas {
+                let mut ref_grammas = self.grammars.clone();
+                for (coord, grammar) in ref_grammas.iter_mut() {
                     if min_select_row <= coord.row()
                         && coord.row() <= max_select_row
                         && min_select_col <= coord.col()
@@ -410,31 +442,26 @@ impl Component for Model {
                             merge_height = merge_height + coord_style.height;
                         }
                         if (coord.row() != max_select_row) || (coord.col() != max_select_col) {
-                            let mut merge_coord = coord.clone();
-                            let mut merge_gramma = grammar.clone();
-                            merge_gramma.style.display = false;
-                            self.grammars.insert(merge_coord, merge_gramma);
+                            grammar.style.display = false;
                             merge_height = merge_height + 1.00;
                             merge_width = merge_width + 1.00;
                         }
+                        grammar.style.col_span[0] = min_select_col.get();
+                        grammar.style.col_span[1] = max_select_col.get();
+                        grammar.style.row_span[0] = min_select_row.get();
+                        grammar.style.row_span[1] = max_select_row.get();
+                        self.grammars.insert(coord.clone(), grammar.clone());
                     }
                 }
                 max_grammar.style.width = merge_width - 1.00;
                 max_grammar.style.height = merge_height - 1.00;
-                if min_select_col.get() != max_select_col.get() {
-                    max_grammar.style.col_span[0] = min_select_col.get();
-                    max_grammar.style.col_span[1] = max_select_col.get();
-                }
-                if min_select_row.get() != max_select_row.get() {
-                    max_grammar.style.row_span[0] = min_select_row.get();
-                    max_grammar.style.row_span[1] = max_select_row.get();
-                }
-                info!(
-                    "Colum-span min col {}, max col {}",
-                    max_grammar.style.col_span[0].clone(),
-                    max_grammar.style.col_span[1].clone()
-                );
+                max_grammar.style.col_span[0] = min_select_col.get();
+                max_grammar.style.col_span[1] = max_select_col.get();
+                max_grammar.style.row_span[0] = min_select_row.get();
+                max_grammar.style.row_span[1] = max_select_row.get();
                 self.grammars.insert(max_coord, max_grammar);
+                self.min_select_cell = None;
+                self.max_select_cell = None;
                 true
             }
 
