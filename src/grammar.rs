@@ -1,13 +1,11 @@
+use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
+use std::default::Default;
 use std::num::NonZeroU32;
 use std::ops::Deref;
-use std::cmp::Ordering;
 use std::option::Option;
-use serde::{Serialize, Deserialize};
 
-use crate::coordinate::{
-    Coordinate,
-    Row, Col,
-};
+use crate::coordinate::{Col, Coordinate, Row};
 use crate::style::Style;
 
 // Grammar is the main data-type representing
@@ -31,6 +29,7 @@ pub enum Kind {
 
     // Readable and writable text grammar
     Input(String),
+
     // Structural grammar that nests a grid of grammars
     Grid(Vec<(NonZeroU32, NonZeroU32)>),
 
@@ -38,16 +37,30 @@ pub enum Kind {
     Interactive(String, Interactive),
 
     // Lookup grammar
+    // in the context of definitions, these bind to cell bindings
     Lookup(String, Option<Lookup>),
+
+    // Definition grammar
+    // sort of like a mirror to the meta-table that creates new grammars and
+    // specifies valid completions
+    Defn(
+        /* binding name */ String,
+        /* definition coord */ Coordinate,
+        /* rule names and coordinates */ Vec<(String, Coordinate)>,
+    ),
 }
-js_serializable!( Kind );
-js_deserializable!( Kind );
+js_serializable!(Kind);
+js_deserializable!(Kind);
 
 // Kinds of lookup grammars
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Lookup {
     Cell(Coordinate),
-    Range { parent: Coordinate, start: (NonZeroU32, NonZeroU32), end: (NonZeroU32, NonZeroU32) },
+    Range {
+        parent: Coordinate,
+        start: (NonZeroU32, NonZeroU32),
+        end: (NonZeroU32, NonZeroU32),
+    },
     Row(Row),
     Col(Col),
 }
@@ -60,15 +73,17 @@ pub enum Interactive {
     Toggle(bool),
 }
 
-impl Grammar {
-    pub fn default() -> Grammar {
-        Grammar {
+impl Default for Grammar {
+    fn default() -> Self {
+        Self {
             name: "".to_string(),
             style: Style::default(),
             kind: Kind::Input("".to_string()),
         }
     }
+}
 
+impl Grammar {
     pub fn style(&self, coord: &Coordinate) -> String {
         match &self.kind {
             Kind::Grid(sub_coords) => {
@@ -108,18 +123,23 @@ impl Grammar {
             Kind::Lookup(_, _) => format! {
                 "{}display: inline-flex; grid-area: cell-{}; background: white;\n", self.style.to_string(), coord.to_string()
             },
-            Kind::Lookup(_, _) => format!{
-                "{}display: inline-flex; grid-area: cell-{}; background: white;\n", self.style.to_string(), coord.to_string()
-            },
-            _ => format!{"{}grid-area: cell-{};\n", self.style.to_string(), coord.to_string()},
+            _ => format! {"{}grid-area: cell-{};\n", self.style.to_string(), coord.to_string()},
         }
     }
 
-    pub fn suggestion(alias: String, value: String) -> Grammar {
+    pub fn text(name: String, value: String) -> Grammar {
         Grammar {
-            name: alias,
+            name: name,
             style: Style::default(),
             kind: Kind::Text(value),
+        }
+    }
+
+    pub fn input(name: String, value: String) -> Grammar {
+        Grammar {
+            name: name,
+            style: Style::default(),
+            kind: Kind::Input(value),
         }
     }
 
@@ -137,4 +157,26 @@ impl Grammar {
             kind: Kind::Grid(grid),
         }
     }
+}
+
+#[macro_export]
+macro_rules! grammar_table {
+	($([$($content:tt)*]), *) => (
+		HashMap::<Coordinate, Grammar>::from_iter(vec![$(vec![$($content)*]), *].into_iter().flatten().collect())
+	);
+
+    /*
+    (@step $_idx:expr,) => {};
+    (@step $idx:expr, $head:ident, $($tail:ident,)*) => {
+        impl A {
+            fn $head(&self) -> i32 {
+                self.data[$idx]
+            }
+        }
+        grammar_table!(@step $idx + 1usize, $($tail,)*);
+    };
+    ($($n:ident),*) => {
+        grammar_table!(@step 0usize, $($n,)*);
+    }
+    */
 }

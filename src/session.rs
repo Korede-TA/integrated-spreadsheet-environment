@@ -6,9 +6,7 @@ use std::collections::HashMap;
 use std::option::Option;
 
 use crate::coordinate::Coordinate;
-
-use crate::grammar::{Grammar, Kind, Interactive};
-
+use crate::grammar::{Grammar, Interactive, Kind};
 use crate::style::Style;
 
 // Session encapsulates the serializable state of the application that gets stored to disk
@@ -123,9 +121,16 @@ impl Serialize for Kind {
                 seq.end()
             }
             Kind::Lookup(s, x) => {
-                let mut sv = serializer.serialize_struct_variant("Kind", 2, "Interactive", 2)?;
+                let mut sv = serializer.serialize_struct_variant("Kind", 3, "Lookup", 2)?;
                 sv.serialize_field("raw_value", s)?;
                 sv.serialize_field("lookup", x)?;
+                sv.end()
+            }
+            Kind::Defn(s, c, rules) => {
+                let mut sv = serializer.serialize_struct_variant("Kind", 4, "Defn", 3)?;
+                sv.serialize_field("name", s)?;
+                sv.serialize_field("coordinate", c)?;
+                sv.serialize_field("rules", rules)?;
                 sv.end()
             }
         }
@@ -149,7 +154,7 @@ impl Serialize for Coordinate {
         let s = "";
         for e in self.row_cols.clone() {
             let (a, b) = e;
-            let s = format!("{}-{}-{}", s, &a, &b);
+            let _s = format!("{}-{}-{}", s, &a, &b);
         }
         serializer.serialize_str(s)
     }
