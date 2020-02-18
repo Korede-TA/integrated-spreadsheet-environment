@@ -1,3 +1,4 @@
+// use coord_row;
 use pest::Parser;
 use serde::{Deserialize, Serialize};
 use std::char::from_u32;
@@ -25,6 +26,7 @@ impl Coordinate {
     // - parent.row_cols.len() == result.row_cols.len() - 1
     pub fn child_of(parent: &Self, child_coord: (NonZeroU32, NonZeroU32)) -> Coordinate {
         let mut new_row_col = parent.clone().row_cols;
+        info! {"parent and child val: (pa: {:?}, child: {:?}, fin {:?});", parent, child_coord, new_row_col};
         new_row_col.push(child_coord);
         Coordinate {
             row_cols: new_row_col,
@@ -95,8 +97,18 @@ impl Coordinate {
     // - row_to_string(coord!("root-A1-B2-B3")) = "root-A1-B2-3"
     pub fn row_to_string(&self) -> String {
         if let Some(parent) = self.parent() {
+            info!(
+                "row to str {:?}, {:?}",
+                format! {"{}-{}", parent.to_string(), self.row().get()},
+                self
+            );
             format! {"{}-{}", parent.to_string(), self.row().get()}
         } else {
+            info!(
+                " row to str22 {:?}, {:?}",
+                format! {"{}", self.row().get()},
+                self
+            );
             format! {"{}", self.row().get()}
         }
     }
@@ -140,7 +152,9 @@ impl Coordinate {
     // if a cell is the parent, grandparent,..., (great xN)-grandparent of another
     // Optinoally returns: Some(N) if true (including N=0 if sibling),
     // or None if false
+    // Korede Check this
     fn is_n_parent(&self, other: &Self) -> Option<i32> {
+        // info!("n parent 11111123334444 {:?}, {:?}", self, other);
         if self.row_cols.len() > other.row_cols.len() {
             return None;
         }
@@ -154,8 +168,11 @@ impl Coordinate {
         }
         Some(n)
     }
-
+    // (3, 2) (2,2)
+    //"root-A1-B2-B3"
+    //"root-A1-B2-B2"
     pub fn neighbor_above(&self) -> Option<Coordinate> {
+        info!("selllfff {:?}", self);
         let mut new_row_col = self.clone().row_cols;
         if let Some(last) = new_row_col.last_mut() {
             if last.0.get() > 1 {
@@ -171,7 +188,8 @@ impl Coordinate {
 
         None
     }
-
+    //"root-A1-B2-B3"
+    //"root-A1-B2-B4"
     pub fn neighbor_below(&self) -> Option<Coordinate> {
         let mut new_row_col = self.clone().row_cols;
         if let Some(last) = new_row_col.last_mut() {
@@ -329,6 +347,90 @@ mod tests {
         assert_eq!(coord!("root-A1-B2-B3").row().get(), 3);
     }
 
-    // - row(coord!("root-A1-B2-B3")).get() == 3
-    // - row(coord!("root-A1-E13-Z3")).get() == 3
+    #[test]
+    // - parent.row_cols.len() == result.row_cols.len() - 1
+    fn test_childOf() {
+        // let param = coord!().row_cols.len();
+        // assert_eq!(param, result.row_cols.len() - 1)
+        unimplemented!();
+    }
+
+    #[test]
+    fn test_parent() {
+        assert_eq!(coord!("root").parent(), None);
+        assert_eq!(coord!("meta").parent(), None);
+        // assert_eq!(coord!().parent().len(), coord!().parent().len() + 1); //Check with korede for parent
+
+        // unimplemented!();
+    }
+
+    #[test]
+    fn test_to_string() {
+        assert_eq!(coord!("root-A1-B2-B3").to_string(), "root-A1-B2-B3");
+    }
+
+    #[test]
+    fn test_row_mut() {
+        // assert_eq!(coord!("root-A1-B2-B3").row().get(), 3); // Test for mutability required
+    }
+
+    #[test]
+    fn test_full_row() {
+        assert_ne!(
+            coord!("root-A1-B2-B3").full_row(),
+            coord_row!("root-A1-B1", "3")
+        );
+        assert_eq!(
+            coord!("root-A1-B2-B3").full_row(),
+            coord_row!("root-A1-B2", "3")
+        );
+    }
+
+    #[test]
+    fn test_row_to_string() {
+        // - row_to_string(coord!("root-A1-B2-B3")) = "root-A1-B2-3"
+        assert_eq!(coord!("root-A1-B2-B3").row_to_string(), "root-A1-B2-3");
+        // info!("{:?}", coord!("root").row_to_string())
+        assert_eq!(coord!("root").row_to_string(), "1");
+        assert_eq!(coord!("meta").row_to_string(), "1");
+        // unimplemented!();
+    }
+
+    #[test]
+    fn test_is_n_parent() {
+        unimplemented!();
+    }
+
+    #[test]
+    fn test_neighbor_above() {
+        //"root-A1-B2-B3"
+        //"root-A1-B2-B2"
+        assert_eq!(
+            coord!("root-A1-B2-B3").neighbor_above().unwrap(),
+            coord!("root-A1-B2-B2")
+        );
+        assert_ne!(
+            coord!("root-A1-B2-B3").neighbor_above().unwrap(),
+            coord!("root-A1-B2-B1")
+        );
+        // unimplemented!();
+    }
+
+    #[test]
+    fn test_neighbor_below() {
+        assert_eq!(
+            coord!("root-A1-B2-B3").neighbor_below().unwrap(),
+            coord!("root-A1-B2-B4")
+        );
+        assert_ne!(
+            coord!("root-A1-B2-B3").neighbor_below().unwrap(),
+            coord!("root-A1-B2-B6")
+        );
+        // unimplemented!();
+    }
+
+    #[test]
+    fn test_neighbor_left() {
+        unimplemented!();
+    }
 }
