@@ -1,8 +1,6 @@
-
-
 use std::ops::Deref;
 use stdweb::traits::IEvent;
-use stdweb::unstable::{TryFrom};
+use stdweb::unstable::TryFrom;
 use stdweb::web::{HtmlElement, IHtmlElement};
 use yew::events::{ClickEvent, IKeyboardEvent, IMouseEvent, KeyPressEvent};
 use yew::prelude::*;
@@ -563,10 +561,8 @@ pub fn view_input_grammar(
                 onclick=m.link.callback(move |e : ClickEvent| {
                     if e.shift_key() {
                         Action::SetSelectedCells(shift_select_cell.clone())
-                    } else {
-                        Action::SetActiveCell(new_active_cell.clone())
-                    }
-                })
+                    } else { Action::Noop }})
+                onfocus=m.link.callback(move |e : FocusEvent| Action::SetActiveCell(new_active_cell.clone()))
                 onmousedown=m.link.callback(move |e: MouseDownEvent| {
                     // TODO: get this actually working
                     // Some details:
