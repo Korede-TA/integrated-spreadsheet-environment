@@ -203,14 +203,14 @@ pub fn view_tab_bar(m: &Model) -> Html {
                 <button class="tab active-tab">{ tab.title.clone() }</button>
             });
         } else {
-            sessions.add_child(html! {
+            tabs.add_child(html! {
                 <button class="tab">{ tab.title.clone() }</button>
             });
         }
     }
     html! {
         <div class="tab-bar horizontal-bar">
-            { sessions }
+            { tabs }
             <button class="newtab-btn">
                 <span>{ "+" }</span>
             </button>
