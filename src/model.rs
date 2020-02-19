@@ -425,7 +425,6 @@ impl Component for Model {
                         // we'll call out to regular JS to do this using the `js!` macro.
                         // Note that yew::services::reader::File::name() calls "file.name" under the
                         // hood (https://docs.rs/stdweb/0.4.20/src/stdweb/webapi/file.rs.html#23)
-                        use stdweb::unstable::TryInto;
                         let full_file_name : String = js!(
                             if (!!@{&file}.webkitRelativePath) {
                                 return @{&file}.webkitRelativePath;
@@ -536,11 +535,11 @@ impl Component for Model {
 
                     for sub_coord in sub_coords {
                         let new_coord = Coordinate::child_of(&coord, sub_coord);
-
+                      
                         self.get_session_mut()
                             .grammars
                             .insert(new_coord.clone(), Grammar::default());
-
+                      
                         // initialize row & col heights as well
                         if !self.row_heights.contains_key(&new_coord.clone().full_row()) {
                             self.row_heights
@@ -565,8 +564,8 @@ impl Component for Model {
                 resize(
                     self,
                     coord,
-                    (rows as f64) * (/* default row height */30.0),
-                    (cols as f64) * (/* default col width */90.0),
+                    (rows as f64) * (/* default row height */tmp_heigt),
+                    (cols as f64) * (/* default col width */tmp_width),
                 );
                 true
             }
@@ -636,8 +635,7 @@ impl Component for Model {
                     // find the bottom-most coord
                     let mut bottom_most_coord = coord.clone();
                     while let Some(below_coord) = bottom_most_coord.neighbor_below() {
-                        //info!("0 - {:?}",below_coord);
-                        if self.get_session_mut().grammars.contains_key(&below_coord) {
+                        if self.get_session().grammars.contains_key(&below_coord) {
                             bottom_most_coord = below_coord;
                         } else {
                             break;
@@ -655,6 +653,7 @@ impl Component for Model {
                     }) = self.to_session().grammars.get(&parent)
                     {
                         let mut new_sub_coords = sub_coords.clone();
+
                         let mut grammars = self.get_session_mut().grammars.clone();
                         for c in new_row_coords {
                             grammars.insert(
@@ -676,6 +675,7 @@ impl Component for Model {
                 }
                 true
             }
+          
             Action::DeleteRow => {
                 //Taking Active cell
                 if let Some(coord) = self.active_cell.clone() {

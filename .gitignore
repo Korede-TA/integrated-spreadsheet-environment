@@ -6,3 +6,4 @@
 .vscode/
 **/*.rs.bk
 **/*.DS_Store
+/_esy

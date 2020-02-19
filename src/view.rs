@@ -80,7 +80,6 @@ pub fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html {
                         Action::Noop
                     })>
                     </input>
-
                     <h3>{"save session"}</h3>
                     <br></br>
                     <input type="text" value=m.get_session().title onchange=m.link.callback(|v| {
@@ -183,6 +182,9 @@ pub fn view_menu_bar(m: &Model) -> Html {
             <button class="menu-bar-button" onclick=m.link.callback(|_| Action::InsertCol)>
                 { "Insert Column" }
             </button>
+            <button class="menu-bar-button">
+                { "Merge" }
+            </button>
             <button class="menu-bar-button" onclick=m.link.callback(|_| Action::DeleteRow)>
                 { "Delete Row" }
             </button>
@@ -194,10 +196,10 @@ pub fn view_menu_bar(m: &Model) -> Html {
 }
 
 pub fn view_tab_bar(m: &Model) -> Html {
-    let mut sessions = VList::new();
+    let mut tabs = VList::new();
     for (index, tab) in m.sessions.clone().iter().enumerate() {
         if (index as usize) == m.current_session_index {
-            sessions.add_child(html! {
+            tabs.add_child(html! {
                 <button class="tab active-tab">{ tab.title.clone() }</button>
             });
         } else {
@@ -454,10 +456,10 @@ pub fn view_input_grammar(
     } else {
         "cell-inactive"
     };
-    let _suggestions_len = suggestions.len();
+    let suggestions_len = suggestions.len();
     let first_suggestion_ref = NodeRef::default();
-    let mut suggestion_nodes = VList::new();
-    let _suggestions = if value.clone() != "" && is_active {
+    let suggestions = if value.clone() != "" && is_active {
+        let mut suggestion_nodes = VList::new();
         let is_first_suggestion = true;
         for (s_coord, s_grammar) in suggestions {
             if !s_grammar.name.contains(value.clone().deref()) {
@@ -471,17 +473,19 @@ pub fn view_input_grammar(
                             first_suggestion_ref.clone()
                         } else { NodeRef::default() }
                     }
+                    tabindex=-1
                     onclick=m.link.callback(move |_ : ClickEvent| Action::DoCompletion(s_coord.clone(), c.clone()))>
                     { &s_grammar.name }
                 </a>
-            })
+            });
         }
-    };
-
-    let suggestions = html! {
-        <div class="suggestion-content">
-            { suggestion_nodes }
-        </div>
+        html! {
+            <div class="suggestion-content">
+                { suggestion_nodes }
+            </div>
+        }
+    } else {
+        html! { <></> }
     };
 
     let new_active_cell = coord.clone();
@@ -520,13 +524,16 @@ pub fn view_input_grammar(
             max_select_col = first_select_col;
         }
     }
+    let has_lookup_prefix: bool = value.clone() == "$";
+    let current_coord = coord.clone();
+    let drag_coord = coord.clone();
 
     html! {
         <div
             class=format!{"cell suggestion row-{} col-{}", coord.row_to_string(), coord.col_to_string(),}
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
-            <input
+            <div contenteditable=true
                 class={ format!{ "cell-data {} {}", active_cell_class,
                 if min_select_row <= coord.row().get() && coord.row().get() <= max_select_row
                 && min_select_col <= coord.col().get() && coord.col().get() <= max_select_col {
@@ -534,29 +541,62 @@ pub fn view_input_grammar(
                 } else {
                     ""
                 }
-            } },
-                value=value,
-                oninput=m.link.callback(move |e : InputData| Action::ChangeInput(coord.clone(), e.value)),
-                onclick=m.link.callback(move |e : ClickEvent|
-                    {
-                        if e.shift_key() {
-                            return Action::SetSelectedCells(shift_select_cell.clone());
-                        }
-                        return Action::SetActiveCell(new_active_cell.clone());
-                    }),
-            >
-            </input>
+                } },
+                value=value
+                ref={
+                    if is_active {
+                        m.focus_node_ref.clone()
+                    } else { NodeRef::default() }
+                }
+                onkeypress=m.link.callback(move |e : KeyPressEvent| {
+                    if e.code() == "Tab" && suggestions_len > 0 {
+                        // TODO: fix this as part of focus ticket
+                        // if let Some(input) = first_suggestion_ref.try_into::<HtmlElement>() {
+                        //     input.focus();
+                        // }
+                        Action::Noop
+                    } else if e.code() == "Space" && has_lookup_prefix {
+                        info!{"toggling lookup"}
+                        Action::ToggleLookup(current_coord.clone())
+                    } else if e.key() == "g" && e.ctrl_key() && is_active {
+                        Action::AddNestedGrid(current_coord.clone(), (3, 3))
+                    } else { Action::Noop }
+                })
+                oninput=m.link.callback(move |e : InputData| Action::ChangeInput(coord.clone(), e.value))
+                onclick=m.link.callback(move |e : ClickEvent| {
+                    if e.shift_key() {
+                        Action::SetSelectedCells(shift_select_cell.clone())
+                    } else { Action::Noop }})
+                onfocus=m.link.callback(move |e : FocusEvent| Action::SetActiveCell(new_active_cell.clone()))
+                onmousedown=m.link.callback(move |e: MouseDownEvent| {
+                    // TODO: get this actually working
+                    // Some details:
+                    // - initially used DragStartEvent, but that doesn't get triggered so switched to
+                    // MouseDownEvent
+                    // - now splitting this into multiple events
+                    info!{"drag start"};
+                    let (offset_x, offset_y) = {
+                        // compute the distance from the right and bottom borders that resizing is
+                        // allowed
+                        let target = HtmlElement::try_from(e.target().unwrap()).unwrap();
+                        let rect = target.get_bounding_client_rect();
+                        (rect.get_width() - e.offset_x(), rect.get_height() - e.offset_y())
+                    };
+                    info!{"offset: {} {}", offset_x, offset_y};
+                    let draggable_area = 4.0;
+                    if offset_x < draggable_area  || offset_y < draggable_area {
+                        Action::Resize(ResizeMsg::Start(drag_coord.clone()))
+                    } else {
+                        Action::Noop
+                    }
+                })>
+            </div>
             { suggestions }
         </div>
     }
 }
 
 pub fn view_text_grammar(m: &Model, coord: &Coordinate, value: String) -> Html {
-    info!(
-        "Text Grammar {}-{}",
-        coord.row_to_string(),
-        coord.col_to_string()
-    );
     html! {
         <div
             class=format!{"cell text row-{} col-{}", coord.row_to_string(), coord.col_to_string()}

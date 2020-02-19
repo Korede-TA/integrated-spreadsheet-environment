@@ -167,14 +167,17 @@ macro_rules! grammar_table {
 
     /*
     (@step $_idx:expr,) => {};
+
     (@step $idx:expr, $head:ident, $($tail:ident,)*) => {
         impl A {
             fn $head(&self) -> i32 {
                 self.data[$idx]
             }
         }
+
         grammar_table!(@step $idx + 1usize, $($tail,)*);
     };
+
     ($($n:ident),*) => {
         grammar_table!(@step 0usize, $($n,)*);
     }
