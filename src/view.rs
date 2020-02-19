@@ -21,9 +21,8 @@ pub fn view_side_nav(m: &Model) -> Html {
         if Some(index as i32) == m.open_side_menu {
             side_menu_nodes.add_child(html! {
                 <button class="active-menu" onclick=m.link.callback(|e| Action::SetActiveMenu(None))>
-                    <img 
-                        src={side_menu.icon_path.clone()} 
-                        width="40px" alt={side_menu.name.clone()}>
+                    <img src={side_menu.icon_path.clone()} 
+                         width="40px" alt={side_menu.name.clone()}>
                     </img>
                 </button>
             });
@@ -165,11 +164,17 @@ pub fn view_menu_bar(m: &Model) -> Html {
             <button class="menu-bar-button">
                 { "Git" }
             </button>
-            <button class="menu-bar-button">
+            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::ZoomIn)>
                 { "Zoom In (+)" }
             </button>
-            <button class="menu-bar-button">
+            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::ZoomReset)>
+                { "Zoom Reset" }
+            </button>
+            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::ZoomOut)>
                 { "Zoom Out (-)" }
+            </button>
+            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::Recreate)>
+                { "Reset" }
             </button>
             <button class="menu-bar-button" onclick=m.link.callback(|_| Action::InsertRow)>
                 { "Insert Row" }
@@ -177,7 +182,7 @@ pub fn view_menu_bar(m: &Model) -> Html {
             <button class="menu-bar-button" onclick=m.link.callback(|_| Action::InsertCol)>
                 { "Insert Column" }
             </button>
-            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::Merge)>
+            <button class="menu-bar-button">
                 { "Merge" }
             </button>
             <button class="menu-bar-button" onclick=m.link.callback(|_| Action::DeleteRow)>
@@ -605,8 +610,10 @@ pub fn view_text_grammar(m: &Model, coord: &Coordinate, value: String) -> Html {
 pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordinate>) -> Html {
     let mut nodes = VList::new();
     for c in sub_coords {
+        //info!("View {}", c.to_string());
         nodes.add_child(view_grammar(m, c.clone()));
     }
+    // //info!("{}", dbg!(nodes.clone()).to_string);
 
     html! {
         <div
