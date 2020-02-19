@@ -26,8 +26,8 @@ impl Coordinate {
     // - parent.row_cols.len() == result.row_cols.len() - 1
     pub fn child_of(parent: &Self, child_coord: (NonZeroU32, NonZeroU32)) -> Coordinate {
         let mut new_row_col = parent.clone().row_cols;
-        info! {"parent and child val: (pa: {:?}, child: {:?}, fin {:?});", parent, child_coord, new_row_col};
         new_row_col.push(child_coord);
+        info! {"parent and child val: (pa: {:?}, child: {:?}, fin {:?});", parent, child_coord, new_row_col};
         Coordinate {
             row_cols: new_row_col,
         }
@@ -351,7 +351,10 @@ mod tests {
     // - parent.row_cols.len() == result.row_cols.len() - 1
     fn test_childOf() {
         // let param = coord!().row_cols.len();
-        // assert_eq!(param, result.row_cols.len() - 1)
+        // assert_eq!(
+        //     coord!("root-A1-B2-B3").child_of().len(),
+        //     coord!("root-A1-B2-B3").len() + 1
+        // )
         unimplemented!();
     }
 
@@ -372,6 +375,7 @@ mod tests {
     #[test]
     fn test_row_mut() {
         // assert_eq!(coord!("root-A1-B2-B3").row().get(), 3); // Test for mutability required
+        unimplemented!()
     }
 
     #[test]
@@ -431,6 +435,27 @@ mod tests {
 
     #[test]
     fn test_neighbor_left() {
-        unimplemented!();
+        assert_eq!(
+            coord!("root-A1-B2-B3").neighbor_left().unwrap(),
+            coord!("root-A1-B2-A3")
+        );
+        assert_ne!(
+            coord!("root-A1-B2-B3").neighbor_left().unwrap(),
+            coord!("root-A1-B2-B6")
+        );
+        // unimplemented!();
+    }
+
+    #[test]
+    fn test_neighbor_right() {
+        assert_eq!(
+            coord!("root-A1-B2-B3").neighbor_right().unwrap(),
+            coord!("root-A1-B2-C3")
+        );
+        assert_ne!(
+            coord!("root-A1-B2-B3").neighbor_right().unwrap(),
+            coord!("root-A1-B2-C6")
+        );
+        // unimplemented!();
     }
 }
