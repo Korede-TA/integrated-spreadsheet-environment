@@ -165,11 +165,17 @@ pub fn view_menu_bar(m: &Model) -> Html {
             <button class="menu-bar-button">
                 { "Git" }
             </button>
-            <button class="menu-bar-button">
+            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::ZoomIn)>
                 { "Zoom In (+)" }
             </button>
-            <button class="menu-bar-button">
+            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::ZoomReset)>
+                { "Zoom Reset" }
+            </button>
+            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::ZoomOut)>
                 { "Zoom Out (-)" }
+            </button>
+            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::Recreate)>
+                { "Reset" }
             </button>
             <button class="menu-bar-button" onclick=m.link.callback(|_| Action::InsertRow)>
                 { "Insert Row" }

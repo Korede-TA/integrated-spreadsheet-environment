@@ -32,6 +32,7 @@ pub struct Model {
     pub first_select_cell: Option<Coordinate>,
     pub last_select_cell: Option<Coordinate>,
     pub active_cell: Option<Coordinate>,
+    pub zoom: f32,
     pub default_suggestions: Vec<Coordinate>,
     pub suggestions: HashMap<Coordinate, Vec<Coordinate>>,
     pub col_widths: HashMap<Col, f64>,
@@ -98,6 +99,10 @@ pub enum Action {
     InsertCol,
     DeleteRow,
     DeleteCol,
+    Recreate,
+    ZoomIn,
+    ZoomOut,
+    ZoomReset,
 
     Resize(ResizeMsg),
 
@@ -233,6 +238,7 @@ impl Component for Model {
             select_grammar: vec![],
             first_select_cell: None,
             last_select_cell: None,
+            zoom: 1.0,
 
             sessions: vec![Session {
                 title: "my session".to_string(),
@@ -564,6 +570,21 @@ impl Component for Model {
                 );
                 true
             }
+
+            Action::ZoomIn => {
+                self.zoom += 0.1;
+                true
+            }
+            Action::ZoomReset => {
+                self.zoom = 1.0;
+                true
+            }
+
+            Action::ZoomOut => {
+                self.zoom -= 0.1;
+                true
+            }
+
             Action::InsertCol => {
                 if let Some(coord) = self.active_cell.clone() {
                     // find the bottom-most coord
@@ -832,43 +853,41 @@ impl Component for Model {
                 true
             }
 
-            // Action::Merge => {
-            //     //Taking Active cell
-            //     if let Some(coord) = self.active_cell.clone() {
-            //         let parent = coord.parent().unwrap();
-            //         if let Some(Grammar {
-            //             kind: _,
-            //             name: _,
-            //             style: _,
-            //         }) = self.get_session_mut().grammars.get(&parent)
-            //         {
-            //             let mut u = 0;
-            //             let mut c1 = coord.clone();
-            //             let row_ = self.query_row(coord.full_row()).clone();
-            //             let _l = row_.len();
-            //             for i in row_ {
-            //                 if i == coord {
-            //                     u = 1;
-            //                 } else if u == 1 {
-            //                     c1 = i;
-            //                     break;
-            //                 }
-            //             }
-            //             // let parent = c1.parent().unwrap();
-            //             let mut grammars = self.get_session_mut().grammars.get_mut(&c1).unwrap();
-            //             grammars.style.visibility = "hidden".to_string();
-            //             let w = grammars.style.width.clone();
-            //             grammars.style.width = 0 as f64;
-
-            //             // let parent = coord.parent().unwrap();
-            //             let mut grammars = self.get_session_mut().grammars.get_mut(&coord).unwrap();
-            //             grammars.style.grid_column = "1".to_string() + " / span " + "2 !important";
-            //             grammars.style.width = grammars.style.width + w;
-            //             //
-            //         }
-            //     }
-            //     true
-            // }
+            Action::Recreate => {
+                self.get_session_mut().grammars = hashmap! {
+                    coord!("root")    => self.get_session_mut().root.clone(),
+                    coord!("root-A1") => Grammar::default(),
+                    coord!("root-A2") => Grammar::default(),
+                    coord!("root-A3") => Grammar::default(),
+                    coord!("root-B1") => Grammar::default(),
+                    coord!("root-B2") => Grammar::default(),
+                    coord!("root-B3") => Grammar::default(),
+                    coord!("meta")    => self.get_session_mut().meta.clone(),
+                    coord!("meta-A1") => Grammar::text("js grammar".to_string(), "This is js".to_string()),
+                    coord!("meta-A2") => Grammar::text("java grammar".to_string(), "This is java".to_string()),
+                    coord!("meta-A3") => Grammar {
+                        name: "defn".to_string(),
+                        style: Style::default(),
+                        kind: Kind::Defn(
+                            "".to_string(),
+                            coord!("meta-A3"),
+                            vec![
+                                ("".to_string(), coord!("meta-A3-B1")),
+                            ],
+                        ),
+                    },
+                    coord!("meta-A3-A1")    => Grammar::default(),
+                    coord!("meta-A3-B1")    => Grammar {
+                        name: "root".to_string(),
+                        style: Style::default(),
+                        kind: Kind::Grid(row_col_vec![ (1,1), (2,1), (1,2), (2,2) ]),
+                    },
+                    coord!("meta-A3-B1-A1") => Grammar::input("".to_string(), "sub-grammar name".to_string()),
+                    coord!("meta-A3-B1-B1") => Grammar::text("".to_string(), "+".to_string()),
+                    coord!("meta-A3-B1-C1") => Grammar::default(),
+                };
+                true
+            }
 
             Action::Resize(msg) => {
                 match msg {
@@ -972,6 +991,8 @@ impl Component for Model {
 
     fn view(&self) -> Html {
         let _active_cell = self.active_cell.clone();
+        let is_resizing = self.resizing.is_some();
+        let zoom = "zoom:".to_string() + &self.zoom.to_string();
         html! {
             <div>
 
@@ -982,21 +1003,33 @@ impl Component for Model {
                 { view_tab_bar(&self) }
 
                 <div class="main">
-                    <div id="grammars" class="grid-wrapper" onkeypress=self.link.callback(move |e : KeyPressEvent| {
-                        // Global Key-Shortcuts
-                        Action::Noop
-                    })>
+                    <div id="grammars" class="grid-wrapper" style={zoom}
+                        onkeypress=self.link.callback(move |e : KeyPressEvent| {
+                            // Global Key-Shortcuts
+                            Action::Noop
+                        })
+                        onmouseup=self.link.callback(move |e : MouseUpEvent| {
+                            if is_resizing.clone() {
+                                Action::Resize(ResizeMsg::End)
+                            } else {
+                                Action::Noop
+                            }
+                        })
+                        onmousemove=self.link.callback(move |e : MouseMoveEvent| {
+                            if is_resizing.clone() {
+                                if e.movement_x().abs() > e.movement_y().abs() {
+                                    Action::Resize(ResizeMsg::X(e.movement_x() as f64))
+                                } else {
+                                    Action::Resize(ResizeMsg::Y(e.movement_y() as f64))
+                                }
+                            } else {
+                                Action::Noop
+                            }
+                        })>
                         { view_grammar(&self, coord!{"root"}) }
                     </div>
                 </div>
             </div>
         }
     }
-
-    // fn mounted(&mut self) -> ShouldRender {
-    //     if let Ok(input) = self.focus_node_ref.try_into::<InputElement>().clone() {
-    //         input.focus();
-    //     }
-    //     false
-    // }
 }
