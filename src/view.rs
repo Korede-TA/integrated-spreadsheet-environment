@@ -266,65 +266,73 @@ pub fn view_input_grammar(
     value: String,
     is_active: bool,
 ) -> Html {
-    let mut suggestion_nodes = VList::new();
-    let mut active_cell_class = "cell-inactive";
-    if is_active {
-        active_cell_class = "cell-active";
-        for (s_coord, s_grammar) in suggestions {
-            let c = coord.clone();
-            suggestion_nodes.add_child(html! {
-                <a 
-                    tabindex=-1
-                    onclick=m.link.callback(move |_ : ClickEvent| Action::DoCompletion(s_coord.clone(), c.clone()))>
-                    { &s_grammar.name }
-                </a>
-            })         
-        }     
-    } 
-
-    let suggestions = html!{
-        <div class="suggestion-content">
-            { suggestion_nodes }
-        </div>
-    };
-
-    let new_active_cell = coord.clone();
-    // Method for holding shift key to select cells
-    let shift_select_cell = coord.clone();
-    let min_select_cell = m.min_select_cell.as_ref();
-    let max_select_cell = m.max_select_cell.as_ref();
-   
-  
+    if let Some(grammar) = m.grammars.get(&coord) {
+        let state = grammar.clone().style.display;
+        if state == true {
+            let mut suggestion_nodes = VList::new();
+            let mut active_cell_class = "cell-inactive";
+            if is_active {
+                active_cell_class = "cell-active";
+                for (s_coord, s_grammar) in suggestions {
+                    let c = coord.clone();
+                    suggestion_nodes.add_child(html! {
+                        <a 
+                            tabindex=-1
+                            onclick=m.link.callback(move |_ : ClickEvent| Action::DoCompletion(s_coord.clone(), c.clone()))>
+                            { &s_grammar.name }
+                        </a>
+                    })         
+                }     
+            } 
     
-    html! {
-        <div
-            class=format!{"cell suggestion row-{} col-{}", coord.row_to_string(), coord.col_to_string(),}
-            id=format!{"cell-{}", coord.to_string()}
-            style={ get_style(&m, &coord) }>
-            <input
-                class={ format!{ "cell-data {} {}", active_cell_class, 
-                if !min_select_cell.is_none() && !max_select_cell.is_none() 
-                    && min_select_cell.unwrap().row() <= coord.row() && coord.row() <= max_select_cell.unwrap().row() 
-                    && min_select_cell.unwrap().col() <= coord.col() && coord.col() <= max_select_cell.unwrap().col() {
-                        "selection"          
-                    } else {
-                        ""
-                    }           
-            } },
-                value=value,
-                oninput=m.link.callback(move |e : InputData| Action::ChangeInput(coord.clone(), e.value)),
-                onclick=m.link.callback(move |e : ClickEvent|                    
-                    {                       
-                        if e.shift_key() {
-                            return Action::SetSelectedCells(shift_select_cell.clone());
-                        } 
-                        return Action::SetActiveCell(new_active_cell.clone());                 
-                    }),                        
-            >
-            </input>
-            
-            { suggestions }
-        </div>
+            let suggestions = html!{
+                <div class="suggestion-content">
+                    { suggestion_nodes }
+                </div>
+            };
+    
+            let new_active_cell = coord.clone();
+            // Method for holding shift key to select cells
+            let shift_select_cell = coord.clone();
+            let min_select_cell = m.min_select_cell.as_ref();
+            let max_select_cell = m.max_select_cell.as_ref();
+           
+            html! {
+                <div
+                    class=format!{"cell suggestion row-{} col-{}", coord.row_to_string(), coord.col_to_string(),}
+                    id=format!{"cell-{}", coord.to_string()}
+                    style={ get_style(&m, &coord) }>
+                    <input
+                        class={ format!{ "cell-data {} {}", active_cell_class, 
+                        if !min_select_cell.is_none() && !max_select_cell.is_none() 
+                            && min_select_cell.unwrap().row() <= coord.row() && coord.row() <= max_select_cell.unwrap().row() 
+                            && min_select_cell.unwrap().col() <= coord.col() && coord.col() <= max_select_cell.unwrap().col() {
+                                "selection"          
+                            } else {
+                                ""
+                            }           
+                    } },
+                        value=value,
+                        oninput=m.link.callback(move |e : InputData| Action::ChangeInput(coord.clone(), e.value)),
+                        onclick=m.link.callback(move |e : ClickEvent|                    
+                            {                       
+                                if e.shift_key() {
+                                    return Action::SetSelectedCells(shift_select_cell.clone());
+                                } 
+                                return Action::SetActiveCell(new_active_cell.clone());                 
+                            }),                        
+                    >
+                    </input>
+                    
+                    { suggestions }
+                </div>
+            }
+        } else {
+            html! { <></> }
+        }   
+    } else {
+        // return empty fragment
+        html! { <></> }
     }
 }
 

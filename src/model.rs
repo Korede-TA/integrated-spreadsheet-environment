@@ -428,6 +428,7 @@ impl Component for Model {
                         && min_select_col <= coord.col()
                         && coord.col() <= max_select_col
                         && coord.to_string().contains("root-")
+                        && grammar.style.display == true
                     {
                         let coord_style = grammar.style.clone();
                         if (coord.row() == max_select_row) && (coord.col() == max_select_col) {
@@ -436,15 +437,15 @@ impl Component for Model {
                             max_coord = coord.clone();
                             max_grammar = grammar.clone();
                             continue;
-                        } else if (coord.row() == max_select_row) && grammar.style.display == true {
+                        } else if (coord.row() == max_select_row) {
                             merge_width = merge_width + coord_style.width;
-                        } else if coord.col() == max_select_col && grammar.style.display == true {
+                        } else if coord.col() == max_select_col {
                             merge_height = merge_height + coord_style.height;
                         }
                         if (coord.row() != max_select_row) || (coord.col() != max_select_col) {
                             grammar.style.display = false;
-                            merge_height = merge_height + 1.00;
-                            merge_width = merge_width + 1.00;
+                            merge_height = merge_height;
+                            merge_width = merge_width;
                         }
                         grammar.style.col_span[0] = min_select_col.get();
                         grammar.style.col_span[1] = max_select_col.get();
@@ -453,8 +454,8 @@ impl Component for Model {
                         self.grammars.insert(coord.clone(), grammar.clone());
                     }
                 }
-                max_grammar.style.width = merge_width - 1.00;
-                max_grammar.style.height = merge_height - 1.00;
+                max_grammar.style.width = merge_width;
+                max_grammar.style.height = merge_height;
                 max_grammar.style.col_span[0] = min_select_col.get();
                 max_grammar.style.col_span[1] = max_select_col.get();
                 max_grammar.style.row_span[0] = min_select_row.get();
