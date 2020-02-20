@@ -33,6 +33,11 @@ pub struct Model {
     view_root: Coordinate,
     pub first_select_cell: Option<Coordinate>,
     pub last_select_cell: Option<Coordinate>,
+    pub min_select_cell: Option<Coordinate>,
+    pub max_select_cell: Option<Coordinate>,
+
+    pub grammars: HashMap</*Key*/ Coordinate, /*Value*/ Grammar>,
+    value: String, // what is this?????
     pub active_cell: Option<Coordinate>,
     pub default_suggestions: Vec<Coordinate>,
     pub suggestions: HashMap<Coordinate, Vec<Coordinate>>,
@@ -116,6 +121,8 @@ pub enum Action {
     DefnUpdateRule(Coordinate, /* rule Row  */ Row),
     DefnAddRule(Coordinate), // adds a new column, points rule coordinate to bottom of ~meta~ sub-table
                              // Definition Rules are represented as grammars
+
+    MergeCells(),
 }
 
 impl Model {
@@ -233,6 +240,8 @@ impl Component for Model {
             select_grammar: vec![],
             first_select_cell: None,
             last_select_cell: None,
+            min_select_cell: None,
+            max_select_cell: None,
 
             sessions: vec![Session {
                 title: "my session".to_string(),
@@ -343,12 +352,80 @@ impl Component for Model {
             Action::SetActiveCell(coord) => {
                 self.first_select_cell = Some(coord.clone());
                 self.last_select_cell = None;
+                self.min_select_cell = None;
+                self.max_select_cell = None;
                 self.active_cell = Some(coord.clone());
                 true
             }
 
             Action::SetSelectedCells(coord) => {
                 self.last_select_cell = Some(coord.clone());
+                if self.first_select_cell.is_none() || self.last_select_cell.is_none() {
+                    return false;
+                }
+                let mut first_select_row = NonZeroU32::new(1).unwrap();
+                let mut first_select_col = NonZeroU32::new(1).unwrap();
+                let mut last_select_row = NonZeroU32::new(1).unwrap();
+                let mut last_select_col = NonZeroU32::new(1).unwrap();
+
+                let mut min_select_row = NonZeroU32::new(1).unwrap();
+                let mut max_select_row = NonZeroU32::new(1).unwrap();
+                let mut min_select_col = NonZeroU32::new(1).unwrap();
+                let mut max_select_col = NonZeroU32::new(1).unwrap();
+                first_select_row = self.first_select_cell.as_ref().unwrap().row();
+                first_select_col = self.first_select_cell.as_ref().unwrap().col();
+                last_select_row = self.last_select_cell.as_ref().unwrap().row();
+                last_select_col = self.last_select_cell.as_ref().unwrap().col();
+                if first_select_row < last_select_row {
+                    min_select_row = first_select_row;
+                    max_select_row = last_select_row;
+                } else {
+                    min_select_row = last_select_row;
+                    max_select_row = first_select_row;
+                }
+                if first_select_col < last_select_col {
+                    min_select_col = first_select_col;
+                    max_select_col = last_select_col;
+                } else {
+                    min_select_col = last_select_col;
+                    max_select_col = first_select_col;
+                }
+
+                let ref_grammas = self.grammars.clone();
+                for (coord, grammar) in &ref_grammas {
+                    if min_select_row <= coord.row()
+                        && coord.row() <= max_select_row
+                        && min_select_col <= coord.col()
+                        && coord.col() <= max_select_col
+                        && coord.to_string().contains("root-")
+                    {
+                        let col_span = grammar.style.col_span;
+                        let row_span = grammar.style.row_span;
+                        if col_span[0] > 0 && col_span[1] > 0 {
+                            if col_span[0] < min_select_col.get() {
+                                min_select_col = NonZeroU32::new(col_span[0]).unwrap();
+                            }
+                            if col_span[1] > max_select_col.get() {
+                                max_select_col = NonZeroU32::new(col_span[1]).unwrap();
+                            }
+                        }
+                        if row_span[0] > 0 && row_span[1] > 0 {
+                            if row_span[0] < min_select_row.get() {
+                                min_select_row = NonZeroU32::new(row_span[0]).unwrap();
+                            }
+                            if row_span[1] > max_select_row.get() {
+                                max_select_row = NonZeroU32::new(row_span[1]).unwrap();
+                            }
+                        }
+                    }
+                }
+
+                self.min_select_cell = Some(Coordinate {
+                    row_cols: vec![(min_select_row, min_select_col)],
+                });
+                self.max_select_cell = Some(Coordinate {
+                    row_cols: vec![(max_select_row, max_select_col)],
+                });
                 true
             }
 
@@ -402,104 +479,60 @@ impl Component for Model {
                 false
             }
 
-            Action::SetSessionTitle(name) => {
-                self.get_session_mut().title = name;
-                true
-            }
-
-            Action::ReadDriverFiles(files_list) => {
-                // Get the main file and miscellaneous/additional files from the drivers list
-                let (main_file, misc_files) = {
-                    let (main_file_as_vec, misc_files) : (Vec<File>, Vec<File>) = files_list.iter().fold((Vec::new(), Vec::new()), |accum, file| { 
-                        // Iter::partition is used to divide a list into two given a certain condition.
-                        // Here the condition here is to separate the main file of the driver from the
-                        // addditional ones, where the main file's path looks like
-                        // '{directory_name}/{file_name}.js' and the directory_name == file_name
-                        let mut new_accum = accum.clone();
-                        // use `webkitRelativePath` as the `name`, if it's available
-                        // we'll call out to regular JS to do this using the `js!` macro.
-                        // Note that yew::services::reader::File::name() calls "file.name" under the
-                        // hood (https://docs.rs/stdweb/0.4.20/src/stdweb/webapi/file.rs.html#23)
-                        let full_file_name : String = js!(
-                            if (!!@{&file}.webkitRelativePath) {
-                                return @{&file}.webkitRelativePath;
-                            } else {
-                                console.log("couldn't get relative path of file: ", @{&file}.name);
-                                return @{&file}.name; // equivalent to yew::services::reader::File::name()
-                            }
-                        ).try_into().unwrap();
-                        let path_parts : Vec<&str> = full_file_name.split("/").collect();
-                        match (path_parts.first(), path_parts.last(), path_parts.len()) {
-                            (Some(directory), Some(file_name), 2) if format!{"{}.js", directory} == file_name.to_string() => {
-                                if new_accum.0.len() == 0 {
-                                    new_accum.0.push(file.clone());
-                                } else {
-                                    panic!("[Action::ReadDriverFiles]: there shouldn't be more than 1 main file in the driver directory")
-                                }
-                            },
-                            _ => {
-                                new_accum.1.push(file.clone());
-                            },
-                        };
-                        new_accum
-                    });
-                    // the `partition` call above gives us a tuple of two Vecs (Vec, Vec) where the first Vec
-                    // should have only one element, so we'll convert it to a (Vec::Item, Vec).
-                    // If this has an error, then there's something wrong with how the driver
-                    // directory is organized.
-                    (
-                        main_file_as_vec.first().unwrap().clone(),
-                        misc_files.clone(),
-                    )
-                };
-
-                // upload misc files so they can be served by electron to be used by main driver file
-                let upload_callback = self
-                    .link
-                    .callback(|file_data| Action::UploadDriverMiscFile(file_data));
-                for file in misc_files {
-                    let task = self.reader.read_file(file, upload_callback.clone());
-                    self.tasks.push(task);
+            Action::MergeCells() => {
+                if self.min_select_cell.is_none() || self.max_select_cell.is_none() {
+                    return false;
                 }
-
-                // Load main driver file. After this task has been scheduled and executed, the
-                // driver is ready for use.
-                self.tasks.push(
-                    self.reader
-                        .read_file(main_file, self.link.callback(Action::LoadDriverMainFile)),
-                );
-
-                false
-            }
-
-            Action::UploadDriverMiscFile(file_data) => {
-                // Here, we use some electron APIs to call out to the main process in JS.
-                // For this, we use the `electron_sys` library which is pretty experimental but
-                // feature complete.
-                // See here for documentation how to communicate between the main and renderer proess in Electron:
-                //   https://www.tutorialspoint.com/electron/electron_inter_process_communication.htm
-                // And here, for the documentation for the electon_sys Rust bindings for electron.ipcRenderer:
-                //   https://docs.rs/electron-sys/0.4.0/electron_sys/struct.IpcRenderer.html
-
-                let args: [JsValue; 2] = [
-                    JsValue::from_str(file_data.name.deref()),
-                    JsValue::from_str(std::str::from_utf8(&file_data.content).unwrap()),
-                ];
-                ipc_renderer.send_sync("upload-driver-misc-file", Box::new(args));
-                false
-            }
-
-            Action::LoadDriverMainFile(main_file_data) => {
-                info! {"Loading Driver: {}", &main_file_data.name};
-                let file_contents = std::str::from_utf8(&main_file_data.content).unwrap();
-                // dump file contents into script tag and attach to the DOM
-                let script = document().create_element("script").unwrap();
-                script.set_text_content(file_contents);
-                script.set_attribute("type", "text/javascript");
-                script.set_attribute("class", "ise-driver");
-                script.set_attribute("defer", "true");
-                let head = document().query_selector("head").unwrap().unwrap();
-                head.append_child(&script);
+                let mut min_select_row = self.min_select_cell.as_ref().unwrap().row();
+                let mut max_select_row = self.max_select_cell.as_ref().unwrap().row();
+                let mut min_select_col = self.min_select_cell.as_ref().unwrap().col();
+                let mut max_select_col = self.max_select_cell.as_ref().unwrap().col();
+                let mut merge_height = 0.00;
+                let mut merge_width = 0.00;
+                let mut max_coord = Coordinate::default();
+                let mut max_grammar = Grammar::default();
+                let mut ref_grammas = self.grammars.clone();
+                for (coord, grammar) in ref_grammas.iter_mut() {
+                    if min_select_row <= coord.row()
+                        && coord.row() <= max_select_row
+                        && min_select_col <= coord.col()
+                        && coord.col() <= max_select_col
+                        && coord.to_string().contains("root-")
+                        && grammar.style.display == true
+                    {
+                        let coord_style = grammar.style.clone();
+                        if (coord.row() == max_select_row) && (coord.col() == max_select_col) {
+                            merge_width = merge_width + coord_style.width;
+                            merge_height = merge_height + coord_style.height;
+                            max_coord = coord.clone();
+                            max_grammar = grammar.clone();
+                            continue;
+                        } else if (coord.row() == max_select_row) {
+                            merge_width = merge_width + coord_style.width;
+                        } else if coord.col() == max_select_col {
+                            merge_height = merge_height + coord_style.height;
+                        }
+                        if (coord.row() != max_select_row) || (coord.col() != max_select_col) {
+                            grammar.style.display = false;
+                            merge_height = merge_height;
+                            merge_width = merge_width;
+                        }
+                        grammar.style.col_span[0] = min_select_col.get();
+                        grammar.style.col_span[1] = max_select_col.get();
+                        grammar.style.row_span[0] = min_select_row.get();
+                        grammar.style.row_span[1] = max_select_row.get();
+                        self.grammars.insert(coord.clone(), grammar.clone());
+                    }
+                }
+                max_grammar.style.width = merge_width;
+                max_grammar.style.height = merge_height;
+                max_grammar.style.col_span[0] = min_select_col.get();
+                max_grammar.style.col_span[1] = max_select_col.get();
+                max_grammar.style.row_span[0] = min_select_row.get();
+                max_grammar.style.row_span[1] = max_select_row.get();
+                self.grammars.insert(max_coord, max_grammar);
+                self.min_select_cell = None;
+                self.max_select_cell = None;
                 true
             }
 

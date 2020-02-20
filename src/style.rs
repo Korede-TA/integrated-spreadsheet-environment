@@ -1,4 +1,6 @@
 use serde::Deserialize;
+
+use std::ops::Deref;
 use std::option::Option;
 
 use crate::coordinate::Coordinate;
@@ -15,6 +17,9 @@ pub struct Style {
     pub border_collapse: bool, // CSS: border-collapse
     pub font_weight: i32,      // CSS: font-weight
     pub font_color: String,    // CSS: font-color
+    pub col_span: [u32; 2],
+    pub row_span: [u32; 2],
+    pub display: bool,
 }
 js_serializable!(Style);
 js_deserializable!(Style);
@@ -28,6 +33,9 @@ impl Style {
             border_collapse: false,
             font_weight: 400,
             font_color: "black".to_string(),
+            col_span: [0, 0],
+            row_span: [0, 0],
+            display: true,
         }
     }
 
@@ -61,10 +69,42 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
             grammar.style(coord),
         };
     }
-    let col_width = model.col_widths.get(&coord.full_col()).unwrap_or(&90.0);
-    let row_height = model.row_heights.get(&coord.full_row()).unwrap_or(&30.0);
+
+    // let mut col_width = model.grammars.get(&coord).unwrap().style.width;
+    // let mut row_height = model.grammars.get(&coord).unwrap().style.height;
+    let (col_span, row_span, mut col_width, mut row_height) = {
+        let s = &model
+            .grammars
+            .get(&coord)
+            .expect(format! {"grammar map should have coord {}", coord.to_string()}.deref())
+            .style;
+        (s.col_span, s.row_span, s.width, s.height)
+    };
+
+    let mut s_col_span = String::new();
+    let mut s_row_span = String::new();
+    let n_col_span = col_span[1] - col_span[0];
+    let n_row_span = row_span[1] - row_span[0];
+    col_width = col_width + (3 * n_col_span) as f64;
+    row_height = row_height + (3 * n_row_span) as f64;
+
+    if n_col_span != 0 {
+        s_col_span = format! {
+            "\ngrid-column-start: {}; grid-column: {} / span {};",
+            col_span[0].to_string(), col_span[0].to_string(), col_span[1].to_string(),
+        };
+    }
+
+    if n_row_span != 0 {
+        s_row_span = format! {
+            "\ngrid-row-start: {}; grid-row: {} / span {};",
+            row_span[0].to_string(), row_span[0].to_string(), row_span[1].to_string(),
+        };
+    }
     format! {
-        "{}\nwidth: {}px;\nheight: {}px;\n",
+        "{}\nwidth: {}px;\nheight: {}px;
+        {} {}",
         grammar.style(coord), col_width, row_height,
+        s_col_span, s_row_span,
     }
 }

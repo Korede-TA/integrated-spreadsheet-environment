@@ -7,9 +7,9 @@ use stdweb::web::{HtmlElement, IHtmlElement};
 use yew::events::{ClickEvent, IKeyboardEvent, IMouseEvent, KeyPressEvent};
 use yew::prelude::*;
 use yew::services::reader::File;
-use yew::virtual_dom::VList;
 use yew::{html, ChangeData, Html, InputData};
 
+use yew::virtual_dom::{VList};
 use crate::coordinate::Coordinate;
 use crate::grammar::{Grammar, Interactive, Kind, Lookup};
 use crate::model::{Action, Model, ResizeMsg, SideMenu};
@@ -184,6 +184,9 @@ pub fn view_menu_bar(m: &Model) -> Html {
             </button>
             <button class="menu-bar-button">
                 { "Delete Column" }
+            </button>
+            <button class="menu-bar-button" onclick=m.link.callback(move |_ : ClickEvent| Action::MergeCells())>
+                { "Merge Cells" }
             </button>
         </div>
     }
@@ -445,150 +448,128 @@ pub fn view_input_grammar(
     value: String,
     is_active: bool,
 ) -> Html {
-    let active_cell_class = if is_active {
-        "cell-active"
-    } else {
-        "cell-inactive"
-    };
-    let suggestions_len = suggestions.len();
-    let first_suggestion_ref = NodeRef::default();
-    let suggestions = if value.clone() != "" && is_active {
-        let mut suggestion_nodes = VList::new();
-        let mut is_first_suggestion = true;
-        for (s_coord, s_grammar) in suggestions {
-            if !s_grammar.name.contains(value.clone().deref()) {
-                continue;
+    if let Some(grammar) = m.grammars.get(&coord) {
+        let state = grammar.clone().style.display;
+        if state == true {
+            let active_cell_class = if is_active {
+                "cell-active"
+            } else {
+                "cell-inactive"
+            };
+            let suggestions_len = suggestions.len();
+            let first_suggestion_ref = NodeRef::default();
+            let suggestions = if value.clone() != "" && is_active {
+                let mut suggestion_nodes = VList::new();
+                let mut is_first_suggestion = true;
+                for (s_coord, s_grammar) in suggestions {
+                    if !s_grammar.name.contains(value.clone().deref()) {
+                        continue;
+                    }
+                    let c = coord.clone();
+                    suggestion_nodes.add_child(html! {
+                        <a 
+                            ref={ 
+                                if is_first_suggestion {
+                                    first_suggestion_ref.clone()
+                                } else { NodeRef::default() }
+                            }
+                            tabindex=-1
+                            onclick=m.link.callback(move |_ : ClickEvent| Action::DoCompletion(s_coord.clone(), c.clone()))>
+                            { &s_grammar.name }
+                        </a>
+                    });
+                }
+                html! {
+                    <div class="suggestion-content">
+                        { suggestion_nodes }
+                    </div>
+                }
+            } else {
+                html! { <></> }
+            };
+
+            let has_lookup_prefix: bool = value.clone() == "$";
+            let current_coord = coord.clone();
+            let drag_coord = coord.clone();
+            let new_active_cell = coord.clone();
+            let shift_select_cell = coord.clone();
+            let min_select_cell = m.min_select_cell.as_ref();
+            let max_select_cell = m.max_select_cell.as_ref();
+           
+            html! {
+                <div
+                    class=format!{"cell suggestion row-{} col-{}", coord.row_to_string(), coord.col_to_string(),}
+                    id=format!{"cell-{}", coord.to_string()}
+                    style={ get_style(&m, &coord) }>
+                    <div contenteditable=true
+                        class={ format!{ "cell-data {} {}", active_cell_class,
+                        if min_select_cell <= coord.row().get() && coord.row().get() <= max_select_row
+                        && min_select_col <= coord.col().get() && coord.col().get() <= max_select_col {
+                            "selection"
+                        } else {
+                            ""
+                        }
+                        } },
+                        value=value
+                        ref={
+                            if is_active {
+                                m.focus_node_ref.clone()
+                            } else { NodeRef::default() }
+                        }
+                        onkeypress=m.link.callback(move |e : KeyPressEvent| {
+                            if e.code() == "Tab" && suggestions_len > 0 {
+                                // TODO: fix this as part of focus ticket
+                                // if let Some(input) = first_suggestion_ref.try_into::<HtmlElement>() {
+                                //     input.focus();
+                                // }
+                                Action::Noop
+                            } else if e.code() == "Space" && has_lookup_prefix {
+                                info!{"toggling lookup"}
+                                Action::ToggleLookup(current_coord.clone())
+                            } else if e.key() == "g" && e.ctrl_key() && is_active {
+                                Action::AddNestedGrid(current_coord.clone(), (3, 3))
+                            } else { Action::Noop }
+                        })
+                        oninput=m.link.callback(move |e : InputData| Action::ChangeInput(coord.clone(), e.value))
+                        onclick=m.link.callback(move |e : ClickEvent| {
+                            if e.shift_key() {
+                                Action::SetSelectedCells(shift_select_cell.clone())
+                            } else {
+                                Action::SetActiveCell(new_active_cell.clone())
+                            }
+                        })
+                        onmousedown=m.link.callback(move |e: MouseDownEvent| {
+                            // TODO: get this actually working
+                            // Some details:
+                            // - initially used DragStartEvent, but that doesn't get triggered so switched to
+                            // MouseDownEvent
+                            // - now splitting this into multiple events
+                            info!{"drag start"};
+                            let (offset_x, offset_y) = {
+                                // compute the distance from the right and bottom borders that resizing is
+                                // allowed
+                                let target = HtmlElement::try_from(e.target().unwrap()).unwrap();
+                                let rect = target.get_bounding_client_rect();
+                                (rect.get_width() - e.offset_x(), rect.get_height() - e.offset_y())
+                            };
+                            info!{"offset: {} {}", offset_x, offset_y};
+                            let draggable_area = 4.0;
+                            if offset_x < draggable_area  || offset_y < draggable_area {
+                                Action::Resize(ResizeMsg::Start(drag_coord.clone()))
+                            } else {
+                                Action::Noop
+                            }
+                        })>
+                    </div>
+                    { suggestions }
+                </div>
             }
-            let c = coord.clone();
-            suggestion_nodes.add_child(html! {
-                <a 
-                    ref={ 
-                        if is_first_suggestion {
-                            first_suggestion_ref.clone()
-                        } else { NodeRef::default() }
-                    }
-                    tabindex=-1
-                    onclick=m.link.callback(move |_ : ClickEvent| Action::DoCompletion(s_coord.clone(), c.clone()))>
-                    { &s_grammar.name }
-                </a>
-            });
-        }
-        html! {
-            <div class="suggestion-content">
-                { suggestion_nodes }
-            </div>
-        }
+        } else {
+            html! { <></> }
+        }   
     } else {
+        // return empty fragment
         html! { <></> }
-    };
-
-    let new_active_cell = coord.clone();
-    // Method for holding shift key to select cells
-    let shift_select_cell = coord.clone();
-    let mut first_select_cell = m.first_select_cell.clone();
-    let mut last_select_cell = m.last_select_cell.clone();
-
-    let mut first_select_row = 0;
-    let mut first_select_col = 0;
-    let mut last_select_row = 0;
-    let mut last_select_col = 0;
-
-    let mut min_select_row = 0;
-    let mut max_select_row = 0;
-    let mut min_select_col = 0;
-    let mut max_select_col = 0;
-
-    if first_select_cell.is_some() && last_select_cell.is_some() {
-        first_select_row = first_select_cell.as_ref().unwrap().row().get();
-        first_select_col = first_select_cell.as_ref().unwrap().col().get();
-        last_select_row = last_select_cell.as_ref().unwrap().row().get();
-        last_select_col = last_select_cell.as_ref().unwrap().col().get();
-        if first_select_row < last_select_row {
-            min_select_row = first_select_row;
-            max_select_row = last_select_row;
-        } else {
-            min_select_row = last_select_row;
-            max_select_row = first_select_row;
-        }
-        if first_select_col < last_select_col {
-            min_select_col = first_select_col;
-            max_select_col = last_select_col;
-        } else {
-            min_select_col = last_select_col;
-            max_select_col = first_select_col;
-        }
-    }
-    let has_lookup_prefix: bool = value.clone() == "$";
-    let current_coord = coord.clone();
-    let drag_coord = coord.clone();
-
-    html! {
-        <div
-            class=format!{"cell suggestion row-{} col-{}", coord.row_to_string(), coord.col_to_string(),}
-            id=format!{"cell-{}", coord.to_string()}
-            style={ get_style(&m, &coord) }>
-            <div contenteditable=true
-                class={ format!{ "cell-data {} {}", active_cell_class,
-                if min_select_row <= coord.row().get() && coord.row().get() <= max_select_row
-                && min_select_col <= coord.col().get() && coord.col().get() <= max_select_col {
-                    "selection"
-                } else {
-                    ""
-                }
-                } },
-                value=value
-                ref={
-                    if is_active {
-                        m.focus_node_ref.clone()
-                    } else { NodeRef::default() }
-                }
-                onkeypress=m.link.callback(move |e : KeyPressEvent| {
-                    if e.code() == "Tab" && suggestions_len > 0 {
-                        // TODO: fix this as part of focus ticket
-                        // if let Some(input) = first_suggestion_ref.try_into::<HtmlElement>() {
-                        //     input.focus();
-                        // }
-                        Action::Noop
-                    } else if e.code() == "Space" && has_lookup_prefix {
-                        info!{"toggling lookup"}
-                        Action::ToggleLookup(current_coord.clone())
-                    } else if e.key() == "g" && e.ctrl_key() && is_active {
-                        Action::AddNestedGrid(current_coord.clone(), (3, 3))
-                    } else { Action::Noop }
-                })
-                oninput=m.link.callback(move |e : InputData| Action::ChangeInput(coord.clone(), e.value))
-                onclick=m.link.callback(move |e : ClickEvent| {
-                    if e.shift_key() {
-                        Action::SetSelectedCells(shift_select_cell.clone())
-                    } else {
-                        Action::SetActiveCell(new_active_cell.clone())
-                    }
-                })
-                onmousedown=m.link.callback(move |e: MouseDownEvent| {
-                    // TODO: get this actually working
-                    // Some details:
-                    // - initially used DragStartEvent, but that doesn't get triggered so switched to
-                    // MouseDownEvent
-                    // - now splitting this into multiple events
-                    info!{"drag start"};
-                    let (offset_x, offset_y) = {
-                        // compute the distance from the right and bottom borders that resizing is
-                        // allowed
-                        let target = HtmlElement::try_from(e.target().unwrap()).unwrap();
-                        let rect = target.get_bounding_client_rect();
-                        (rect.get_width() - e.offset_x(), rect.get_height() - e.offset_y())
-                    };
-                    info!{"offset: {} {}", offset_x, offset_y};
-                    let draggable_area = 4.0;
-                    if offset_x < draggable_area  || offset_y < draggable_area {
-                        Action::Resize(ResizeMsg::Start(drag_coord.clone()))
-                    } else {
-                        Action::Noop
-                    }
-                })>
-            </div>
-            { suggestions }
-        </div>
     }
 }
 
@@ -611,7 +592,7 @@ pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordina
 
     html! {
         <div
-            class=format!{"cell grid row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
+            class=format!{"cell grid row-{} col-{}; display: grid;", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
             { nodes }
