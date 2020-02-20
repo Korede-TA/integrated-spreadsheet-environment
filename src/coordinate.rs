@@ -1,12 +1,10 @@
-
 use std::char::from_u32;
 use std::num::NonZeroU32;
 use std::option::Option;
-
-use serde::{Deserialize, Serialize};
 use std::panic;
 
 use crate::util::coord_show;
+use serde::{Deserialize, Serialize};
 
 // Coordinate specifies the nested coordinate structure
 #[derive(Deserialize, PartialEq, Eq, Debug, Hash, Clone, Default)]

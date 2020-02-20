@@ -1,8 +1,6 @@
-use std::collections::hash_map::Keys;
-use std::num::NonZeroU32;
 use std::ops::Deref;
 use stdweb::traits::IEvent;
-use stdweb::unstable::{TryFrom, TryInto};
+use stdweb::unstable::TryFrom;
 use stdweb::web::{HtmlElement, IHtmlElement};
 use yew::events::{ClickEvent, IKeyboardEvent, IMouseEvent, KeyPressEvent};
 use yew::prelude::*;
@@ -23,9 +21,8 @@ pub fn view_side_nav(m: &Model) -> Html {
         if Some(index as i32) == m.open_side_menu {
             side_menu_nodes.add_child(html! {
                 <button class="active-menu" onclick=m.link.callback(|e| Action::SetActiveMenu(None))>
-                    <img 
-                        src={side_menu.icon_path.clone()} 
-                        width="40px" alt={side_menu.name.clone()}>
+                    <img src={side_menu.icon_path.clone()} 
+                         width="40px" alt={side_menu.name.clone()}>
                     </img>
                 </button>
             });
@@ -167,11 +164,17 @@ pub fn view_menu_bar(m: &Model) -> Html {
             <button class="menu-bar-button">
                 { "Git" }
             </button>
-            <button class="menu-bar-button">
+            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::ZoomIn)>
                 { "Zoom In (+)" }
             </button>
-            <button class="menu-bar-button">
+            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::ZoomReset)>
+                { "Zoom Reset" }
+            </button>
+            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::ZoomOut)>
                 { "Zoom Out (-)" }
+            </button>
+            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::Recreate)>
+                { "Reset" }
             </button>
             <button class="menu-bar-button" onclick=m.link.callback(|_| Action::InsertRow)>
                 { "Insert Row" }
@@ -180,9 +183,12 @@ pub fn view_menu_bar(m: &Model) -> Html {
                 { "Insert Column" }
             </button>
             <button class="menu-bar-button">
+                { "Merge" }
+            </button>
+            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::DeleteRow)>
                 { "Delete Row" }
             </button>
-            <button class="menu-bar-button">
+            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::DeleteCol)>
                 { "Delete Column" }
             </button>
             <button class="menu-bar-button" onclick=m.link.callback(move |_ : ClickEvent| Action::MergeCells())>
@@ -322,9 +328,9 @@ pub fn view_defn_grammar(
     sub_coordinates: Vec<(String, Coordinate)>,
 ) -> Html {
     let mut nodes = VList::new();
-    let suggestions: Vec<(Coordinate, Grammar)> = vec![];
+    let _suggestions: Vec<(Coordinate, Grammar)> = vec![];
     let mut index = 1;
-    for (name, coord) in sub_coordinates {
+    for (name, _coord) in sub_coordinates {
         let name_coord = Coordinate::child_of(defn_coord, non_zero_u32_tuple((index.clone(), 1)));
         let grammar_coord =
             Coordinate::child_of(defn_coord, non_zero_u32_tuple((index.clone(), 2)));
@@ -355,8 +361,8 @@ pub fn view_defn_grammar(
 pub fn view_defn_variant_grammar(
     m: &Model,
     coord: &Coordinate,
-    defn_coord: &Coordinate,
-    name: String,
+    _defn_coord: &Coordinate,
+    _name: String,
     sub_coords: Vec<Coordinate>,
 ) -> Html {
     let mut nodes = VList::new();
@@ -383,7 +389,7 @@ pub fn view_lookup_grammar(
     coord: &Coordinate,
     suggestions: Vec<Coordinate>,
     value: String,
-    lookup_type: Option<Lookup>,
+    _lookup_type: Option<Lookup>,
     is_active: bool,
 ) -> Html {
     let suggestions_div = if is_active {
@@ -587,8 +593,10 @@ pub fn view_text_grammar(m: &Model, coord: &Coordinate, value: String) -> Html {
 pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordinate>) -> Html {
     let mut nodes = VList::new();
     for c in sub_coords {
+        //info!("View {}", c.to_string());
         nodes.add_child(view_grammar(m, c.clone()));
     }
+    // //info!("{}", dbg!(nodes.clone()).to_string);
 
     html! {
         <div
