@@ -33,10 +33,8 @@ pub struct Model {
     pub last_select_cell: Option<Coordinate>,
     pub min_select_cell: Option<Coordinate>,
     pub max_select_cell: Option<Coordinate>,
-
-    pub grammars: HashMap</*Key*/ Coordinate, /*Value*/ Grammar>,
-    value: String, // what is this?????
     pub active_cell: Option<Coordinate>,
+
     pub zoom: f32,
     pub default_suggestions: Vec<Coordinate>,
     pub suggestions: HashMap<Coordinate, Vec<Coordinate>>,
@@ -235,6 +233,10 @@ impl Component for Model {
                coord_row!("meta","1") => 180.0,
             },
             active_cell: Some(coord!("root-A1")),
+            first_select_cell: None,
+            last_select_cell: None,
+            min_select_cell: None,
+            max_select_cell: None,
             default_suggestions: vec![coord!("meta-A1"), coord!("meta-A2"), coord!("meta-A3")],
             suggestions: HashMap::new(),
 
@@ -242,10 +244,6 @@ impl Component for Model {
             reader: ReaderService::new(),
 
             select_grammar: vec![],
-            first_select_cell: None,
-            last_select_cell: None,
-            min_select_cell: None,
-            max_select_cell: None,
             zoom: 1.0,
 
             sessions: vec![Session {
@@ -396,7 +394,7 @@ impl Component for Model {
                     max_select_col = first_select_col;
                 }
 
-                let ref_grammas = self.grammars.clone();
+                let ref_grammas = self.get_session().grammars.clone();
                 for (coord, grammar) in &ref_grammas {
                     if min_select_row <= coord.row()
                         && coord.row() <= max_select_row
@@ -483,6 +481,11 @@ impl Component for Model {
                 false
             }
 
+            Action::SetSessionTitle(name) => {
+                self.get_session_mut().title = name;
+                true
+            }
+
             Action::MergeCells() => {
                 if self.min_select_cell.is_none() || self.max_select_cell.is_none() {
                     return false;
@@ -495,7 +498,7 @@ impl Component for Model {
                 let mut merge_width = 0.00;
                 let mut max_coord = Coordinate::default();
                 let mut max_grammar = Grammar::default();
-                let mut ref_grammas = self.grammars.clone();
+                let mut ref_grammas = self.get_session().grammars.clone();
                 for (coord, grammar) in ref_grammas.iter_mut() {
                     if min_select_row <= coord.row()
                         && coord.row() <= max_select_row
@@ -525,7 +528,9 @@ impl Component for Model {
                         grammar.style.col_span[1] = max_select_col.get();
                         grammar.style.row_span[0] = min_select_row.get();
                         grammar.style.row_span[1] = max_select_row.get();
-                        self.grammars.insert(coord.clone(), grammar.clone());
+                        self.get_session_mut()
+                            .grammars
+                            .insert(coord.clone(), grammar.clone());
                     }
                 }
                 max_grammar.style.width = merge_width;
@@ -534,9 +539,107 @@ impl Component for Model {
                 max_grammar.style.col_span[1] = max_select_col.get();
                 max_grammar.style.row_span[0] = min_select_row.get();
                 max_grammar.style.row_span[1] = max_select_row.get();
-                self.grammars.insert(max_coord, max_grammar);
+                self.get_session_mut()
+                    .grammars
+                    .insert(max_coord, max_grammar);
                 self.min_select_cell = None;
                 self.max_select_cell = None;
+                true
+            }
+
+            Action::ReadDriverFiles(files_list) => {
+                // Get the main file and miscellaneous/additional files from the drivers list
+                let (main_file, misc_files) = {
+                    let (main_file_as_vec, misc_files) : (Vec<File>, Vec<File>) = files_list.iter().fold((Vec::new(), Vec::new()), |accum, file| { 
+                        // Iter::partition is used to divide a list into two given a certain condition.
+                        // Here the condition here is to separate the main file of the driver from the
+                        // addditional ones, where the main file's path looks like
+                        // '{directory_name}/{file_name}.js' and the directory_name == file_name
+                        let mut new_accum = accum.clone();
+                        // use `webkitRelativePath` as the `name`, if it's available
+                        // we'll call out to regular JS to do this using the `js!` macro.
+                        // Note that yew::services::reader::File::name() calls "file.name" under the
+                        // hood (https://docs.rs/stdweb/0.4.20/src/stdweb/webapi/file.rs.html#23)
+                        let full_file_name : String = js!(
+                            if (!!@{&file}.webkitRelativePath) {
+                                return @{&file}.webkitRelativePath;
+                            } else {
+                                console.log("couldn't get relative path of file: ", @{&file}.name);
+                                return @{&file}.name; // equivalent to yew::services::reader::File::name()
+                            }
+                        ).try_into().unwrap();
+                        let path_parts : Vec<&str> = full_file_name.split("/").collect();
+                        match (path_parts.first(), path_parts.last(), path_parts.len()) {
+                            (Some(directory), Some(file_name), 2) if format!{"{}.js", directory} == file_name.to_string() => {
+                                if new_accum.0.len() == 0 {
+                                    new_accum.0.push(file.clone());
+                                } else {
+                                    panic!("[Action::ReadDriverFiles]: there shouldn't be more than 1 main file in the driver directory")
+                                }
+                            },
+                            _ => {
+                                new_accum.1.push(file.clone());
+                            },
+                        };
+                        new_accum
+                    });
+                    // the `partition` call above gives us a tuple of two Vecs (Vec, Vec) where the first Vec
+                    // should have only one element, so we'll convert it to a (Vec::Item, Vec).
+                    // If this has an error, then there's something wrong with how the driver
+                    // directory is organized.
+                    (
+                        main_file_as_vec.first().unwrap().clone(),
+                        misc_files.clone(),
+                    )
+                };
+
+                // upload misc files so they can be served by electron to be used by main driver file
+                let upload_callback = self
+                    .link
+                    .callback(|file_data| Action::UploadDriverMiscFile(file_data));
+                for file in misc_files {
+                    let task = self.reader.read_file(file, upload_callback.clone());
+                    self.tasks.push(task);
+                }
+
+                // Load main driver file. After this task has been scheduled and executed, the
+                // driver is ready for use.
+                self.tasks.push(
+                    self.reader
+                        .read_file(main_file, self.link.callback(Action::LoadDriverMainFile)),
+                );
+
+                false
+            }
+
+            Action::UploadDriverMiscFile(file_data) => {
+                // Here, we use some electron APIs to call out to the main process in JS.
+                // For this, we use the `electron_sys` library which is pretty experimental but
+                // feature complete.
+                // See here for documentation how to communicate between the main and renderer proess in Electron:
+                //   https://www.tutorialspoint.com/electron/electron_inter_process_communication.htm
+                // And here, for the documentation for the electon_sys Rust bindings for electron.ipcRenderer:
+                //   https://docs.rs/electron-sys/0.4.0/electron_sys/struct.IpcRenderer.html
+
+                let args: [JsValue; 2] = [
+                    JsValue::from_str(file_data.name.deref()),
+                    JsValue::from_str(std::str::from_utf8(&file_data.content).unwrap()),
+                ];
+                ipc_renderer.send_sync("upload-driver-misc-file", Box::new(args));
+                false
+            }
+
+            Action::LoadDriverMainFile(main_file_data) => {
+                info! {"Loading Driver: {}", &main_file_data.name};
+                let file_contents = std::str::from_utf8(&main_file_data.content).unwrap();
+                // dump file contents into script tag and attach to the DOM
+                let script = document().create_element("script").unwrap();
+                script.set_text_content(file_contents);
+                script.set_attribute("type", "text/javascript");
+                script.set_attribute("class", "ise-driver");
+                script.set_attribute("defer", "true");
+                let head = document().query_selector("head").unwrap().unwrap();
+                head.append_child(&script);
                 true
             }
 

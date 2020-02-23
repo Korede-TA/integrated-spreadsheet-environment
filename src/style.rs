@@ -45,14 +45,11 @@ impl Style {
 border-collapse: {};
 font-weight: {};
 color: {};
-visibility: {};
-grid-column: {};\n",
+\n",
         // self.border_color,
         if self.border_collapse { "collapse" } else { "inherit" },
         self.font_weight,
         self.font_color,
-        self.visibility,
-        self.grid_column,
         }
     }
 }
@@ -84,6 +81,7 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
     // let mut row_height = model.grammars.get(&coord).unwrap().style.height;
     let (col_span, row_span, mut col_width, mut row_height) = {
         let s = &model
+            .get_session()
             .grammars
             .get(&coord)
             .expect(format! {"grammar map should have coord {}", coord.to_string()}.deref())

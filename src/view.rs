@@ -182,7 +182,7 @@ pub fn view_menu_bar(m: &Model) -> Html {
             <button class="menu-bar-button" onclick=m.link.callback(|_| Action::InsertCol)>
                 { "Insert Column" }
             </button>
-            <button class="menu-bar-button">
+            <button class="menu-bar-button"  onclick=m.link.callback(move |_ : ClickEvent| Action::MergeCells())>
                 { "Merge" }
             </button>
             <button class="menu-bar-button" onclick=m.link.callback(|_| Action::DeleteRow)>
@@ -190,9 +190,6 @@ pub fn view_menu_bar(m: &Model) -> Html {
             </button>
             <button class="menu-bar-button" onclick=m.link.callback(|_| Action::DeleteCol)>
                 { "Delete Column" }
-            </button>
-            <button class="menu-bar-button" onclick=m.link.callback(move |_ : ClickEvent| Action::MergeCells())>
-                { "Merge Cells" }
             </button>
         </div>
     }
@@ -454,7 +451,7 @@ pub fn view_input_grammar(
     value: String,
     is_active: bool,
 ) -> Html {
-    if let Some(grammar) = m.grammars.get(&coord) {
+    if let Some(grammar) = m.to_session().grammars.get(&coord) {
         let state = grammar.clone().style.display;
         if state == true {
             let active_cell_class = if is_active {
@@ -509,8 +506,9 @@ pub fn view_input_grammar(
                     style={ get_style(&m, &coord) }>
                     <div contenteditable=true
                         class={ format!{ "cell-data {} {}", active_cell_class,
-                        if min_select_cell <= coord.row().get() && coord.row().get() <= max_select_row
-                        && min_select_col <= coord.col().get() && coord.col().get() <= max_select_col {
+                        if min_select_cell.is_some() && max_select_cell.is_some()
+                        && min_select_cell.unwrap().row().get() <= coord.row().get() && coord.row().get() <= max_select_cell.unwrap().row().get()
+                        && min_select_cell.unwrap().col().get() <= coord.col().get() && coord.col().get() <= max_select_cell.unwrap().col().get() {
                             "selection"
                         } else {
                             ""
