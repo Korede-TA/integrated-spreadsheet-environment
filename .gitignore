@@ -2,5 +2,8 @@
 /target
 /node_modules
 /dist
+.history/
+.vscode/
 **/*.rs.bk
 **/*.DS_Store
+/_esy

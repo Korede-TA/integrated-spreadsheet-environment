@@ -1,25 +1,25 @@
+use serde::{
+    ser::{SerializeSeq, SerializeStruct, SerializeStructVariant, Serializer},
+    Deserialize, Serialize,
+};
 use std::collections::HashMap;
 use std::option::Option;
-use serde::{
-	ser::{SerializeStruct, SerializeSeq, SerializeStructVariant ,Serializer},
-	Deserialize, Serialize,
-};
 
 use crate::coordinate::Coordinate;
-use crate::grammar::{Grammar, Kind, Interactive};
-use crate::model::Model;
+use crate::grammar::{Grammar, Interactive, Kind};
 use crate::style::Style;
 
 // Session encapsulates the serializable state of the application that gets stored to disk
 // in a .ise file (which is just a JSON file)
 #[derive(Deserialize, Debug, Clone)]
 pub struct Session {
+    pub title: String,
     pub root: Grammar,
     pub meta: Grammar,
     pub grammars: HashMap<Coordinate, Grammar>,
 }
-js_serializable!( Session );
-js_deserializable!( Session );
+js_serializable!(Session);
+js_deserializable!(Session);
 
 impl Serialize for Session {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -27,6 +27,7 @@ impl Serialize for Session {
         S: Serializer,
     {
         let mut state = serializer.serialize_struct("Session", 3)?;
+        state.serialize_field("title", &self.title)?;
         state.serialize_field("root", &self.root)?;
         state.serialize_field("meta", &self.meta)?;
         state.serialize_field("grammars", &self.grammars)?;
@@ -119,6 +120,19 @@ impl Serialize for Kind {
                 }
                 seq.end()
             }
+            Kind::Lookup(s, x) => {
+                let mut sv = serializer.serialize_struct_variant("Kind", 3, "Lookup", 2)?;
+                sv.serialize_field("raw_value", s)?;
+                sv.serialize_field("lookup", x)?;
+                sv.end()
+            }
+            Kind::Defn(s, c, rules) => {
+                let mut sv = serializer.serialize_struct_variant("Kind", 4, "Defn", 3)?;
+                sv.serialize_field("name", s)?;
+                sv.serialize_field("coordinate", c)?;
+                sv.serialize_field("rules", rules)?;
+                sv.end()
+            }
         }
     }
 }
@@ -128,10 +142,20 @@ impl Serialize for Coordinate {
     where
         S: Serializer,
     {
+        /*
         let mut seq = serializer.serialize_seq(Some(self.row_cols.len()))?;
         for e in self.row_cols.clone() {
-            seq.serialize_element(&e)?;
+            let (a, b) = e;
+            let s = format!("{}-{}",&a,&b);
+            seq.serialize_element(&s)?;
         }
         seq.end()
+        */
+        let s = "";
+        for e in self.row_cols.clone() {
+            let (a, b) = e;
+            let _s = format!("{}-{}-{}", s, &a, &b);
+        }
+        serializer.serialize_str(s)
     }
 }

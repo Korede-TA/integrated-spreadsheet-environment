@@ -3,7 +3,7 @@ use std::ops::Deref;
 use std::option::Option;
 
 use crate::coordinate::Coordinate;
-use crate::grammar::{Grammar, Kind};
+use crate::grammar::Kind;
 use crate::model::Model;
 
 // Style contains the relevant CSS properties for styling
@@ -43,7 +43,8 @@ impl Style {
         "/* border: 1px; NOTE: ignoring Style::border_* for now */
 border-collapse: {};
 font-weight: {};
-color: {};\n",
+color: {};
+\n",
         // self.border_color,
         if self.border_collapse { "collapse" } else { "inherit" },
         self.font_weight,
@@ -54,12 +55,51 @@ color: {};\n",
 
 pub fn get_style(model: &Model, coord: &Coordinate) -> String {
     let grammar = model
+        .get_session()
         .grammars
         .get(coord)
         .expect("no grammar with this coordinate");
+    // ignore root or meta
     if coord.row_cols.len() == 1 {
-        // root or meta
         return grammar.style(coord);
+    }
+    if grammar.style.width > 90.0 || grammar.style.height > 30.0 {
+        let (col_span, row_span, mut col_width, mut row_height) = {
+            let s = &model
+                .get_session()
+                .grammars
+                .get(&coord)
+                .expect(format! {"grammar map should have coord {}", coord.to_string()}.deref())
+                .style;
+            (s.col_span, s.row_span, s.width, s.height)
+        };
+        let mut s_col_span = String::new();
+        let mut s_row_span = String::new();
+        let n_col_span = col_span[1] - col_span[0];
+        let n_row_span = row_span[1] - row_span[0];
+        col_width = col_width + (3 * n_col_span) as f64;
+        row_height = row_height + (3 * n_row_span) as f64;
+        info!("-------------------------------------------");
+        info!("col_span {} - {}", col_span[0], col_span[1]);
+        info!("row_span {} - {}", row_span[0], row_span[1]);
+        if n_col_span != 0 {
+            s_col_span = format! {
+                "\ngrid-column-start: {}; grid-column: {} / span {};",
+                col_span[0].to_string(), col_span[0].to_string(), col_span[1].to_string(),
+            };
+        }
+        if n_row_span != 0 {
+            s_row_span = format! {
+                "\ngrid-row-start: {}; grid-row: {} / span {};",
+                row_span[0].to_string(), row_span[0].to_string(), row_span[1].to_string(),
+            };
+        }
+        return format! {
+            "{}\nwidth: {}px;\nheight: {}px;
+            {} {}",
+            grammar.style(coord), col_width, row_height,
+            s_col_span, s_row_span,
+        };
     }
     if let Kind::Grid(_) = grammar.kind {
         return format! {
@@ -67,41 +107,10 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
             grammar.style(coord),
         };
     }
-    // let mut col_width = model.grammars.get(&coord).unwrap().style.width;
-    // let mut row_height = model.grammars.get(&coord).unwrap().style.height;
-    let (col_span, row_span, mut col_width, mut row_height) = {
-        let s = &model
-            .grammars
-            .get(&coord)
-            .expect(format! {"grammar map should have coord {}", coord.to_string()}.deref())
-            .style;
-        (s.col_span, s.row_span, s.width, s.height)
-    };
-
-    let mut s_col_span = String::new();
-    let mut s_row_span = String::new();
-    let n_col_span = col_span[1] - col_span[0];
-    let n_row_span = row_span[1] - row_span[0];
-    col_width = col_width + (3 * n_col_span) as f64;
-    row_height = row_height + (3 * n_row_span) as f64;
-
-    if n_col_span != 0 {
-        s_col_span = format! {
-            "\ngrid-column-start: {}; grid-column: {} / span {};",
-            col_span[0].to_string(), col_span[0].to_string(), col_span[1].to_string(),
-        };
-    }
-
-    if n_row_span != 0 {
-        s_row_span = format! {
-            "\ngrid-row-start: {}; grid-row: {} / span {};",
-            row_span[0].to_string(), row_span[0].to_string(), row_span[1].to_string(),
-        };
-    }
+    let col_width = model.col_widths.get(&coord.full_col()).unwrap_or(&90.0);
+    let row_height = model.row_heights.get(&coord.full_row()).unwrap_or(&30.0);
     format! {
-        "{}\nwidth: {}px;\nheight: {}px;
-        {} {}",
+        "{}\nwidth: {}px;\nheight: {}px;\n",
         grammar.style(coord), col_width, row_height,
-        s_col_span, s_row_span,
     }
 }

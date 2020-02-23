@@ -30,7 +30,7 @@ body {
 }
 
 .cell {
-  border: 1px dashed var(--border-light-grey);
+  /* border: 1px dashed var(--border-light-grey); */
   border-collapse: collapse;
   font-family: "Lucida Console", Monaco, monospace;
   background: #aaa;
@@ -53,7 +53,6 @@ body {
 }
 
 
-
 .cell-data.selection {
   background-color: rgb(14, 101, 235, 0.1);
 }
@@ -62,12 +61,26 @@ body {
   font-family: "Lucida Console", Monaco, monospace;
   font-size: 20px;
   padding: 0px;
-  background-color: None;
+  background-color: white;
 }
 
 
 .cell-data:active {
   outline: none;
+}
+
+.variant {
+  display: flex;
+}
+
+.repitition-column {
+  display: flex;
+  flex-direction: column;
+}
+
+.repitition-row {
+  display: flex;
+  flex-direction: row;
 }
 
 .suggestion {
