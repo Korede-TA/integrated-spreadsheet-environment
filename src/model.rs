@@ -31,13 +31,14 @@ pub struct Model {
     view_root: Coordinate,
     pub first_select_cell: Option<Coordinate>,
     pub last_select_cell: Option<Coordinate>,
+    pub min_select_cell: Option<Coordinate>,
+    pub max_select_cell: Option<Coordinate>,
     pub active_cell: Option<Coordinate>,
     pub zoom: f32,
     pub default_suggestions: Vec<Coordinate>,
     pub suggestions: HashMap<Coordinate, Vec<Coordinate>>,
     pub col_widths: HashMap<Col, f64>,
     pub row_heights: HashMap<Row, f64>,
-    pub select_grammar: Vec<Coordinate>,
     pub sessions: Vec<Session>,
     pub current_session_index: usize,
     pub side_menus: Vec<SideMenu>,
@@ -114,6 +115,7 @@ pub enum Action {
         /* source: */ Coordinate,
         /* lookup_type: */ Lookup,
     ),
+    MergeCells(),
 
     ToggleLookup(Coordinate),
 
@@ -235,9 +237,10 @@ impl Component for Model {
             console: ConsoleService::new(),
             reader: ReaderService::new(),
 
-            select_grammar: vec![],
             first_select_cell: None,
             last_select_cell: None,
+            min_select_cell: None,
+            max_select_cell: None,
             zoom: 1.0,
 
             sessions: vec![Session {
@@ -330,14 +333,14 @@ impl Component for Model {
                             kind: Kind::Input(_),
                             ..
                         } => {
-                            info!("{}", &new_value);
+                            
                             g.kind = Kind::Input(new_value);
                         }
                         Grammar {
                             kind: Kind::Lookup(_, lookup_type),
                             ..
                         } => {
-                            info!("{}", &new_value);
+                           
                             g.kind = Kind::Lookup(new_value, lookup_type.clone());
                         }
                         _ => (),
@@ -348,13 +351,147 @@ impl Component for Model {
 
             Action::SetActiveCell(coord) => {
                 self.first_select_cell = Some(coord.clone());
+                info!("first cell r-{}, c-{}", self.first_select_cell.as_ref().unwrap().row(), self.first_select_cell.as_ref().unwrap().col());
                 self.last_select_cell = None;
+                self.min_select_cell = None;
+                self.max_select_cell = None;
                 self.active_cell = Some(coord.clone());
                 true
             }
 
             Action::SetSelectedCells(coord) => {
                 self.last_select_cell = Some(coord.clone());
+                if self.first_select_cell.is_none() || self.last_select_cell.is_none() {
+                    return false;
+                }
+                let mut first_select_row = NonZeroU32::new(1).unwrap();
+                let mut first_select_col = NonZeroU32::new(1).unwrap();
+                let mut last_select_row = NonZeroU32::new(1).unwrap();
+                let mut last_select_col = NonZeroU32::new(1).unwrap();
+
+                let mut min_select_row = NonZeroU32::new(1).unwrap();
+                let mut max_select_row = NonZeroU32::new(1).unwrap();
+                let mut min_select_col = NonZeroU32::new(1).unwrap();
+                let mut max_select_col = NonZeroU32::new(1).unwrap();
+                first_select_row = self.first_select_cell.as_ref().unwrap().row();
+                first_select_col = self.first_select_cell.as_ref().unwrap().col();
+                last_select_row = self.last_select_cell.as_ref().unwrap().row();
+                last_select_col = self.last_select_cell.as_ref().unwrap().col();
+                if first_select_row < last_select_row {
+                    min_select_row = first_select_row;
+                    max_select_row = last_select_row;
+                } else {
+                    min_select_row = last_select_row;
+                    max_select_row = first_select_row;
+                }
+                if first_select_col < last_select_col {
+                    min_select_col = first_select_col;
+                    max_select_col = last_select_col;
+                } else {
+                    min_select_col = last_select_col;
+                    max_select_col = first_select_col;
+                }
+
+                let ref_grammas = self.get_session_mut().grammars.clone();
+                for (coord, grammar) in &ref_grammas {
+                    if min_select_row <= coord.row()
+                        && coord.row() <= max_select_row
+                        && min_select_col <= coord.col()
+                        && coord.col() <= max_select_col
+                        && coord.to_string().contains("root-")
+                    {
+                        let col_span = grammar.style.col_span;
+                        let row_span = grammar.style.row_span;
+                        if col_span[0] > 0 && col_span[1] > 0 {
+                            if col_span[0] < min_select_col.get() {
+                                min_select_col = NonZeroU32::new(col_span[0]).unwrap();
+                            }
+                            if col_span[1] > max_select_col.get() {
+                                max_select_col = NonZeroU32::new(col_span[1]).unwrap();
+                            }
+                        }
+                        if row_span[0] > 0 && row_span[1] > 0 {
+                            if row_span[0] < min_select_row.get() {
+                                min_select_row = NonZeroU32::new(row_span[0]).unwrap();
+                            }
+                            if row_span[1] > max_select_row.get() {
+                                max_select_row = NonZeroU32::new(row_span[1]).unwrap();
+                            }
+                        }
+                    }
+                }
+                
+                info!("last cell r-{}, c-{}", last_select_row, last_select_col);
+                
+
+                self.min_select_cell = Some(Coordinate {
+                    row_cols: vec![(min_select_row, min_select_col)],
+                });
+                self.max_select_cell = Some(Coordinate {
+                    row_cols: vec![(max_select_row, max_select_col)],
+                });
+                true
+            }
+
+            Action::MergeCells() => {
+                if self.min_select_cell.is_none() || self.max_select_cell.is_none() {
+                    return false;
+                }
+                let mut min_select_row = self.min_select_cell.as_ref().unwrap().row();
+                let mut max_select_row = self.max_select_cell.as_ref().unwrap().row();
+                let mut min_select_col = self.min_select_cell.as_ref().unwrap().col();
+                let mut max_select_col = self.max_select_cell.as_ref().unwrap().col();
+                let mut merge_height = 0.00;
+                let mut merge_width = 0.00;
+                let mut max_coord = Coordinate::default();
+                let mut max_grammar = Grammar::default();
+                let mut ref_grammas = self.get_session_mut().grammars.clone();
+                for (coord, grammar) in ref_grammas.iter_mut() {
+                    if min_select_row <= coord.row()
+                        && coord.row() <= max_select_row
+                        && min_select_col <= coord.col()
+                        && coord.col() <= max_select_col
+                        && coord.to_string().contains("root-")
+                        && grammar.style.display == true
+                    {
+                        let coord_style = grammar.style.clone();
+                        if (coord.row() == max_select_row) && (coord.col() == max_select_col) {
+                            merge_width = merge_width + coord_style.width;
+                            merge_height = merge_height + coord_style.height;
+                            max_coord = coord.clone();
+                            max_grammar = grammar.clone();
+                            continue;
+                        } else if (coord.row() == max_select_row) {
+                            merge_width = merge_width + coord_style.width;
+                        } else if coord.col() == max_select_col {
+                            merge_height = merge_height + coord_style.height;
+                        }
+                        if (coord.row() != max_select_row) || (coord.col() != max_select_col) {
+                            grammar.style.display = false;
+                            merge_height = merge_height;
+                            merge_width = merge_width;
+                        }
+                        grammar.style.col_span[0] = min_select_col.get();
+                        grammar.style.col_span[1] = max_select_col.get();
+                        grammar.style.row_span[0] = min_select_row.get();
+                        grammar.style.row_span[1] = max_select_row.get();
+                        self.get_session_mut().grammars.insert(coord.clone(), grammar.clone());
+                    }
+                }
+                max_grammar.style.width = merge_width;
+                max_grammar.style.height = merge_height;
+                max_grammar.style.col_span[0] = min_select_col.get();
+                max_grammar.style.col_span[1] = max_select_col.get();
+                max_grammar.style.row_span[0] = min_select_row.get();
+                max_grammar.style.row_span[1] = max_select_row.get();
+                info!("Min cell r-{}, c-{}", min_select_row, min_select_col);
+                info!("Max cell r-{}, c-{}", max_select_row, max_select_col);
+                
+                self.get_session_mut().grammars.insert(max_coord.clone(), max_grammar.clone());
+                info!("col_span inside {} - {}", max_grammar.style.col_span[0], max_grammar.style.col_span[1]);
+                info!("row_span inside {} - {}", max_grammar.style.row_span[0], max_grammar.style.row_span[1]);
+                self.min_select_cell = None;
+                self.max_select_cell = None;
                 true
             }
 
@@ -801,7 +938,7 @@ impl Component for Model {
                                 u = i.col().get() as usize;
                                 temp.insert(u, grammars[&i].clone());
                             }
-                            info!("{:?}", temp);
+                           
                             u = 0;
                         }
                         if temp.len() == 0 {
@@ -892,23 +1029,23 @@ impl Component for Model {
             Action::Resize(msg) => {
                 match msg {
                     ResizeMsg::Start(coord) => {
-                        info! {"drag start"};
+                       
                         self.resizing = Some(coord);
                     }
                     ResizeMsg::X(offset_x) => {
                         if let Some(coord) = self.resizing.clone() {
-                            info! {"drag x: {}", offset_x};
+                           
                             resize_diff(self, coord, 0.0, offset_x);
                         }
                     }
                     ResizeMsg::Y(offset_y) => {
                         if let Some(coord) = self.resizing.clone() {
-                            info! {"drag y: {}", offset_y};
+                           
                             resize_diff(self, coord, offset_y, 0.0);
                         }
                     }
                     ResizeMsg::End => {
-                        info! {"drag end"};
+                       
                         self.resizing = None;
                     }
                 }
@@ -970,7 +1107,7 @@ impl Component for Model {
                             kind: Kind::Input(_),
                             ..
                         } => {
-                            info! {"updating defn name: {}", &name};
+                           
                             g.kind = Kind::Input(name);
                         }
                         _ => (),
