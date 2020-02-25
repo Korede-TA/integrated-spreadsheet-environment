@@ -6,7 +6,8 @@ use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::option::Option;
 use stdweb::unstable::TryInto;
-use stdweb::web::{document, IElement, INode, IParentNode};
+use stdweb::web::{document, window, IElement, INode, IParentNode, IHtmlElement, HtmlElement, set_timeout};
+use stdweb::web::html_element::InputElement;
 use wasm_bindgen::JsValue;
 use yew::events::KeyPressEvent;
 use yew::prelude::*;
@@ -563,10 +564,20 @@ impl Component for Model {
                     .insert(coord.clone(), grammar);
                 resize(
                     self,
-                    coord,
+                    coord.clone(),
                     (rows as f64) * (/* default row height */tmp_heigt),
                     (cols as f64) * (/* default col width */tmp_width),
                 );
+                if let Some(cell) = self.focus_node_ref.cast::<InputElement>(){
+                    /*let range = document().create_range();
+                    let sel = window().get_selection();
+                    range.setStart(cell, 0);
+                    range.collapse(true);
+                    sel.unwrap().remove_all_ranges();
+                    sel.unwrap().add_range(range);*/
+                    //set_timeout(move || {cell.focus();}, 0);
+                    cell.focus();
+                }
                 true
             }
 

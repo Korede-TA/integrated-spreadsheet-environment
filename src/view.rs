@@ -533,7 +533,9 @@ pub fn view_input_grammar(
             class=format!{"cell suggestion row-{} col-{}", coord.row_to_string(), coord.col_to_string(),}
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
-            <div contenteditable=true
+            //<div contenteditable=true
+            <input type="text"
+                id=format!{"cell-content-{}", coord.to_string()}
                 class={ format!{ "cell-data {} {}", active_cell_class,
                 if min_select_row <= coord.row().get() && coord.row().get() <= max_select_row
                 && min_select_col <= coord.col().get() && coord.col().get() <= max_select_col {
@@ -590,7 +592,8 @@ pub fn view_input_grammar(
                         Action::Noop
                     }
                 })>
-            </div>
+            //</div>
+            </input>
             { suggestions }
         </div>
     }
