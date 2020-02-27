@@ -7,7 +7,7 @@ use crate::util::coord_show;
 use serde::{Deserialize, Serialize};
 
 // Coordinate specifies the nested coordinate structure
-#[derive(Deserialize, PartialEq, Eq, Debug, Hash, Clone)]
+#[derive(Deserialize, PartialEq, Eq, Debug, Hash, Clone, Default)]
 pub struct Coordinate {
     pub row_cols: Vec<(NonZeroU32, NonZeroU32)>, // should never be empty list
 }
@@ -149,7 +149,6 @@ impl Coordinate {
 
     pub fn neighbor_above(&self) -> Option<Coordinate> {
         let mut new_row_col = self.clone().row_cols;
-
         if let Some(last) = new_row_col.last_mut() {
             if last.0.get() > 1 {
                 *last = (
@@ -167,7 +166,6 @@ impl Coordinate {
 
     pub fn neighbor_below(&self) -> Option<Coordinate> {
         let mut new_row_col = self.clone().row_cols;
-
         if let Some(last) = new_row_col.last_mut() {
             *last = (
                 /* row */ NonZeroU32::new(last.0.get() + 1).unwrap(),
@@ -183,7 +181,6 @@ impl Coordinate {
 
     pub fn neighbor_left(&self) -> Option<Coordinate> {
         let mut new_row_col = self.clone().row_cols;
-
         if let Some(last) = new_row_col.last_mut() {
             if last.1.get() > 1 {
                 *last = (
@@ -201,7 +198,6 @@ impl Coordinate {
 
     pub fn neighbor_right(&self) -> Option<Coordinate> {
         let mut new_row_col = self.clone().row_cols;
-
         if let Some(last) = new_row_col.last_mut() {
             *last = (
                 /* row */ last.0,

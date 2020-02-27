@@ -31,6 +31,8 @@ pub struct Model {
     view_root: Coordinate,
     pub first_select_cell: Option<Coordinate>,
     pub last_select_cell: Option<Coordinate>,
+    pub min_select_cell: Option<Coordinate>,
+    pub max_select_cell: Option<Coordinate>,
     pub active_cell: Option<Coordinate>,
     pub shift_key_pressed: bool,
     pub zoom: f32,
@@ -39,7 +41,6 @@ pub struct Model {
     pub suggestions: HashMap<Coordinate, Vec<Coordinate>>,
     pub col_widths: HashMap<Col, f64>,
     pub row_heights: HashMap<Row, f64>,
-    pub select_grammar: Vec<Coordinate>,
     pub sessions: Vec<Session>,
     pub current_session_index: usize,
     pub side_menus: Vec<SideMenu>,
@@ -118,6 +119,7 @@ pub enum Action {
         /* source: */ Coordinate,
         /* lookup_type: */ Lookup,
     ),
+    MergeCells(),
 
     ToggleLookup(Coordinate),
 
@@ -246,9 +248,10 @@ impl Component for Model {
             console: ConsoleService::new(),
             reader: ReaderService::new(),
 
-            select_grammar: vec![],
             first_select_cell: None,
             last_select_cell: None,
+            min_select_cell: None,
+            max_select_cell: None,
             zoom: 1.0,
 
             sessions: vec![Session {
@@ -354,14 +357,12 @@ impl Component for Model {
                             kind: Kind::Input(_),
                             ..
                         } => {
-                            info!("{}", &new_value);
                             g.kind = Kind::Input(new_value);
                         }
                         Grammar {
                             kind: Kind::Lookup(_, lookup_type),
                             ..
                         } => {
-                            info!("{}", &new_value);
                             g.kind = Kind::Lookup(new_value, lookup_type.clone());
                         }
                         _ => (),
@@ -376,13 +377,11 @@ impl Component for Model {
             }
 
             Action::Select(SelectMsg::Start(coord)) => {
-                info! {"select start {}", coord.to_string()};
                 self.first_select_cell = Some(coord.clone());
                 self.last_select_cell = None;
                 true
             }
             Action::Select(SelectMsg::End(coord)) => {
-                info! {"select end {}", coord.to_string()};
                 if let Some(selection_start) = self.first_select_cell.clone() {
                     // ensure that selection_start and selection_end have common parent
                     let common_parent = selection_start.parent();
@@ -392,6 +391,86 @@ impl Component for Model {
                     }
                     self.last_select_cell = selection_end;
                 }
+                true
+            }
+
+            Action::MergeCells() => {
+                let (first_row, first_col) = self.first_select_cell.clone().unwrap().row_col();
+                let (last_row, last_col) = self.last_select_cell.clone().unwrap().row_col();
+                let (mut min_select_row, mut max_select_row) = if first_row.get() > last_row.get() {
+                    (last_row.get(), first_row.get())
+                // (a..=b) is shorthand for an integer Range that's inclusive of lower and upper bounds
+                } else {
+                    (first_row.get(), last_row.get())
+                };
+                let (mut min_select_col, mut max_select_col) = if first_col.get() > last_col.get() {
+                    (last_col.get(), first_col.get())
+                } else {
+                    (first_col.get(), last_col.get())
+                };
+                let mut merge_height = 0.00;
+                let mut merge_width = 0.00;
+                let mut max_coord = Coordinate::default();
+                let mut max_grammar = Grammar::default();
+                let mut ref_grammas = self.get_session_mut().grammars.clone();
+                for (coord, grammar) in ref_grammas.iter_mut() {
+                    if min_select_row <= coord.row().get()
+                        && coord.row().get() <= max_select_row
+                        && min_select_col <= coord.col().get()
+                        && coord.col().get() <= max_select_col
+                        && coord.to_string().contains("root-")
+                        && grammar.style.display == true
+                    {
+                        let coord_style = grammar.style.clone();
+                        if (coord.row().get() == max_select_row)
+                            && (coord.col().get() == max_select_col)
+                        {
+                            merge_width = merge_width + coord_style.width;
+                            merge_height = merge_height + coord_style.height;
+                            max_coord = coord.clone();
+                            max_grammar = grammar.clone();
+                            continue;
+                        } else if (coord.row().get() == max_select_row) {
+                            merge_width = merge_width + coord_style.width;
+                        } else if coord.col().get() == max_select_col {
+                            merge_height = merge_height + coord_style.height;
+                        }
+                        if (coord.row().get() != max_select_row)
+                            || (coord.col().get() != max_select_col)
+                        {
+                            grammar.style.display = false;
+                            merge_height = merge_height;
+                            merge_width = merge_width;
+                        }
+                        grammar.style.col_span.0 = min_select_col;
+                        grammar.style.col_span.1 = max_select_col;
+                        grammar.style.row_span.0 = min_select_row;
+                        grammar.style.row_span.1 = max_select_row;
+                        self.get_session_mut()
+                            .grammars
+                            .insert(coord.clone(), grammar.clone());
+                    }
+                }
+                max_grammar.style.width = merge_width;
+                max_grammar.style.height = merge_height;
+                max_grammar.style.col_span.0 = min_select_col;
+                max_grammar.style.col_span.1 = max_select_col;
+                max_grammar.style.row_span.0 = min_select_row;
+                max_grammar.style.row_span.1 = max_select_row;
+                info!("Min cell r-{}, c-{}", min_select_row, min_select_col);
+                info!("Max cell r-{}, c-{}", max_select_row, max_select_col);
+
+                self.get_session_mut()
+                    .grammars
+                    .insert(max_coord.clone(), max_grammar.clone());
+                info!(
+                    "col_span inside {} - {}",
+                    max_grammar.style.col_span.0, max_grammar.style.col_span.1
+                );
+                info!(
+                    "row_span inside {} - {}",
+                    max_grammar.style.row_span.0, max_grammar.style.row_span.1
+                );
                 true
             }
 
@@ -838,7 +917,7 @@ impl Component for Model {
                                 u = i.col().get() as usize;
                                 temp.insert(u, grammars[&i].clone());
                             }
-                            info!("{:?}", temp);
+
                             u = 0;
                         }
                         if temp.len() == 0 {
@@ -1018,7 +1097,6 @@ impl Component for Model {
             }
 
             Action::ToggleShiftKey(toggle) => {
-                info! {"shift key {}", toggle};
                 self.shift_key_pressed = toggle;
                 false
             }
