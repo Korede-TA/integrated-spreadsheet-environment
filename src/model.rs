@@ -48,6 +48,7 @@ pub struct Model {
     pub focus_node_ref: NodeRef,
     pub resizing: Option<Coordinate>,
     pub link: ComponentLink<Model>,
+    pub default_nested_row_cols: (NonZeroU32, NonZeroU32),
     console: ConsoleService,
     reader: ReaderService,
     tasks: Vec<ReaderTask>,
@@ -120,6 +121,8 @@ pub enum Action {
         /* lookup_type: */ Lookup,
     ),
     MergeCells(),
+
+    ChangeDefaultNestedGrid((NonZeroU32, NonZeroU32)),
 
     ToggleLookup(Coordinate),
 
@@ -322,6 +325,8 @@ impl Component for Model {
             focus_node_ref: NodeRef::default(),
 
             shift_key_pressed: false,
+
+            default_nested_row_cols: non_zero_u32_tuple((3, 3)),
         };
         // load suggestions from
         m.meta_suggestions = m
@@ -1098,6 +1103,11 @@ impl Component for Model {
 
             Action::ToggleShiftKey(toggle) => {
                 self.shift_key_pressed = toggle;
+                false
+            }
+
+            Action::ChangeDefaultNestedGrid(row_col) => {
+                self.default_nested_row_cols = row_col;
                 false
             }
         };

@@ -1,3 +1,4 @@
+use std::num::NonZeroU32;
 use std::ops::Deref;
 use stdweb::traits::IEvent;
 use stdweb::unstable::TryFrom;
@@ -143,6 +144,48 @@ pub fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html {
 }
 
 pub fn view_menu_bar(m: &Model) -> Html {
+    let active_cell = m.active_cell.clone();
+    let (default_row, default_col) = {
+        let (r, c) = m.default_nested_row_cols.clone();
+        (r.get(), c.get())
+    };
+    let nest_grid_button = html! {
+        <button class="menu-bar-button" onclick=m.link.callback(move |_| {
+            if let Some(current) = &active_cell {
+                Action::AddNestedGrid(current.clone(), (default_row, default_col))
+            } else { Action::Noop }
+        })>
+            { "Nest Grid  " }
+            <input
+                class="active-cell-indicator"
+                placeholder="Row"
+                size="3"
+                oninput=m.link.callback(move |e: InputData| {
+                    if let Ok (row) = e.value.parse::<i32>() {
+                        Action::ChangeDefaultNestedGrid(non_zero_u32_tuple(((row as u32), default_col)))
+                    } else {
+                        Action::Noop
+                    }
+                })
+                onclick=m.link.callback(|e: ClickEvent| { e.prevent_default(); Action::Noop })
+                value={default_row}>
+            </input>
+            <input
+                class="active-cell-indicator"
+                placeholder="Col"
+                size="3"
+                oninput=m.link.callback(move |e: InputData| {
+                    if let Ok (col) = e.value.parse::<i32>() {
+                        Action::ChangeDefaultNestedGrid(non_zero_u32_tuple((default_row, (col as u32))))
+                    } else {
+                        Action::Noop
+                    }
+                })
+                onclick=m.link.callback(|e: ClickEvent| { e.prevent_default(); Action::Noop })
+                value={default_col}>
+            </input>
+        </button>
+    };
     html! {
         <div class="menu-bar horizontal-bar">
             <input
@@ -176,6 +219,7 @@ pub fn view_menu_bar(m: &Model) -> Html {
             <button class="menu-bar-button" onclick=m.link.callback(|_| Action::Recreate)>
                 { "Reset" }
             </button>
+            { nest_grid_button }
             <button class="menu-bar-button" onclick=m.link.callback(|_| Action::InsertRow)>
                 { "Insert Row" }
             </button>
