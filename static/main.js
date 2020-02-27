@@ -77,6 +77,8 @@ function createWindow () {
     webPreferences: {
 			nodeIntegration: true,
     },
+    height: 1600,
+    width: 1600,
   });
   win.loadURL(`file://${__dirname}/index.html`);
   win.webContents.openDevTools(); // TODO: only do this in development mode

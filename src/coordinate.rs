@@ -37,6 +37,24 @@ impl Coordinate {
         Some(parent)
     }
 
+    pub fn truncate(&self, n: usize) -> Option<Coordinate> {
+        if self.row_cols.len() <= n {
+            return None;
+        }
+
+        let truncated = {
+            let mut temp = self.clone();
+            temp.row_cols.truncate(n);
+            temp
+        };
+
+        Some(truncated)
+    }
+
+    pub fn row_col(&self) -> (NonZeroU32, NonZeroU32) {
+        self.row_cols.last().unwrap().clone()
+    }
+
     pub fn to_string(&self) -> String {
         coord_show(
             self.row_cols

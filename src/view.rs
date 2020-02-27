@@ -10,7 +10,7 @@ use yew::{html, ChangeData, Html, InputData};
 
 use crate::coordinate::Coordinate;
 use crate::grammar::{Grammar, Interactive, Kind, Lookup};
-use crate::model::{Action, Model, ResizeMsg, SideMenu};
+use crate::model::{Action, Model, ResizeMsg, SelectMsg, SideMenu};
 use crate::style::get_style;
 use crate::util::non_zero_u32_tuple;
 
@@ -225,15 +225,18 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
             Kind::Text(value) => view_text_grammar(m, &coord, value),
             Kind::Input(value) => {
                 let suggestions = m
-                    .suggestions
-                    .get(&coord)
-                    .unwrap_or(&m.default_suggestions)
+                    .meta_suggestions
                     .iter()
-                    .filter_map(|suggestion_coord| {
+                    .filter_map(|(name, suggestion_coord)| {
+                        // suggestion_coord
                         if let Some(suggestion_grammar) =
                             m.get_session().grammars.get(&suggestion_coord)
                         {
-                            Some((suggestion_coord.clone(), suggestion_grammar.clone()))
+                            if name.contains(value.deref()) {
+                                Some((suggestion_coord.clone(), suggestion_grammar.clone()))
+                            } else {
+                                None
+                            }
                         } else {
                             None
                         }
@@ -347,8 +350,8 @@ pub fn view_defn_grammar(
             style={ get_style(&m, &coord) }>
             <input
                 class="cell"
-                value={name}
-                oninput=m.link.callback(move |e : InputData| Action::DefnUpdateName(c.clone(), e.value))>
+                value={name}>
+                // oninput=m.link.callback(move |e : InputData| Action::DefnUpdateName(c.clone(), e.value))>
             </input>
             { nodes }
         </div>
@@ -489,44 +492,51 @@ pub fn view_input_grammar(
     };
 
     let new_active_cell = coord.clone();
-    // Method for holding shift key to select cells
     let shift_select_cell = coord.clone();
-    let first_select_cell = m.first_select_cell.clone();
-    let last_select_cell = m.last_select_cell.clone();
 
-    let mut first_select_row = 0;
-    let mut first_select_col = 0;
-    let mut last_select_row = 0;
-    let mut last_select_col = 0;
-
-    let mut min_select_row = 0;
-    let mut max_select_row = 0;
-    let mut min_select_col = 0;
-    let mut max_select_col = 0;
-
-    if first_select_cell.is_some() && last_select_cell.is_some() {
-        first_select_row = first_select_cell.as_ref().unwrap().row().get();
-        first_select_col = first_select_cell.as_ref().unwrap().col().get();
-        last_select_row = last_select_cell.as_ref().unwrap().row().get();
-        last_select_col = last_select_cell.as_ref().unwrap().col().get();
-        if first_select_row < last_select_row {
-            min_select_row = first_select_row;
-            max_select_row = last_select_row;
-        } else {
-            min_select_row = last_select_row;
-            max_select_row = first_select_row;
+    let depth = m
+        .first_select_cell
+        .clone()
+        .map(|c| c.row_cols.len())
+        .unwrap_or(std::usize::MAX);
+    let is_selected = match (
+        m.first_select_cell
+            .clone()
+            .and_then(|c| c.row_cols.get(depth - 1).cloned()),
+        m.last_select_cell
+            .clone()
+            .and_then(|c| c.row_cols.get(depth - 1).cloned()),
+    ) {
+        (_, _) if coord.row_cols.len() < depth => false,
+        (Some((first_row, first_col)), Some((last_row, last_col))) => {
+            let current_cell = if coord.row_cols.len() > depth {
+                coord.truncate(depth).unwrap_or(coord.clone())
+            } else {
+                coord.clone()
+            };
+            let row_range = if first_row.get() > last_row.get() {
+                (last_row.get()..=first_row.get())
+            // (a..=b) is shorthand for an integer Range that's inclusive of lower and upper bounds
+            } else {
+                (first_row.get()..=last_row.get())
+            };
+            let col_range = if first_col.get() > last_col.get() {
+                (last_col.get()..=first_col.get())
+            } else {
+                (first_col.get()..=last_col.get())
+            };
+            info! {"current: {}, row_range: {:?}, col_range: {:?}", current_cell.to_string(), row_range, col_range};
+            row_range.contains(&current_cell.row().get())
+                && col_range.contains(&current_cell.col().get())
         }
-        if first_select_col < last_select_col {
-            min_select_col = first_select_col;
-            max_select_col = last_select_col;
-        } else {
-            min_select_col = last_select_col;
-            max_select_col = first_select_col;
-        }
-    }
+        _ => false,
+    };
+    info! {"is_selected: {}, {}, ({} {})", depth, is_selected, m.first_select_cell.as_ref().map(|c| c.to_string()).unwrap_or_default(), m.last_select_cell.as_ref().map(|c| c.to_string()).unwrap_or_default()};
+
     let has_lookup_prefix: bool = value.clone() == "$";
     let current_coord = coord.clone();
     let drag_coord = coord.clone();
+    let shift_key_pressed = m.shift_key_pressed;
 
     html! {
         <div
@@ -535,8 +545,7 @@ pub fn view_input_grammar(
             style={ get_style(&m, &coord) }>
             <div contenteditable=true
                 class={ format!{ "cell-data {} {}", active_cell_class,
-                if min_select_row <= coord.row().get() && coord.row().get() <= max_select_row
-                && min_select_col <= coord.col().get() && coord.col().get() <= max_select_col {
+                if is_selected {
                     "selection"
                 } else {
                     ""
@@ -556,7 +565,6 @@ pub fn view_input_grammar(
                         // }
                         Action::Noop
                     } else if e.code() == "Space" && has_lookup_prefix {
-                        info!{"toggling lookup"}
                         Action::ToggleLookup(current_coord.clone())
                     } else if e.key() == "g" && e.ctrl_key() && is_active {
                         Action::AddNestedGrid(current_coord.clone(), (3, 3))
@@ -565,24 +573,25 @@ pub fn view_input_grammar(
                 oninput=m.link.callback(move |e : InputData| Action::ChangeInput(coord.clone(), e.value))
                 onclick=m.link.callback(move |e : ClickEvent| {
                     if e.shift_key() {
-                        Action::SetSelectedCells(shift_select_cell.clone())
-                    } else { Action::Noop }})
-                onfocus=m.link.callback(move |e : FocusEvent| Action::SetActiveCell(new_active_cell.clone()))
+                        Action::Select(SelectMsg::End(shift_select_cell.clone()))
+                    } else {
+                        Action::Select(SelectMsg::Start(shift_select_cell.clone()))
+                    }
+                })
+                onfocus=m.link.callback(move |e : FocusEvent| {
+                    if !shift_key_pressed {
+                        Action::SetActiveCell(new_active_cell.clone())
+                    } else {
+                        Action::Noop
+                    }
+                })
                 onmousedown=m.link.callback(move |e: MouseDownEvent| {
-                    // TODO: get this actually working
-                    // Some details:
-                    // - initially used DragStartEvent, but that doesn't get triggered so switched to
-                    // MouseDownEvent
-                    // - now splitting this into multiple events
-                    info!{"drag start"};
+                    // compute the distance from the right and bottom borders that resizing is allowed
                     let (offset_x, offset_y) = {
-                        // compute the distance from the right and bottom borders that resizing is
-                        // allowed
                         let target = HtmlElement::try_from(e.target().unwrap()).unwrap();
                         let rect = target.get_bounding_client_rect();
                         (rect.get_width() - e.offset_x(), rect.get_height() - e.offset_y())
                     };
-                    info!{"offset: {} {}", offset_x, offset_y};
                     let draggable_area = 4.0;
                     if offset_x < draggable_area  || offset_y < draggable_area {
                         Action::Resize(ResizeMsg::Start(drag_coord.clone()))
