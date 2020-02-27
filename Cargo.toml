@@ -18,7 +18,7 @@ itertools = "0.8.2"
 pest = "2.1.2"
 pest_derive = "2.1.0"
 js-sys = "0.3.35"
-node-sys = "0.4.0"
+node-sys = "0.3.0"
 electron-sys = "0.4.0"
 
 # The `console_error_panic_hook` crate provides better debugging of panics by

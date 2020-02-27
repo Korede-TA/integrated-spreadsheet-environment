@@ -520,13 +520,17 @@ impl Component for Model {
             }
 
             Action::LoadSession(file_data) => {
+                use std::str;
+                info!("{}",str::from_utf8(&file_data.content).unwrap());
+                let ses_str = str::from_utf8(&file_data.content).unwrap();
                 let session: Session =
-                    serde_json::from_str(format! {"{:?}", file_data}.deref()).unwrap();
+                    //serde_json::from_str(format! {"{:?}", file_data}.deref()).unwrap();
+                    serde_json::from_str(ses_str).expect("whatever");
                 self.load_session(session);
                 true
             }
             Action::SaveSession() => {
-                /* TODO: uncomment when this is working
+                // TODO: uncomment when this is working
                 use node_sys::fs as node_fs;
                 use node_sys::Buffer;
                 use js_sys::{
@@ -540,7 +544,7 @@ impl Component for Model {
                 let jsbuffer = Buffer::from_string(&JsString::from(j.unwrap()), None);
                 let jscallback = Function::new_no_args("{}");
                 node_fs::append_file(&jsfilename, &jsbuffer, None, &jscallback);
-                */
+                
                 false
             }
 

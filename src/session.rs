@@ -47,6 +47,9 @@ impl Serialize for Style {
         state.serialize_field("border_collapse", &self.border_collapse)?;
         state.serialize_field("font_weight", &self.font_weight)?;
         state.serialize_field("font_color", &self.font_color)?;
+        state.serialize_field("col_span", &self.col_span)?;
+        state.serialize_field("row_span", &self.row_span)?;
+        state.serialize_field("display", &self.display)?;
         state.end()
     }
 }

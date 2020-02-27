@@ -19,6 +19,8 @@ pub struct Style {
     pub col_span: [u32; 2],
     pub row_span: [u32; 2],
     pub display: bool,
+    // if you add more stuff here be sure to add it to
+    // the Serialize impl in session.rs
 }
 js_serializable!(Style);
 js_deserializable!(Style);
