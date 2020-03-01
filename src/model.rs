@@ -382,16 +382,28 @@ impl Component for Model {
                 true
             }
             Action::Select(SelectMsg::End(coord)) => {
-                if let Some(selection_start) = self.first_select_cell.clone() {
+                if let Some(mut selection_start) = self.first_select_cell.clone() {
                     // ensure that selection_start and selection_end have common parent
-                    let common_parent = selection_start.parent();
+                    let mut common_parent = selection_start.parent();
                     let mut selection_end = Some(coord.clone());
-                    while selection_end.clone().and_then(|c| c.parent()) != common_parent {
-                        selection_end = selection_end.and_then(|c| c.parent());
+                    let depth_start = selection_start.row_cols.len();
+                    let depth_end = selection_end.clone().unwrap().row_cols.len();
+                    if depth_start < depth_end {
+                        while selection_end.clone().and_then(|c| c.parent()) != common_parent {
+                            selection_end = selection_end.and_then(|c| c.parent());
+                        }
+                    } else {
+                        common_parent = selection_end.clone().unwrap().parent();
+                        while selection_start.parent() != common_parent {
+                            selection_start = selection_start.parent().unwrap();
+                        }
+                        self.first_select_cell = Some(selection_start.clone());
                     }
                     self.last_select_cell = selection_end;
-                    info!("first_select_cell {:?}", self.first_select_cell.clone().unwrap());
-                    info!("last_select_cell {:?}", self.last_select_cell.clone().unwrap());
+                    // info!("first_select_cell {:?}", self.first_select_cell.clone().unwrap());
+                    // info!("Depth start {}", depth_start);          
+                    // info!("last_select_cell {:?}", self.last_select_cell.clone().unwrap());
+                    // info!("Depth end {}", depth_end);
                 }
                 true
             }
