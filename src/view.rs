@@ -584,7 +584,7 @@ pub fn view_input_grammar(
                             } else if e.code() == "Space" && has_lookup_prefix {
 
                                 Action::ToggleLookup(current_coord.clone())
-                            } else if e.key() == "g" && e.ctrl_key() && is_active {
+                            } else if (e.code() == "KeyG") && e.ctrl_key() && is_active {
                                 Action::AddNestedGrid(current_coord.clone(), (3, 3))
                             } else { Action::Noop }
                         })

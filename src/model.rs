@@ -390,6 +390,8 @@ impl Component for Model {
                         selection_end = selection_end.and_then(|c| c.parent());
                     }
                     self.last_select_cell = selection_end;
+                    info!("first_select_cell {:?}", self.first_select_cell.clone().unwrap());
+                    info!("last_select_cell {:?}", self.last_select_cell.clone().unwrap());
                 }
                 true
             }
