@@ -579,7 +579,6 @@ pub fn view_input_grammar(
                     } else {
                         (first_col.get()..=last_col.get())
                     };
-                    info! {"current: {}, row_range: {:?}, col_range: {:?}", current_cell.to_string(), row_range, col_range};
                     row_range.contains(&current_cell.row().get())
                         && col_range.contains(&current_cell.col().get())
                 }
@@ -714,6 +713,46 @@ pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordina
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
             { nodes }
+        </div>
+    }
+}
+
+pub fn view_context_menu(m: &Model) -> Html {
+    let default_options = vec![
+        ("Save", m.link.callback(|_| Action::SaveSession())),
+        ("Zoom In (+)", m.link.callback(|_| Action::ZoomIn)),
+        ("Zoom Reset", m.link.callback(|_| Action::ZoomReset)),
+        ("Zoom Out (-)", m.link.callback(|_| Action::ZoomOut)),
+        ("Reset", m.link.callback(|_| Action::Recreate)),
+        ("Insert Row", m.link.callback(|_| Action::InsertRow)),
+        ("Insert Col", m.link.callback(|_| Action::InsertCol)),
+        ("Merge", m.link.callback(|_| Action::MergeCells())),
+        ("Delete Row", m.link.callback(|_| Action::DeleteRow)),
+        ("Delete Col", m.link.callback(|_| Action::DeleteCol)),
+    ];
+    let option_nodes = {
+        let mut v = VList::new();
+        for (option_name, option_action) in default_options {
+            v.add_child(html! {
+                <li class="context-menu-option" onclick=option_action>
+                    { option_name }
+                </li>
+            });
+        }
+        v
+    };
+
+    let position_style = if let Some((left, top)) = m.context_menu_position {
+        format! {"display: block; top: {}px; left: {}px", top, left}
+    } else {
+        format! {"display: none;"}
+    };
+
+    html! {
+        <div class="context-menu" style=position_style>
+            <ul class="context-menu-options">
+                {option_nodes}
+            </ul>
         </div>
     }
 }

@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::option::Option;
+use stdweb::traits::IEvent;
 use stdweb::unstable::TryInto;
 use stdweb::web::{document, IElement, INode, IParentNode};
 use wasm_bindgen::JsValue;
@@ -18,7 +19,7 @@ use crate::grammar::{Grammar, Kind, Lookup};
 use crate::session::Session;
 use crate::style::Style;
 use crate::util::{move_grammar, non_zero_u32_tuple, resize, resize_diff};
-use crate::view::{view_grammar, view_menu_bar, view_side_nav, view_tab_bar};
+use crate::view::{view_context_menu, view_grammar, view_menu_bar, view_side_nav, view_tab_bar};
 use crate::{coord, coord_col, coord_row, row_col_vec};
 
 #[derive(Parser)]
@@ -49,6 +50,7 @@ pub struct Model {
     pub resizing: Option<Coordinate>,
     pub link: ComponentLink<Model>,
     pub default_nested_row_cols: (NonZeroU32, NonZeroU32),
+    pub context_menu_position: Option<(f64, f64)>,
     console: ConsoleService,
     reader: ReaderService,
     tasks: Vec<ReaderTask>,
@@ -132,6 +134,9 @@ pub enum Action {
 
     // Alerts and stuff
     Alert(String),
+
+    ShowContextMenu((f64, f64)),
+    HideContextMenu,
 }
 
 impl Model {
@@ -327,6 +332,8 @@ impl Component for Model {
             shift_key_pressed: false,
 
             default_nested_row_cols: non_zero_u32_tuple((3, 3)),
+
+            context_menu_position: None,
         };
         // load suggestions from
         m.meta_suggestions = m
@@ -1110,6 +1117,17 @@ impl Component for Model {
                 self.default_nested_row_cols = row_col;
                 false
             }
+
+            Action::ShowContextMenu(pos) => {
+                info! {"context menu"}
+                self.context_menu_position = Some(pos);
+                true
+            }
+
+            Action::HideContextMenu => {
+                self.context_menu_position = None;
+                true
+            }
         };
 
         self.meta_suggestions = self
@@ -1147,19 +1165,24 @@ impl Component for Model {
 
                 <div class="main">
                     <div id="grammars" class="grid-wrapper" style={zoom}
+                        // context menu
+                        oncontextmenu=self.link.callback(move |e: ContextMenuEvent| {
+                            e.prevent_default();
+                            Action::ShowContextMenu((e.client_x() as f64, e.client_y() as f64))
+                        })
                         // Global Keyboard shortcuts
-                        onkeypress=self.link.callback(move |e : KeyPressEvent| {
+                        onkeypress=self.link.callback(move |e: KeyPressEvent| {
                             Action::Noop
                         })
                         // Global Key toggles
-                        onkeydown=self.link.callback(move |e : KeyDownEvent| {
+                        onkeydown=self.link.callback(move |e: KeyDownEvent| {
                             if e.key() == "Shift" {
                                 Action::ToggleShiftKey(true)
                             } else {
                                 Action::Noop
                             }
                         })
-                        onkeyup=self.link.callback(move |e : KeyUpEvent| {
+                        onkeyup=self.link.callback(move |e: KeyUpEvent| {
                             if e.key() == "Shift" {
                                 Action::ToggleShiftKey(false)
                             } else {
@@ -1167,14 +1190,14 @@ impl Component for Model {
                             }
                         })
                         // Global Mouse event/toggles
-                        onmouseup=self.link.callback(move |e : MouseUpEvent| {
+                        onmouseup=self.link.callback(move |e: MouseUpEvent| {
                             if is_resizing.clone() {
                                 Action::Resize(ResizeMsg::End)
                             } else {
                                 Action::Noop
                             }
                         })
-                        onmousemove=self.link.callback(move |e : MouseMoveEvent| {
+                        onmousemove=self.link.callback(move |e: MouseMoveEvent| {
                             if is_resizing.clone() {
                                 if e.movement_x().abs() > e.movement_y().abs() {
                                     Action::Resize(ResizeMsg::X(e.movement_x() as f64))
@@ -1184,10 +1207,15 @@ impl Component for Model {
                             } else {
                                 Action::Noop
                             }
-                        })>
+                        })
+                        /*onclick=self.link.callback(move |e: ClickEvent| {
+                            Action::HideContextMenu
+                        })*/>
                         { view_grammar(&self, coord!{"root"}) }
                     </div>
                 </div>
+
+                { view_context_menu(&self) }
             </div>
         }
     }
