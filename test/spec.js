@@ -2,9 +2,10 @@ const Application = require('spectron').Application
 const assert = require('assert')
 const electronPath = require('electron') // Require Electron from the binaries included in node_modules.
 const path = require('path')
-
+console.log(electronPath);
+console.log([path.join(__dirname, '..', 'dist/main.js')]);
 describe('Application launch', function () {
-  this.timeout(10000)
+  this.timeout(20000)
 
   beforeEach(function () {
     this.app = new Application({
@@ -26,22 +27,26 @@ describe('Application launch', function () {
 
       // The following line tells spectron to look and use the main.js file
       // and the package.json located 1 level above.
-      args: 'dist/main.js'
+      args: [path.join(__dirname, '..', 'dist/main.js')]
     })
+    
     return this.app.start()
   })
 
   afterEach(function () {
+    this.timeout(20000)
     if (this.app && this.app.isRunning()) {
       return this.app.stop()
     }
   })
 
   it('shows an initial window', function () {
+    this.timeout(20000)
     return this.app.client.getWindowCount().then(function (count) {
-      assert.equal(count, 1)
+      assert.equal(count, 2)
       // Please note that getWindowCount() will return 2 if `dev tools` are opened.
       // assert.equal(count, 2)
     })
+    
   })
 })
