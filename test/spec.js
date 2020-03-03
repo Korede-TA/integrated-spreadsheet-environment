@@ -2,6 +2,9 @@ const Application = require('spectron').Application
 const assert = require('assert')
 const electronPath = require('electron') // Require Electron from the binaries included in node_modules.
 const path = require('path')
+fs = require('fs');
+var model = "";
+
 console.log(electronPath);
 console.log([path.join(__dirname, '..', 'dist/main.js')]);
 describe('Application launch', function () {
@@ -29,24 +32,39 @@ describe('Application launch', function () {
       // and the package.json located 1 level above.
       args: [path.join(__dirname, '..', 'dist/main.js')]
     })
-    
-    return this.app.start()
+
+    return this.app.start().then(() => {
+      this.app.client.waitUntilTextExists('#model')
+    })
   })
 
   afterEach(function () {
-    this.timeout(20000)
+    this.timeout(20000);
+    console.log("model");
+    console.log(model);
+    console.log(this.app.client.getText("#model"));
     if (this.app && this.app.isRunning()) {
       return this.app.stop()
     }
   })
 
   it('shows an initial window', function () {
-    this.timeout(20000)
     return this.app.client.getWindowCount().then(function (count) {
       assert.equal(count, 2)
       // Please note that getWindowCount() will return 2 if `dev tools` are opened.
       // assert.equal(count, 2)
     })
-    
+
+  })
+
+  it('Test Values', function () {
+    return this.app.client.once('ready-to-show', function () {
+      this.app.getText("model").then(function (text) {
+        console.log(text);
+        assert.equal(2, 2)
+        // Please note that getWindowCount() will return 2 if `dev tools` are opened.
+        // assert.equal(count, 2)
+      })
+    })
   })
 })
