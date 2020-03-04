@@ -49,6 +49,8 @@ pub struct Model {
     pub resizing: Option<Coordinate>,
     pub link: ComponentLink<Model>,
     pub default_nested_row_cols: (NonZeroU32, NonZeroU32),
+    pub default_definition_name: String,
+    pub mouse_cursor: CursorType,
     console: ConsoleService,
     reader: ReaderService,
     tasks: Vec<ReaderTask>,
@@ -65,6 +67,13 @@ pub enum ResizeMsg {
     X(f64),
     Y(f64),
     End,
+}
+
+#[derive(Debug)]
+pub enum CursorType {
+    NS,
+    EW,
+    Default,
 }
 
 pub enum SelectMsg {
@@ -114,6 +123,7 @@ pub enum Action {
     ZoomReset,
 
     Resize(ResizeMsg),
+    SetCursorType(CursorType),
     Select(SelectMsg),
 
     Lookup(
@@ -123,6 +133,8 @@ pub enum Action {
     MergeCells(),
 
     ChangeDefaultNestedGrid((NonZeroU32, NonZeroU32)),
+
+    ChangeDefaultDefinitionName(String),
 
     ToggleLookup(Coordinate),
 
@@ -327,6 +339,10 @@ impl Component for Model {
             shift_key_pressed: false,
 
             default_nested_row_cols: non_zero_u32_tuple((3, 3)),
+
+            default_definition_name: "".to_string(),
+
+            mouse_cursor: CursorType::Default,
         };
         // load suggestions from
         m.meta_suggestions = m
@@ -1018,17 +1034,25 @@ impl Component for Model {
                     ResizeMsg::X(offset_x) => {
                         if let Some(coord) = self.resizing.clone() {
                             resize_diff(self, coord, 0.0, offset_x);
+                            self.mouse_cursor = CursorType::EW;
                         }
                     }
                     ResizeMsg::Y(offset_y) => {
                         if let Some(coord) = self.resizing.clone() {
                             resize_diff(self, coord, offset_y, 0.0);
+                            self.mouse_cursor = CursorType::NS;
                         }
                     }
                     ResizeMsg::End => {
                         self.resizing = None;
+                        self.mouse_cursor = CursorType::Default;
                     }
                 }
+                true
+            }
+
+            Action::SetCursorType(cursor_type) => {
+                self.mouse_cursor = cursor_type;
                 true
             }
 
@@ -1078,7 +1102,7 @@ impl Component for Model {
              * 3) Defining how grammars connect with respective drivers and have values evaluated
              *    and passed back to the interface.
              */
-            Action::AddDefinition(coord, name) => {
+            Action::AddDefinition(coord, defn_name) => {
                 // adds a new grammar or sub-grammar to the meta
                 let max_a_row =
                     self.query_col(coord_col!("meta", "A"))
@@ -1090,14 +1114,16 @@ impl Component for Model {
                                 max_a_row
                             }
                         });
+                let defn_meta_sub_coord = non_zero_u32_tuple((max_a_row + 1, 1));
                 if let Kind::Grid(sub_coords) = &mut self.get_session_mut().meta.kind {
-                    sub_coords.push(non_zero_u32_tuple((1, max_a_row + 1)));
+                    sub_coords.push(defn_meta_sub_coord.clone());
                 }
-                move_grammar(
-                    &mut self.get_session_mut().grammars,
-                    coord,
-                    Coordinate::child_of(&(coord!("meta")), non_zero_u32_tuple((1, max_a_row + 1))),
-                );
+                let defn_coord = Coordinate::child_of(&(coord!("meta")), defn_meta_sub_coord);
+                if let Some(g) = &mut self.get_session_mut().grammars.get(&defn_coord).cloned() {
+                    g.name = defn_name;
+                }
+                info! {"Adding Definition: {} to {}", coord.to_string(), defn_coord.to_string()};
+                move_grammar(&mut self.get_session_mut().grammars, coord, defn_coord);
                 true
             }
 
@@ -1108,6 +1134,11 @@ impl Component for Model {
 
             Action::ChangeDefaultNestedGrid(row_col) => {
                 self.default_nested_row_cols = row_col;
+                false
+            }
+
+            Action::ChangeDefaultDefinitionName(name) => {
+                self.default_definition_name = name;
                 false
             }
         };
@@ -1135,7 +1166,12 @@ impl Component for Model {
     fn view(&self) -> Html {
         let _active_cell = self.active_cell.clone();
         let is_resizing = self.resizing.is_some();
-        let zoom = "zoom:".to_string() + &self.zoom.to_string();
+        let zoom = format! { "zoom: {};", &self.zoom };
+        let cursor = format! { "cursor: {};", match self.mouse_cursor {
+            CursorType::NS => "ns-resize",
+            CursorType::EW => "ew-resize",
+            CursorType::Default => "default",
+        }};
         html! {
             <div>
 
@@ -1146,7 +1182,7 @@ impl Component for Model {
                 { view_tab_bar(&self) }
 
                 <div class="main">
-                    <div id="grammars" class="grid-wrapper" style={zoom}
+                    <div id="grammars" class="grid-wrapper" style={zoom+&cursor}
                         // Global Keyboard shortcuts
                         onkeypress=self.link.callback(move |e : KeyPressEvent| {
                             Action::Noop
