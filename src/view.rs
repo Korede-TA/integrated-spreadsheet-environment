@@ -158,37 +158,37 @@ pub fn view_menu_bar(m: &Model) -> Html {
                     }
                 }>
             </input>
-            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::SaveSession()) >
+            <button id="SaveSession" class="menu-bar-button" onclick=m.link.callback(|_| Action::SaveSession()) >
                 { "Save" }
             </button>
             <button class="menu-bar-button">
                 { "Git" }
             </button>
-            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::ZoomIn)>
+            <button id="ZoomIn" class="menu-bar-button" onclick=m.link.callback(|_| Action::ZoomIn)>
                 { "Zoom In (+)" }
             </button>
-            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::ZoomReset)>
+            <button id="ZoomReset" class="menu-bar-button" onclick=m.link.callback(|_| Action::ZoomReset)>
                 { "Zoom Reset" }
             </button>
-            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::ZoomOut)>
+            <button id="ZoomOut" class="menu-bar-button" onclick=m.link.callback(|_| Action::ZoomOut)>
                 { "Zoom Out (-)" }
             </button>
-            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::Recreate)>
+            <button id="Reset" class="menu-bar-button" onclick=m.link.callback(|_| Action::Recreate)>
                 { "Reset" }
             </button>
-            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::InsertRow)>
-                { "Insert Row" }
+            <button id="InsertRow" class="menu-bar-button" onclick=m.link.callback(|_| Action::InsertRow)>
+                { "InsertRow" }
             </button>
-            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::InsertCol)>
+            <button id="InsertCol" class="menu-bar-button" onclick=m.link.callback(|_| Action::InsertCol)>
                 { "Insert Column" }
             </button>
-            <button class="menu-bar-button" onclick=m.link.callback(move |_ : ClickEvent| Action::MergeCells())>
+            <button id="Merge" class="menu-bar-button" onclick=m.link.callback(move |_ : ClickEvent| Action::MergeCells())>
                 { "Merge" }
             </button>
-            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::DeleteRow)>
+            <button id="DeleteRow" class="menu-bar-button" onclick=m.link.callback(|_| Action::DeleteRow)>
                 { "Delete Row" }
             </button>
-            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::DeleteCol)>
+            <button id="DeleteCol" class="menu-bar-button" onclick=m.link.callback(|_| Action::DeleteCol)>
                 { "Delete Column" }
             </button>
         </div>
