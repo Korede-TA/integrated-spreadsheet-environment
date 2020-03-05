@@ -4,8 +4,6 @@ const electronPath = require('electron') // Require Electron from the binaries i
 const path = require('path')
 fs = require('fs');
 
-console.log(electronPath);
-console.log([path.join(__dirname, '..', 'dist/main.js')]);
 describe('Application launch', function () {
   this.timeout(20000)
 
@@ -36,7 +34,6 @@ describe('Application launch', function () {
     return this.app.start().then(() => {
       this.app.client.waitUntilTextExists('#model').then(() => {
         this.model = JSON.stringify(this.app.getText("#model"));
-        console.log(this.model);
       })
     })
   })
@@ -46,9 +43,6 @@ describe('Application launch', function () {
   console.log(this.model);
   after(function () {
     this.timeout(20000);
-    console.log("model");
-    console.log(this.model);
-    console.log(this.app.client.getText("#model"));
     if (this.app && this.app.isRunning()) {
       return this.app.stop()
     }
@@ -63,12 +57,13 @@ describe('Application launch', function () {
 
   })
 
-  it('Reset', function () {
+  it('Reset button', function () {
     var temp = this.model;
-    this.app.client.click('.Reset');
+    this.app.client.click('#Reset');
     this.app.client.waitUntilTextExists('#model').then(() => {
-        this.model = JSON.stringify(this.app.getText("#model"));
-        return assert.equal(temp, this.model)
+        return this.app.getText("#model").then(function (model) {
+              assert.equal(1, JSON.stringify(model))
+        })
       })
 
   })
