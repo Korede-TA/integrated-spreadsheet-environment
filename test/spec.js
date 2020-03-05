@@ -3,7 +3,7 @@ const assert = require('assert')
 const electronPath = require('electron') // Require Electron from the binaries included in node_modules.
 const path = require('path')
 fs = require('fs');
-
+var Modele;
 describe('Application launch', function () {
   this.timeout(20000)
 
@@ -31,24 +31,31 @@ describe('Application launch', function () {
     })
 
     //many webdriverIO (app.client) methods not available on returned value
-    return this.app.start().then(() => {
+    return this.app.start().then(async () => {
       this.app.client.waitUntilTextExists('#model').then(() => {
-        this.model = JSON.stringify(this.app.getText("#model"));
+        this.model = JSON.stringify(this.app.client.$("#model"));
+        this.temp = this.model.clone();
       })
     })
   })
   // beforeEach(function () {
   //   this.app.client.click 
   // })
-  console.log(this.model);
+
   after(function () {
-    this.timeout(20000);
     if (this.app && this.app.isRunning()) {
       return this.app.stop()
     }
   })
 
+  afterEach(function () {
+    this.app.client.click('#Reset');
+    this.model = JSON.stringify(this.app.client.$("#model"));
+  })
+
+
   it('shows an initial window', function () {
+    console.log(this.model);
     return this.app.client.getWindowCount().then(function (count) {
       assert.equal(count, 2)
       // Please note that getWindowCount() will return 2 if `dev tools` are opened.
@@ -57,18 +64,17 @@ describe('Application launch', function () {
 
   })
 
-  it('Reset button', function () {
-    var temp = this.model;
+  it('Reset button', async function () {
+    
+    this.temp = JSON.stringify(this.app.client.$("#model"));
     this.app.client.click('#Reset');
-    this.app.client.waitUntilTextExists('#model').then(() => {
-        return this.app.getText("#model").then(function (model) {
-              assert.equal(1, JSON.stringify(model))
-        })
-      })
+    this.model = JSON.stringify(this.app.client.$("#model"));
+    return assert.equal(this.temp, this.model)
 
   })
 
   // it('shows Buttons', function () {
+
   //   return this.app.client.getWindowCount().then(function (count) {
   //     assert.equal(count, 2)
   //     // Please note that getWindowCount() will return 2 if `dev tools` are opened.
