@@ -4,6 +4,7 @@ use std::option::Option;
 use crate::coordinate::Coordinate;
 use crate::grammar::Kind;
 use crate::model::Model;
+// use crate::style::Style;
 
 // Style contains the relevant CSS properties for styling
 // a grammar Cell or Grid
@@ -53,9 +54,15 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
         .expect("no grammar with this coordinate");
     // ignore root or meta
     if coord.row_cols.len() == 1 {
+        info!(" gettt stylllleeee1 {:?}", grammar.style(coord));
         return grammar.style(coord);
+        
     }
     if let Kind::Grid(_) = grammar.kind {
+        info!(" gettt stylllleeee2 {:?}", format! {
+            "{}\nwidth: fit-content;\nheight: fit-content;\n",
+            grammar.style(coord),
+        });
         return format! {
             "{}\nwidth: fit-content;\nheight: fit-content;\n",
             grammar.style(coord),
@@ -63,8 +70,27 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
     }
     let col_width = model.col_widths.get(&coord.full_col()).unwrap_or(&90.0);
     let row_height = model.row_heights.get(&coord.full_row()).unwrap_or(&30.0);
+    info!(" gettt stylllleeee {:?}", format! {
+        "{}\nwidth: {}px;\nheight: {}px;\n",
+        grammar.style(coord), col_width, row_height,
+    });
     format! {
         "{}\nwidth: {}px;\nheight: {}px;\n",
         grammar.style(coord), col_width, row_height,
     }
+}
+
+#[cfg(test)]
+mod tests {
+    // Note this useful idiom: importing names from outer (for mod tests) scope.
+    use super::*;
+
+    #[test]
+    fn test_style_to_string() {
+        assert_eq!(Style::default().to_string(),  
+            "/* border: 1px; NOTE: ignoring Style::border_* for now */
+    border-collapse: inherit;
+    font-weight: 400;
+    color: black;\n" )
+}
 }
