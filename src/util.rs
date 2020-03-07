@@ -306,3 +306,34 @@ mod tests {
         unimplemented!();
     }
 }
+
+/* TODO: get this working so w can color code lookups
+pub fn rainbow_stop(h: i32) -> String {
+    let f = |n| {
+        let k = (n + h * 12) % 12;
+        0.5 - (0.5
+            * (vec![vec![k - 3, 9 - k, 1].iter().min().cloned().unwrap(), -1]
+                .iter()
+                .max()
+                .cloned()
+                .unwrap() as f64))
+    };
+    let rgb2hex = |r, g, b: f64| {
+        format! {
+            "#{}",
+            vec![r,g,b].iter().map(|x : &f64| {
+                let (upper, lower) = {
+                    let v : f64 = (x*255.0).round();
+                    ((v/16.0).round() as u32, (v%16.0).round() as u32)
+                };
+                format!{
+                    "{:?}{:?}",
+                    std::char::from_digit(upper, 16), std::char::from_digit(lower, 16),
+                }
+            }).collet().join("")
+        }
+    };
+    rgb2hex(f(0), f(8), f(4))
+}
+*/
+

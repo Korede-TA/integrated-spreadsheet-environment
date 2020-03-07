@@ -14,7 +14,7 @@ use crate::util::{coord_show, non_zero_u32_tuple};
 pub struct CoordinateParser;
 
 // Coordinate specifies the nested coordinate structure
-#[derive(Deserialize, PartialEq, Eq, Debug, Hash, Clone)]
+#[derive(Deserialize, PartialEq, Eq, Debug, Hash, Clone, Default)]
 pub struct Coordinate {
     pub row_cols: Vec<(NonZeroU32, NonZeroU32)>, // TEST: should never be empty list
 }
@@ -27,7 +27,6 @@ impl Coordinate {
     pub fn child_of(parent: &Self, child_coord: (NonZeroU32, NonZeroU32)) -> Coordinate {
         let mut new_row_col = parent.clone().row_cols;
         new_row_col.push(child_coord);
-        info! {"parent and child val: (pa: {:?}, child: {:?}, fin {:?});", parent, child_coord, new_row_col};
         Coordinate {
             row_cols: new_row_col,
         }
@@ -51,7 +50,24 @@ impl Coordinate {
         Some(parent)
     }
 
-    // TEST: to_string(coord!("root-A1-B2-B3")) == "root-A1-B2-B3"
+    pub fn truncate(&self, n: usize) -> Option<Coordinate> {
+        if self.row_cols.len() <= n {
+            return None;
+        }
+
+        let truncated = {
+            let mut temp = self.clone();
+            temp.row_cols.truncate(n);
+            temp
+        };
+
+        Some(truncated)
+    }
+
+    pub fn row_col(&self) -> (NonZeroU32, NonZeroU32) {
+        self.row_cols.last().unwrap().clone()
+    }
+
     pub fn to_string(&self) -> String {
         coord_show(
             self.row_cols
@@ -97,18 +113,8 @@ impl Coordinate {
     // - row_to_string(coord!("root-A1-B2-B3")) = "root-A1-B2-3"
     pub fn row_to_string(&self) -> String {
         if let Some(parent) = self.parent() {
-            info!(
-                "row to str {:?}, {:?}",
-                format! {"{}-{}", parent.to_string(), self.row().get()},
-                self
-            );
             format! {"{}-{}", parent.to_string(), self.row().get()}
         } else {
-            info!(
-                " row to str22 {:?}, {:?}",
-                format! {"{}", self.row().get()},
-                self
-            );
             format! {"{}", self.row().get()}
         }
     }
@@ -273,7 +279,6 @@ impl Eq for Col {}
 macro_rules! coord {
     ( $coord_str:tt ) => {{
         let mut fragments: Vec<(NonZeroU32, NonZeroU32)> = Vec::new();
-
         let pairs = CoordinateParser::parse(Rule::coordinate, $coord_str)
             .unwrap_or_else(|e| panic!("{}", e));
 
