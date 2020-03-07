@@ -286,26 +286,6 @@ mod tests {
         // unimplemented!();
     }
 
-    #[test]
-    fn test_apply_definition_grammar() { // will be tested on Integration
-        unimplemented!();
-    }
-
-    #[test]
-    fn test_resize() { // will be tested on Integration
-        unimplemented!();
-    }
-
-    #[test]
-    fn test_resize_diff() { // will be tested on Integration
-        unimplemented!();
-    }
-
-    #[test]
-    fn test_dom_resize() { // will be tested on Integration
-        unimplemented!();
-    }
-}
 
 /* TODO: get this working so w can color code lookups
 pub fn rainbow_stop(h: i32) -> String {
@@ -336,4 +316,3 @@ pub fn rainbow_stop(h: i32) -> String {
     rgb2hex(f(0), f(8), f(4))
 }
 */
-
