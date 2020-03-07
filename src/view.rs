@@ -178,12 +178,15 @@ pub fn view_menu_bar(m: &Model) -> Html {
                 class="active-cell-indicator"
                 placeholder="Col"
                 size="3"
-                oninput=m.link.callback(move |e: InputData| {
-                    if let Ok (col) = e.value.parse::<i32>() {
-                        Action::ChangeDefaultNestedGrid(non_zero_u32_tuple((default_row, (col as u32))))
-                    } else {
-                        Action::Noop
+                onchange=m.link.callback(move |e: ChangeData| {
+                    if let ChangeData::Value(value) = e {
+                        if let Ok (col) = value.parse::<i32>() {
+                            return Action::ChangeDefaultNestedGrid(
+                                non_zero_u32_tuple((default_row, (col as u32)))
+                            );
+                        }
                     }
+                    Action::Noop
                 })
                 onclick=m.link.callback(|e: ClickEvent| { e.prevent_default(); Action::Noop })
                 value={default_col}>
@@ -260,8 +263,11 @@ pub fn view_menu_bar(m: &Model) -> Html {
                     placeholder="Name"
                     size="10"
                     disabled={ !can_add_definition }
-                    oninput=m.link.callback(move |e: InputData| {
-                        Action::ChangeDefaultDefinitionName(e.value)
+                    onchange=m.link.callback(move |e: ChangeData| {
+                        if let ChangeData::Value(value) = e {
+                            return Action::ChangeDefaultDefinitionName(value);
+                        }
+                        Action::Noop
                     })
                     onclick=m.link.callback(|e: ClickEvent| { e.prevent_default(); Action::Noop })
                     value={"".to_string()}>
@@ -385,7 +391,7 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
             Kind::Interactive(name, Interactive::Button()) => {
                 html! {
                     <div
-                        class=format!{"cell row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
+                        class=format!{"cell interactive row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
                         id=format!{"cell-{}", coord.to_string()}
                         style={ get_style(&m, &coord) }>
                         <button>
@@ -397,7 +403,7 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
             Kind::Interactive(name, Interactive::Slider(value, min, max)) => {
                 html! {
                     <div
-                        class=format!{"cell row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
+                        class=format!{"cell interactive row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
                         id=format!{"cell-{}", coord.to_string()}
                         style={ get_style(&m, &coord) }>
                         <input type="range" min={min} max={max} value={value}>
@@ -409,7 +415,7 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
             Kind::Interactive(name, Interactive::Toggle(checked)) => {
                 html! {
                     <div
-                        class=format!{"cell row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
+                        class=format!{"cell interactive row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
                         id=format!{"cell-{}", coord.to_string()}
                         style={ get_style(&m, &coord) }>
                         <input type="checkbox" checked={checked}>
@@ -545,10 +551,10 @@ pub fn view_lookup_grammar(
     let can_toggle: bool = value.clone().deref() == "";
     html! {
         <div
-            class=format!{"cell suggestion row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
+            class=format!{"cell suggestion lookup row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
-            <b>{ "$" }</b>
+            <b style="font-size: 20px;">{ "$" }</b>
             <div contenteditable=true
                 class=format!{
                         "cell-data {}",
@@ -589,11 +595,8 @@ pub fn view_input_grammar(
     let first_suggestion_ref = NodeRef::default();
     let suggestions = if value.clone() != "" && is_active {
         let mut suggestion_nodes = VList::new();
-        let is_first_suggestion = true;
+        let mut is_first_suggestion = true;
         for (s_coord, s_grammar) in suggestions {
-            if !s_grammar.name.contains(value.clone().deref()) {
-                continue;
-            }
             let c = coord.clone();
             suggestion_nodes.add_child(html! {
                     <a 
@@ -607,6 +610,7 @@ pub fn view_input_grammar(
                         { &s_grammar.name }
                     </a>
                 });
+            is_first_suggestion = false;
         }
         html! {
             <div class="suggestion-content">

@@ -143,6 +143,30 @@ impl Grammar {
         }
     }
 
+    pub fn default_button() -> Grammar {
+        Grammar {
+            name: "button".to_string(),
+            style: Style::default(),
+            kind: Kind::Interactive("".to_string(), Interactive::Button()),
+        }
+    }
+
+    pub fn default_slider() -> Grammar {
+        Grammar {
+            name: "slider".to_string(),
+            style: Style::default(),
+            kind: Kind::Interactive("".to_string(), Interactive::Slider(0.0, 0.0, 100.0)),
+        }
+    }
+
+    pub fn default_toggle() -> Grammar {
+        Grammar {
+            name: "toggle".to_string(),
+            style: Style::default(),
+            kind: Kind::Interactive("".to_string(), Interactive::Toggle(false)),
+        }
+    }
+
     pub fn as_grid(rows: NonZeroU32, cols: NonZeroU32) -> Grammar {
         let mut grid: Vec<(NonZeroU32, NonZeroU32)> = Vec::new();
         for i in 1..(rows.get() + 1) {
