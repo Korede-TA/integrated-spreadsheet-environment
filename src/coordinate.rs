@@ -22,8 +22,6 @@ js_serializable!(Coordinate);
 js_deserializable!(Coordinate);
 
 impl Coordinate {
-    // TEST:
-    // - parent.row_cols.len() == result.row_cols.len() - 1
     pub fn child_of(parent: &Self, child_coord: (NonZeroU32, NonZeroU32)) -> Coordinate {
         let mut new_row_col = parent.clone().row_cols;
         new_row_col.push(child_coord);
@@ -32,10 +30,6 @@ impl Coordinate {
         }
     }
 
-    // TEST:
-    // - test parent(coord!("root")) == None
-    // - test parent(coord!("meta")) == None
-    // - self.row_cols.len() == parent.row_cols.len() + 1
     pub fn parent(&self) -> Option<Coordinate> {
         if self.row_cols.len() == 1 {
             return None;
@@ -78,9 +72,6 @@ impl Coordinate {
         .unwrap()
     }
 
-    // TEST:
-    // - row(coord!("root-A1-B2-B3")).get() == 3
-    // - row(coord!("root-A1-E13-Z3")).get() == 3
     pub fn row(&self) -> NonZeroU32 {
         if let Some(last) = self.row_cols.last() {
             last.0
@@ -98,9 +89,6 @@ impl Coordinate {
         }
     }
 
-    // TEST:
-    // - full_row(coord!("root-A1-B2-B3")).get() == coord_row!("root-A1-B2", "3")
-    // - full_row(coord!("root-A1-E13-Z3")).get() == coord_row!("root-A1-E13", "3")
     pub fn full_row(&self) -> Row {
         Row(
             self.parent()
@@ -109,8 +97,6 @@ impl Coordinate {
         )
     }
 
-    // TEST:
-    // - row_to_string(coord!("root-A1-B2-B3")) = "root-A1-B2-3"
     pub fn row_to_string(&self) -> String {
         if let Some(parent) = self.parent() {
             format! {"{}-{}", parent.to_string(), self.row().get()}
@@ -119,9 +105,6 @@ impl Coordinate {
         }
     }
 
-    // TEST:
-    // - col(coord!("root-A1-B2-B3")).get() == 2
-    // - col(coord!("root-A1-E13-Z3")).get() == 26
     pub fn col(&self) -> NonZeroU32 {
         if let Some(last) = self.row_cols.last() {
             last.1
@@ -160,7 +143,6 @@ impl Coordinate {
     // or None if false
     // Korede Check this
     fn is_n_parent(&self, other: &Self) -> Option<i32> {
-        // info!("n parent 11111123334444 {:?}, {:?}", self, other);
         if self.row_cols.len() > other.row_cols.len() {
             return None;
         }
@@ -178,7 +160,6 @@ impl Coordinate {
     //"root-A1-B2-B3"
     //"root-A1-B2-B2"
     pub fn neighbor_above(&self) -> Option<Coordinate> {
-        info!("selllfff {:?}", self);
         let mut new_row_col = self.clone().row_cols;
         if let Some(last) = new_row_col.last_mut() {
             if last.0.get() > 1 {
@@ -367,9 +348,6 @@ mod tests {
     fn test_parent() {
         assert_eq!(coord!("root").parent(), None);
         assert_eq!(coord!("meta").parent(), None);
-        // assert_eq!(coord!().parent().len(), coord!().parent().len() + 1); //Check with korede for parent
-
-        // unimplemented!();
     }
 
     #[test]
@@ -379,7 +357,6 @@ mod tests {
 
     #[test]
     fn test_row_mut() {
-        // assert_eq!(coord!("root-A1-B2-B3").row().get(), 3); // Test for mutability required
         unimplemented!()
     }
 
@@ -397,23 +374,14 @@ mod tests {
 
     #[test]
     fn test_row_to_string() {
-        // - row_to_string(coord!("root-A1-B2-B3")) = "root-A1-B2-3"
         assert_eq!(coord!("root-A1-B2-B3").row_to_string(), "root-A1-B2-3");
-        // info!("{:?}", coord!("root").row_to_string())
         assert_eq!(coord!("root").row_to_string(), "1");
         assert_eq!(coord!("meta").row_to_string(), "1");
-        // unimplemented!();
     }
 
-    #[test]
-    fn test_is_n_parent() {
-        unimplemented!();
-    }
 
     #[test]
     fn test_neighbor_above() {
-        //"root-A1-B2-B3"
-        //"root-A1-B2-B2"
         assert_eq!(
             coord!("root-A1-B2-B3").neighbor_above().unwrap(),
             coord!("root-A1-B2-B2")
@@ -422,7 +390,6 @@ mod tests {
             coord!("root-A1-B2-B3").neighbor_above().unwrap(),
             coord!("root-A1-B2-B1")
         );
-        // unimplemented!();
     }
 
     #[test]
@@ -435,7 +402,6 @@ mod tests {
             coord!("root-A1-B2-B3").neighbor_below().unwrap(),
             coord!("root-A1-B2-B6")
         );
-        // unimplemented!();
     }
 
     #[test]
@@ -448,7 +414,6 @@ mod tests {
             coord!("root-A1-B2-B3").neighbor_left().unwrap(),
             coord!("root-A1-B2-B6")
         );
-        // unimplemented!();
     }
 
     #[test]
@@ -461,6 +426,5 @@ mod tests {
             coord!("root-A1-B2-B3").neighbor_right().unwrap(),
             coord!("root-A1-B2-C6")
         );
-        // unimplemented!();
     }
 }
