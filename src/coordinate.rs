@@ -354,7 +354,7 @@ mod tests {
 
     #[test]
     // - parent.row_cols.len() == result.row_cols.len() - 1
-    fn test_childOf() {
+    fn test_child_of() {
         // let param = coord!().row_cols.len();
         // assert_eq!(
         //     coord!("root-A1-B2-B3").child_of().len(),
