@@ -519,19 +519,13 @@ pub fn view_input_grammar(
             ) {
                 (_, _) if coord.row_cols.len() < depth => false,
                 (Some((first_row, first_col)), Some((last_row, last_col))) => {
-                    // info!("f-row {}, f-col {}",first_row, first_col);
-                    // info!("l-row {}, l-col {}",last_row, last_col);
-                    // info!("depth {}", depth);
                     let current_cell = if coord.row_cols.len() > depth {
                         coord.truncate(depth).unwrap_or(coord.clone())
                     } else {
                         coord.clone()
                     };
-                    // info!("current_cell {:?}", current_cell);
                     let row_range = (first_row.get()..=last_row.get());
                     let col_range = (first_col.get()..=last_col.get());
-                   
-                    // info! {"current: {}, row_range: {:?}, col_range: {:?}", current_cell.to_string(), row_range, col_range};
                     row_range.contains(&current_cell.row().get())
                         && col_range.contains(&current_cell.col().get())
                 }

@@ -398,11 +398,10 @@ impl Component for Model {
                         while selection_start.parent() != common_parent {
                             selection_start = selection_start.parent().unwrap();
                         }
-                        
-                        // self.first_select_cell = Some(selection_start.clone());
+                    
                     }
-                    // self.last_select_cell = selection_end.clone();
-                 // find the min of row,col and max of row,col in selected region, which may contain a span coord that has smaller or larger row,col
+                 // find the min of row,col and max of row,col in selected region 
+                 // which may contain a span coord that has smaller or larger row,col
                     let (mut start_row, mut start_col) = selection_start.clone().row_col();
                     let (mut end_row, mut end_col) = selection_end.clone().unwrap().row_col();
                     if start_row > end_row {
@@ -422,16 +421,10 @@ impl Component for Model {
                     for (coord, grammar) in ref_grammas.iter() {
                         let (coord_row, coord_col) = coord.clone().row_col();
                         let coord_depth = coord.clone().row_cols.len();
-                        // info!("coord  r-{}, c-{}", coord_row, coord_col);
-                        // info!("coord depth {}", coord_depth);
                         if row_range.contains(&coord_row.get())
                             && col_range.contains(&coord_col.get()) && (coord_depth == depth_check) {
                             let col_span = grammar.clone().style.col_span;
                             let row_span = grammar.clone().style.row_span;
-                            info!("coord  r-{}, c-{}", coord_row, coord_col);
-                            info!("coord depth {}", coord_depth);
-                            info!("col_span {:?}", col_span);
-                            info!("row_span {:?}", row_span);
                             if col_span.0 != 0 {
                                 if col_span.0 < start_col.get() {
                                     start_col = NonZeroU32::new(col_span.0).unwrap();
@@ -451,13 +444,6 @@ impl Component for Model {
                             }
                         }
                     }
-                    info!("start  r-{}, c-{}", start_row, start_col);
-                    info!("end r-{}, c-{}", end_row, end_col);
-                    info!("depth_check {}", depth_check);
-                    // info!("min r-{}, c-{}", start_row, start_col);
-                    // info!("max r-{}, c-{}", end_row, end_col);
-                    // info!("selection_start {:?}", selection_start.clone().row_cols[depth_check - 1]);
-                    // info!("selection_end {:?}", selection_end.clone().unwrap().row_cols[depth_check - 1]);
                     selection_start.row_cols[depth_check - 1] = (start_row, start_col);
                     selection_end.as_mut().unwrap().row_cols[depth_check - 1] = (end_row, end_col);
                     self.first_select_cell = Some(selection_start.clone());
