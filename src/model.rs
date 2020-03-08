@@ -388,6 +388,7 @@ impl Component for Model {
                     let mut selection_end = Some(coord.clone());
                     let depth_start = selection_start.row_cols.len();
                     let depth_end = selection_end.clone().unwrap().row_cols.len();
+                    // depend on which select coord has higher depth, find their common parent
                     if depth_start < depth_end {
                         while selection_end.clone().and_then(|c| c.parent()) != common_parent {
                             selection_end = selection_end.and_then(|c| c.parent());
@@ -397,13 +398,70 @@ impl Component for Model {
                         while selection_start.parent() != common_parent {
                             selection_start = selection_start.parent().unwrap();
                         }
-                        self.first_select_cell = Some(selection_start.clone());
+                        
+                        // self.first_select_cell = Some(selection_start.clone());
                     }
-                    self.last_select_cell = selection_end;
-                    // info!("first_select_cell {:?}", self.first_select_cell.clone().unwrap());
-                    // info!("Depth start {}", depth_start);          
-                    // info!("last_select_cell {:?}", self.last_select_cell.clone().unwrap());
-                    // info!("Depth end {}", depth_end);
+                    // self.last_select_cell = selection_end.clone();
+                 // find the min of row,col and max of row,col in selected region, which may contain a span coord that has smaller or larger row,col
+                    let (mut start_row, mut start_col) = selection_start.clone().row_col();
+                    let (mut end_row, mut end_col) = selection_end.clone().unwrap().row_col();
+                    if start_row > end_row {
+                        let tmp = start_row.clone();
+                        start_row = end_row;
+                        end_row = tmp;
+                    } 
+                    if start_col > end_col {
+                        let tmp = start_col.clone();
+                        start_col = end_col;
+                        end_col = tmp;
+                    }
+                    let row_range = (start_row.get()..=end_row.get());
+                    let col_range = (start_col.get()..=end_col.get()); 
+                    let depth_check = selection_start.row_cols.len().clone();
+                    let ref_grammas = self.get_session().grammars.clone();
+                    for (coord, grammar) in ref_grammas.iter() {
+                        let (coord_row, coord_col) = coord.clone().row_col();
+                        let coord_depth = coord.clone().row_cols.len();
+                        // info!("coord  r-{}, c-{}", coord_row, coord_col);
+                        // info!("coord depth {}", coord_depth);
+                        if row_range.contains(&coord_row.get())
+                            && col_range.contains(&coord_col.get()) && (coord_depth == depth_check) {
+                            let col_span = grammar.clone().style.col_span;
+                            let row_span = grammar.clone().style.row_span;
+                            info!("coord  r-{}, c-{}", coord_row, coord_col);
+                            info!("coord depth {}", coord_depth);
+                            info!("col_span {:?}", col_span);
+                            info!("row_span {:?}", row_span);
+                            if col_span.0 != 0 {
+                                if col_span.0 < start_col.get() {
+                                    start_col = NonZeroU32::new(col_span.0).unwrap();
+                                    
+                                }
+                                if col_span.1 < end_col.get() {
+                                    end_col = NonZeroU32::new(col_span.1).unwrap();
+                                }
+                            }
+                            if row_span.0 != 0 {
+                                if row_span.0 < start_row.get() {
+                                    start_row = NonZeroU32::new(row_span.0).unwrap();
+                                }
+                                if row_span.1 < end_row.get() {
+                                    end_row = NonZeroU32::new(row_span.1).unwrap();
+                                }
+                            }
+                        }
+                    }
+                    info!("start  r-{}, c-{}", start_row, start_col);
+                    info!("end r-{}, c-{}", end_row, end_col);
+                    info!("depth_check {}", depth_check);
+                    // info!("min r-{}, c-{}", start_row, start_col);
+                    // info!("max r-{}, c-{}", end_row, end_col);
+                    // info!("selection_start {:?}", selection_start.clone().row_cols[depth_check - 1]);
+                    // info!("selection_end {:?}", selection_end.clone().unwrap().row_cols[depth_check - 1]);
+                    selection_start.row_cols[depth_check - 1] = (start_row, start_col);
+                    selection_end.as_mut().unwrap().row_cols[depth_check - 1] = (end_row, end_col);
+                    self.first_select_cell = Some(selection_start.clone());
+                    self.last_select_cell = selection_end.clone();
                 }
                 true
             }
@@ -471,20 +529,12 @@ impl Component for Model {
                 max_grammar.style.col_span.1 = max_select_col;
                 max_grammar.style.row_span.0 = min_select_row;
                 max_grammar.style.row_span.1 = max_select_row;
-                info!("Min cell r-{}, c-{}", min_select_row, min_select_col);
-                info!("Max cell r-{}, c-{}", max_select_row, max_select_col);
+             
 
                 self.get_session_mut()
                     .grammars
                     .insert(max_coord.clone(), max_grammar.clone());
-                info!(
-                    "col_span inside {} - {}",
-                    max_grammar.style.col_span.0, max_grammar.style.col_span.1
-                );
-                info!(
-                    "row_span inside {} - {}",
-                    max_grammar.style.row_span.0, max_grammar.style.row_span.1
-                );
+              
                 true
             }
 

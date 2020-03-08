@@ -31,6 +31,7 @@ body {
 
 .cell {
   /* border: 1px dashed var(--border-light-grey); */
+  box-shadow: 1px 0px 0px rgba(0, 0, 0, 0.1);
   border-collapse: collapse;
   font-family: "Lucida Console", Monaco, monospace;
   background: #aaa;

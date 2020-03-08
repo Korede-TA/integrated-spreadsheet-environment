@@ -77,11 +77,8 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
         let mut s_row_span = String::new();
         let n_col_span = col_span.1 - col_span.0;
         let n_row_span = row_span.1 - row_span.0;
-        col_width = col_width + (3 * n_col_span) as f64;
-        row_height = row_height + (3 * n_row_span) as f64;
-        info!("-------------------------------------------");
-        info!("col_span {} - {}", col_span.0, col_span.1);
-        info!("row_span {} - {}", row_span.0, row_span.1);
+        col_width = col_width + n_col_span as f64;
+        row_height = row_height + n_row_span as f64;
         if n_col_span != 0 {
             s_col_span = format! {
                 "\ngrid-column-start: {}; grid-column: {} / span {};",
