@@ -5,7 +5,6 @@ use std::option::Option;
 use crate::coordinate::Coordinate;
 use crate::grammar::Kind;
 use crate::model::Model;
-// use crate::style::Style;
 
 // Style contains the relevant CSS properties for styling
 // a grammar Cell or Grid
