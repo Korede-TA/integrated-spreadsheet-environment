@@ -66,9 +66,9 @@ describe('Application launch', function () {
 
   it('Reset button', async function () {
     
-    this.temp = JSON.stringify(this.app.client.$("#model"));
+    this.temp = JSON.stringify(this.app.client.$("#integration-test-model-dump"));
     this.app.client.click('#Reset');
-    this.model = JSON.stringify(this.app.client.$("#model"));
+    this.model = JSON.stringify(this.app.client.$("#integration-test-model-dump"));
     return assert.equal(this.temp, this.model)
     //Test Reset Button to ensure the Model is reset to the most basic format
 
