@@ -1140,7 +1140,7 @@ impl Component for Model {
                 { view_menu_bar(&self) }
 
                 { view_tab_bar(&self) }
-                <input id="model" hidden=true >{serialized_model}</input>
+                <input id="integration-test-model-dump" hidden=true >{serialized_model}</input>
 
                 <div class="main">
                     <div id="grammars" class="grid-wrapper" style={zoom}
