@@ -32,8 +32,8 @@ describe('Application launch', function () {
 
     //many webdriverIO (app.client) methods not available on returned value
     return this.app.start().then(async () => {
-      this.app.client.waitUntilTextExists('#model').then(() => {
-        this.model = JSON.stringify(this.app.client.$("#model"));
+      this.app.client.waitUntilTextExists('#integration-test-model-dump').then(() => {
+        this.model = JSON.stringify(this.app.client.$("#integration-test-model-dump"));
         this.temp = this.model.clone();
       })
     })
@@ -50,7 +50,7 @@ describe('Application launch', function () {
 
   afterEach(function () {
     this.app.client.click('#Reset');
-    this.model = JSON.stringify(this.app.client.$("#model"));
+    this.model = JSON.stringify(this.app.client.$("#integration-test-model-dump"));
   })
 
 
@@ -70,18 +70,16 @@ describe('Application launch', function () {
     this.app.client.click('#Reset');
     this.model = JSON.stringify(this.app.client.$("#model"));
     return assert.equal(this.temp, this.model)
+    //Test Reset Button to ensure the Model is reset to the most basic format
 
   })
 
-  // it('shows Buttons', function () {
-
-  //   return this.app.client.getWindowCount().then(function (count) {
-  //     assert.equal(count, 2)
-  //     // Please note that getWindowCount() will return 2 if `dev tools` are opened.
-  //     // assert.equal(count, 2)
-  //   })
-
-  // })
+  it('shows Buttons', function () {
+    var temp = this.app.client.$$("button");
+    console.log(temp);
+      return assert.equal(10, temp.count);
+      // Test the number of buttons loaded to ensure they are all present
+  })
 
   // it('Toolbar Functions', function () {
   //   return this.app.client.getWindowCount().then(function (count) {
