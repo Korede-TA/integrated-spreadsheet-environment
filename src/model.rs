@@ -414,36 +414,54 @@ impl Component for Model {
                         start_col = end_col;
                         end_col = tmp;
                     }
-                    let row_range = (start_row.get()..=end_row.get());
-                    let col_range = (start_col.get()..=end_col.get()); 
+                    info!("1 test");
+                    info!("start coord row-{}, column-{}", start_row, start_col);
+                    info!("End coord row-{}, column-{}", end_row, end_col);                 
                     let depth_check = selection_start.row_cols.len().clone();
                     let ref_grammas = self.get_session().grammars.clone();
-                    for (coord, grammar) in ref_grammas.iter() {
-                        let (coord_row, coord_col) = coord.clone().row_col();
-                        let coord_depth = coord.clone().row_cols.len();
-                        if row_range.contains(&coord_row.get())
-                            && col_range.contains(&coord_col.get()) && (coord_depth == depth_check) {
-                            let col_span = grammar.clone().style.col_span;
-                            let row_span = grammar.clone().style.row_span;
-                            if col_span.0 != 0 {
-                                if col_span.0 < start_col.get() {
-                                    start_col = NonZeroU32::new(col_span.0).unwrap();
-                                    
+                    let mut check = false;
+                    while !check {
+                        check = true;
+                        let row_range = start_row.get()..=end_row.get();
+                        let col_range = start_col.get()..=end_col.get(); 
+                        for (coord, grammar) in ref_grammas.iter() {
+                            let (coord_row, coord_col) = coord.clone().row_col();
+                            let coord_depth = coord.clone().row_cols.len();
+                            if row_range.contains(&coord_row.get())
+                                && col_range.contains(&coord_col.get()) && (coord_depth == depth_check) {
+                                let col_span = grammar.clone().style.col_span;
+                                let row_span = grammar.clone().style.row_span;
+                                if col_span.0 != 0 && col_span.1 != 0 {
+                                    info!("test 2");
+                                    info!("col_span: {:?}", col_span);
+                                    if col_span.0 < start_col.get() {
+                                        start_col = NonZeroU32::new(col_span.0).unwrap();
+                                        check = false;
+                                    }
+                                    if col_span.1 > end_col.get() {
+                                        end_col = NonZeroU32::new(col_span.1).unwrap();
+                                        check = false;
+                                    }
                                 }
-                                if col_span.1 < end_col.get() {
-                                    end_col = NonZeroU32::new(col_span.1).unwrap();
-                                }
-                            }
-                            if row_span.0 != 0 {
-                                if row_span.0 < start_row.get() {
-                                    start_row = NonZeroU32::new(row_span.0).unwrap();
-                                }
-                                if row_span.1 < end_row.get() {
-                                    end_row = NonZeroU32::new(row_span.1).unwrap();
+                                if row_span.0 != 0 && row_span.1 != 0 {
+                                    info!("test 2");
+                                    info!("row_span: {:?}", row_span);
+                                    if row_span.0 < start_row.get() {
+                                        start_row = NonZeroU32::new(row_span.0).unwrap();
+                                        check = false;
+                                    }
+                                    if row_span.1 > end_row.get() {
+                                        end_row = NonZeroU32::new(row_span.1).unwrap();
+                                        check = false;
+                                    }
                                 }
                             }
                         }
                     }
+                    
+                    info!("2 test");
+                    info!("start coord row-{}, column-{}", start_row, start_col);
+                    info!("End coord row-{}, column-{}", end_row, end_col);
                     selection_start.row_cols[depth_check - 1] = (start_row, start_col);
                     selection_end.as_mut().unwrap().row_cols[depth_check - 1] = (end_row, end_col);
                     self.first_select_cell = Some(selection_start.clone());
@@ -455,55 +473,43 @@ impl Component for Model {
             Action::MergeCells() => {
                 let (first_row, first_col) = self.first_select_cell.clone().unwrap().row_col();
                 let (last_row, last_col) = self.last_select_cell.clone().unwrap().row_col();
-                let (mut min_select_row, mut max_select_row) = if first_row.get() > last_row.get() {
-                    (last_row.get(), first_row.get())
-                // (a..=b) is shorthand for an integer Range that's inclusive of lower and upper bounds
-                } else {
-                    (first_row.get(), last_row.get())
-                };
-                let (mut min_select_col, mut max_select_col) = if first_col.get() > last_col.get() {
-                    (last_col.get(), first_col.get())
-                } else {
-                    (first_col.get(), last_col.get())
-                };
+                let depth_check = self.last_select_cell.clone().unwrap().row_cols.len();
+                let row_range = first_row.get()..=last_row.get();
+                let col_range = first_col.get()..=last_col.get(); 
+                
                 let mut merge_height = 0.00;
                 let mut merge_width = 0.00;
                 let mut max_coord = Coordinate::default();
                 let mut max_grammar = Grammar::default();
                 let mut ref_grammas = self.get_session_mut().grammars.clone();
                 for (coord, grammar) in ref_grammas.iter_mut() {
-                    if min_select_row <= coord.row().get()
-                        && coord.row().get() <= max_select_row
-                        && min_select_col <= coord.col().get()
-                        && coord.col().get() <= max_select_col
+                    if row_range.contains(&coord.row().get()) && col_range.contains(&coord.col().get()) && (coord.row_cols.len()== depth_check)
                         && coord.to_string().contains("root-")
-                        && grammar.style.display == true
                     {
-                        let coord_style = grammar.style.clone();
-                        if (coord.row().get() == max_select_row)
-                            && (coord.col().get() == max_select_col)
-                        {
-                            merge_width = merge_width + coord_style.width;
-                            merge_height = merge_height + coord_style.height;
-                            max_coord = coord.clone();
-                            max_grammar = grammar.clone();
-                            continue;
-                        } else if (coord.row().get() == max_select_row) {
-                            merge_width = merge_width + coord_style.width;
-                        } else if coord.col().get() == max_select_col {
-                            merge_height = merge_height + coord_style.height;
-                        }
-                        if (coord.row().get() != max_select_row)
-                            || (coord.col().get() != max_select_col)
-                        {
-                            grammar.style.display = false;
-                            merge_height = merge_height;
-                            merge_width = merge_width;
-                        }
-                        grammar.style.col_span.0 = min_select_col;
-                        grammar.style.col_span.1 = max_select_col;
-                        grammar.style.row_span.0 = min_select_row;
-                        grammar.style.row_span.1 = max_select_row;
+                        if grammar.style.display == true {
+                            let coord_style = grammar.style.clone();
+                            if (coord.row().get() == last_row.get())
+                                && (coord.col().get() == last_col.get())
+                            {
+                                merge_width = merge_width + coord_style.width;
+                                merge_height = merge_height + coord_style.height;
+                                max_coord = coord.clone();
+                                max_grammar = grammar.clone();
+                                continue;
+                            } else {
+                                grammar.style.display = false;
+                                if (coord.row().get() == last_row.get()) {
+                                    merge_width = merge_width + coord_style.width;
+                                } 
+                                if coord.col().get() == last_col.get() {
+                                    merge_height = merge_height + coord_style.height;
+                                }
+                            }  
+                        }                                     
+                        grammar.style.col_span.0 = first_col.get();
+                        grammar.style.col_span.1 = last_col.get();
+                        grammar.style.row_span.0 = first_row.get();
+                        grammar.style.row_span.1 = last_row.get();
                         self.get_session_mut()
                             .grammars
                             .insert(coord.clone(), grammar.clone());
@@ -511,12 +517,11 @@ impl Component for Model {
                 }
                 max_grammar.style.width = merge_width;
                 max_grammar.style.height = merge_height;
-                max_grammar.style.col_span.0 = min_select_col;
-                max_grammar.style.col_span.1 = max_select_col;
-                max_grammar.style.row_span.0 = min_select_row;
-                max_grammar.style.row_span.1 = max_select_row;
-             
-
+                max_grammar.style.col_span.0 = first_col.get();
+                max_grammar.style.col_span.1 = last_col.get();
+                max_grammar.style.row_span.0 = first_row.get();
+                max_grammar.style.row_span.1 = last_row.get();
+                        
                 self.get_session_mut()
                     .grammars
                     .insert(max_coord.clone(), max_grammar.clone());

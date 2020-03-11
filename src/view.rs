@@ -496,8 +496,7 @@ pub fn view_input_grammar(
 
             let new_active_cell = coord.clone();
             let shift_select_cell = coord.clone();
-            let min_select_cell = m.min_select_cell.as_ref();
-            let max_select_cell = m.max_select_cell.as_ref();
+            
             // TODO: the code below supports an alternate implementation of selection
 
             /*
@@ -531,12 +530,7 @@ pub fn view_input_grammar(
                 }
                 _ => false,
             };
-            let is_selected_2 = !min_select_cell.is_none()
-                && !max_select_cell.is_none()
-                && min_select_cell.unwrap().row() <= coord.row()
-                && coord.row() <= max_select_cell.unwrap().row()
-                && min_select_cell.unwrap().col() <= coord.col()
-                && coord.col() <= max_select_cell.unwrap().col();
+            
 
             let has_lookup_prefix: bool = value.clone() == "$";
             let current_coord = coord.clone();
