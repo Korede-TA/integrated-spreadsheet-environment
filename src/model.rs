@@ -1218,18 +1218,23 @@ impl Component for Model {
             })
             .collect();
 
+            
+            
+
         should_render
     }
 
     fn view(&self) -> Html {
         let _active_cell = self.active_cell.clone();
         let is_resizing = self.resizing.is_some();
+        // for integration tests
+        let serialized_model = serde_json::to_string(&self.get_session()).unwrap();
         let zoom = format! { "zoom: {};", &self.zoom };
         let cursor = format! { "cursor: {};", match self.mouse_cursor {
             CursorType::NS => "ns-resize",
             CursorType::EW => "ew-resize",
             CursorType::Default => "default",
-        }};
+
         html! {
             <div>
 
@@ -1238,6 +1243,7 @@ impl Component for Model {
                 { view_menu_bar(&self) }
 
                 { view_tab_bar(&self) }
+                <input id="integration-test-model-dump" hidden=true >{serialized_model}</input>
 
                 <div class="main">
                     <div id="grammars" class="grid-wrapper" style={zoom+&cursor}
