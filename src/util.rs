@@ -1,3 +1,4 @@
+#![feature(core_intrinsics)]
 use std::char::from_u32;
 use std::collections::HashMap;
 use std::num::NonZeroU32;
@@ -12,6 +13,7 @@ use crate::model::Model;
 use crate::row_col_vec;
 use crate::style::Style;
 
+
 pub fn move_grammar(map: &mut HashMap<Coordinate, Grammar>, source: Coordinate, dest: Coordinate) {
     if let Some(source_grammar) = map.clone().get(&source) {
         map.insert(dest.clone(), source_grammar.clone());
@@ -24,21 +26,27 @@ pub fn move_grammar(map: &mut HashMap<Coordinate, Grammar>, source: Coordinate, 
                 );
             }
         }
+        info! {"move gr {:?}", map}
     }
 }
 
 pub fn non_zero_u32_tuple(val: (u32, u32)) -> (NonZeroU32, NonZeroU32) {
     let (row, col) = val;
+    info!{"non_ze {:?}", (NonZeroU32::new(row).unwrap(), NonZeroU32::new(col).unwrap())};
     (NonZeroU32::new(row).unwrap(), NonZeroU32::new(col).unwrap())
+    
 }
 
 pub fn row_col_to_string((row, col): (u32, u32)) -> String {
     let row_str = row.to_string();
     let col_str = from_u32(col + 64).unwrap();
+    info!{"forrrrrmmma{:?} {:?}", row, col}
+    info!{"forrrrrmmma{:?}", format! {"{}{}", col_str, row_str}}
     format! {"{}{}", col_str, row_str}
 }
 
 pub fn coord_show(row_cols: Vec<(u32, u32)>) -> Option<String> {
+    info!{"coord_show {:?}", row_cols}
     match row_cols.split_first() {
         Some((&(1, 1), rest)) => {
             let mut output = "root".to_string();
@@ -46,6 +54,7 @@ pub fn coord_show(row_cols: Vec<(u32, u32)>) -> Option<String> {
                 output.push('-');
                 output.push_str(row_col_to_string(*rc).deref());
             }
+            info!{"coord_show2 {:?}", output}
             Some(output)
         }
         Some((&(1, 2), rest)) => {
@@ -54,6 +63,7 @@ pub fn coord_show(row_cols: Vec<(u32, u32)>) -> Option<String> {
                 output.push('-');
                 output.push_str(row_col_to_string(*rc).deref());
             }
+            info!{"coord_show3 {:?}", output}
             Some(output)
         }
         _ => None,
@@ -243,3 +253,66 @@ macro_rules! row_col_vec {
         }
     };
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_move_grammar() {
+        // move_grammar(map: &mut HashMap<Coordinate, Grammar>, source: Coordinate, dest: Coordinate)
+        unimplemented!();
+    }
+
+    #[test]
+    fn test_non_zero_u32_tuple() {
+        
+        assert_eq!(non_zero_u32_tuple((1, 2)),(NonZeroU32::new(1).unwrap(), NonZeroU32::new(2).unwrap()));
+        assert_ne!(non_zero_u32_tuple((1, 2)), (NonZeroU32::new(2).unwrap(), NonZeroU32::new(2).unwrap()));
+        // unimplemented!();
+    }
+
+    #[test]
+    fn test_row_col_to_string() {
+        assert_eq!(row_col_to_string((2,2)), "B2");
+        assert_ne!(row_col_to_string((2,2)), "A2");
+        // unimplemented!();
+    }
+
+    #[test]
+    fn test_coord_show() {
+        assert_eq!(coord_show(vec![(1, 1), (1, 1)]).unwrap(), "root-A1");
+        assert_ne!(coord_show(vec![(1, 1), (1, 1)]).unwrap(), "root")
+        // unimplemented!();
+    }
+
+
+/* TODO: get this working so w can color code lookups
+pub fn rainbow_stop(h: i32) -> String {
+    let f = |n| {
+        let k = (n + h * 12) % 12;
+        0.5 - (0.5
+            * (vec![vec![k - 3, 9 - k, 1].iter().min().cloned().unwrap(), -1]
+                .iter()
+                .max()
+                .cloned()
+                .unwrap() as f64))
+    };
+    let rgb2hex = |r, g, b: f64| {
+        format! {
+            "#{}",
+            vec![r,g,b].iter().map(|x : &f64| {
+                let (upper, lower) = {
+                    let v : f64 = (x*255.0).round();
+                    ((v/16.0).round() as u32, (v%16.0).round() as u32)
+                };
+                format!{
+                    "{:?}{:?}",
+                    std::char::from_digit(upper, 16), std::char::from_digit(lower, 16),
+                }
+            }).collet().join("")
+        }
+    };
+    rgb2hex(f(0), f(8), f(4))
+}
+*/

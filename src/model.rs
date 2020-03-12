@@ -28,28 +28,78 @@ pub struct CoordinateParser;
 // Model contains the entire state of the application
 #[derive(Debug)]
 pub struct Model {
+    // Parts of the application state are described below:
+
+    // - `view_root` represents the parent grammar that the view starts rendering from
     view_root: Coordinate,
+
+    // - `active_cell`
+    pub active_cell: Option<Coordinate>,
+
+    // - `first_select_cell` is the top-leftmost cell in a selection
+    // - `last_select_cell` is the bottom-rightmost cell in a selection
     pub first_select_cell: Option<Coordinate>,
     pub last_select_cell: Option<Coordinate>,
+
+    // TODO: are `min_select_cell` and `max_select_cell` still useful
     pub min_select_cell: Option<Coordinate>,
     pub max_select_cell: Option<Coordinate>,
-    pub active_cell: Option<Coordinate>,
+
+    // - `shift_key_pressed` is a simple indicator for when shift key is toggled
     pub shift_key_pressed: bool,
+
+    // - `zoom` is the value that corresponds to how "zoomed" the sheet is
     pub zoom: f32,
-    pub default_suggestions: Vec<Coordinate>,
+
+    // - `meta_suggestions` contains a map of the name of suggestions to the
+    //   suggested grammars stored in coord_col!("meta", "A")
     pub meta_suggestions: Vec<(String, Coordinate)>,
-    pub suggestions: HashMap<Coordinate, Vec<Coordinate>>,
+
+    // - `lookups` represent an ordered list of coordinates that have lookups corresponding
+    // to them. the indexes are used to generate correspoding color coding for each lookup
+    pub lookups: Vec<Coordinate>,
+
+    // - `col_widths` & `row_heights` map coordinate to sizes based on column or row
     pub col_widths: HashMap<Col, f64>,
     pub row_heights: HashMap<Row, f64>,
+
+    // - `sessions` represents the currently open sessions that are shown in the tab bar,
+    //   where each session
+    // - `current_session_index` tells us which of the open sessions is currently active
     pub sessions: Vec<Session>,
     pub current_session_index: usize,
+
+    // - `side_menus` represent the state
     pub side_menus: Vec<SideMenu>,
     pub open_side_menu: Option<i32>,
+
+    // - `focus_node_ref` is a reference to the current cell that should be in focus
     pub focus_node_ref: NodeRef,
+
+    // - `resizing` is an optional reference to the current coordinate being resized
+    //    (which is None if no resizing is happening)
     pub resizing: Option<Coordinate>,
+
+    // - `link` is a function of the Yew framework for referring back to the current component
+    //    so actions can be chained, for instance
     pub link: ComponentLink<Model>,
+
+    // - `default_nested_row_cols` shows the default number of rows and columns
+    //   created by Ctrl+G or the "Nest Grid" button
+    // - `default_definition_name` shows the default name of the grammar created
+    //   by Ctrl+G the "Add Definition" button
+    pub default_nested_row_cols: (NonZeroU32, NonZeroU32),
+    pub default_definition_name: String,
+
+    // - `mouse_cursor` corresponds to the appearance of the mouse cursor
+    pub mouse_cursor: CursorType,
+
+    // - `console` and `reader` are used to access native browser APIs for the
+    //    dev console and FileReader respectively
     console: ConsoleService,
     reader: ReaderService,
+
+    // - `tasks` are used to store asynchronous requests to read/load files
     tasks: Vec<ReaderTask>,
 }
 
@@ -59,11 +109,21 @@ pub struct SideMenu {
     pub icon_path: String,
 }
 
+// SUBACTIONS
+// Sub-actions for resize-related operations
 pub enum ResizeMsg {
     Start(Coordinate),
     X(f64),
     Y(f64),
     End,
+}
+
+// Sub-actions for adjusting the current look of the cursor
+#[derive(Debug)]
+pub enum CursorType {
+    NS,
+    EW,
+    Default,
 }
 
 pub enum SelectMsg {
@@ -113,6 +173,7 @@ pub enum Action {
     ZoomReset,
 
     Resize(ResizeMsg),
+    SetCursorType(CursorType),
     Select(SelectMsg),
 
     Lookup(
@@ -120,6 +181,10 @@ pub enum Action {
         /* lookup_type: */ Lookup,
     ),
     MergeCells(),
+
+    ChangeDefaultNestedGrid((NonZeroU32, NonZeroU32)),
+
+    ChangeDefaultDefinitionName(String),
 
     ToggleLookup(Coordinate),
 
@@ -219,7 +284,7 @@ impl Component for Model {
         let meta_grammar = Grammar {
             name: "meta".to_string(),
             style: Style::default(),
-            kind: Kind::Grid(row_col_vec![(1, 1), (2, 1), (3, 1)]),
+            kind: Kind::Grid(row_col_vec![(1, 1), (2, 1), (3, 1), (4, 1), (5, 1), (6, 1)]),
         };
         let mut m = Model {
             view_root: coord!("root"),
@@ -242,8 +307,6 @@ impl Component for Model {
                 ("java_grammar".to_string(), coord!("meta-A2")),
                 ("defn".to_string(), coord!("meta-A3")),
             ],
-            default_suggestions: vec![coord!("meta-A1"), coord!("meta-A2"), coord!("meta-A3")],
-            suggestions: HashMap::new(),
 
             console: ConsoleService::new(),
             reader: ReaderService::new(),
@@ -280,6 +343,9 @@ impl Component for Model {
                             ],
                         ),
                     },
+                    coord!("meta-A4") => Grammar::default_button(),
+                    coord!("meta-A5") => Grammar::default_slider(),
+                    coord!("meta-A6") => Grammar::default_toggle(),
                     coord!("meta-A3-A1")    => Grammar::default(),
                     coord!("meta-A3-B1")    => Grammar {
                         name: "root".to_string(),
@@ -322,6 +388,14 @@ impl Component for Model {
             focus_node_ref: NodeRef::default(),
 
             shift_key_pressed: false,
+
+            default_nested_row_cols: non_zero_u32_tuple((3, 3)),
+
+            default_definition_name: "".to_string(),
+
+            mouse_cursor: CursorType::Default,
+
+            lookups: vec![],
         };
         // load suggestions from
         m.meta_suggestions = m
@@ -368,7 +442,7 @@ impl Component for Model {
                         _ => (),
                     }
                 }
-                false
+                true
             }
 
             Action::SetActiveCell(coord) => {
@@ -992,6 +1066,9 @@ impl Component for Model {
                             ],
                         ),
                     },
+                    coord!("meta-A4") => Grammar::default_button(),
+                    coord!("meta-A5") => Grammar::default_slider(),
+                    coord!("meta-A6") => Grammar::default_toggle(),
                     coord!("meta-A3-A1")    => Grammar::default(),
                     coord!("meta-A3-B1")    => Grammar {
                         name: "root".to_string(),
@@ -1013,17 +1090,25 @@ impl Component for Model {
                     ResizeMsg::X(offset_x) => {
                         if let Some(coord) = self.resizing.clone() {
                             resize_diff(self, coord, 0.0, offset_x);
+                            self.mouse_cursor = CursorType::EW;
                         }
                     }
                     ResizeMsg::Y(offset_y) => {
                         if let Some(coord) = self.resizing.clone() {
                             resize_diff(self, coord, offset_y, 0.0);
+                            self.mouse_cursor = CursorType::NS;
                         }
                     }
                     ResizeMsg::End => {
                         self.resizing = None;
+                        self.mouse_cursor = CursorType::Default;
                     }
                 }
+                true
+            }
+
+            Action::SetCursorType(cursor_type) => {
+                self.mouse_cursor = cursor_type;
                 true
             }
 
@@ -1073,7 +1158,7 @@ impl Component for Model {
              * 3) Defining how grammars connect with respective drivers and have values evaluated
              *    and passed back to the interface.
              */
-            Action::AddDefinition(coord, name) => {
+            Action::AddDefinition(coord, defn_name) => {
                 // adds a new grammar or sub-grammar to the meta
                 let max_a_row =
                     self.query_col(coord_col!("meta", "A"))
@@ -1085,19 +1170,33 @@ impl Component for Model {
                                 max_a_row
                             }
                         });
+                // add new sub_coord to coord!("meta") grid
+                let defn_meta_sub_coord = non_zero_u32_tuple((max_a_row + 1, 1));
                 if let Kind::Grid(sub_coords) = &mut self.get_session_mut().meta.kind {
-                    sub_coords.push(non_zero_u32_tuple((1, max_a_row + 1)));
+                    sub_coords.push(defn_meta_sub_coord.clone());
                 }
-                move_grammar(
-                    &mut self.get_session_mut().grammars,
-                    coord,
-                    Coordinate::child_of(&(coord!("meta")), non_zero_u32_tuple((1, max_a_row + 1))),
-                );
+                // rename old grammar to defn_name specified in defn_grammar button
+                if let Some(g) = self.get_session_mut().grammars.get_mut(&coord) {
+                    g.name = defn_name;
+                }
+                let defn_coord = Coordinate::child_of(&(coord!("meta")), defn_meta_sub_coord);
+                info! {"Adding Definition: {} to {}", coord.to_string(), defn_coord.to_string()};
+                move_grammar(&mut self.get_session_mut().grammars, coord, defn_coord);
                 true
             }
 
             Action::ToggleShiftKey(toggle) => {
                 self.shift_key_pressed = toggle;
+                false
+            }
+
+            Action::ChangeDefaultNestedGrid(row_col) => {
+                self.default_nested_row_cols = row_col;
+                false
+            }
+
+            Action::ChangeDefaultDefinitionName(name) => {
+                self.default_definition_name = name;
                 false
             }
         };
@@ -1128,10 +1227,14 @@ impl Component for Model {
     fn view(&self) -> Html {
         let _active_cell = self.active_cell.clone();
         let is_resizing = self.resizing.is_some();
-        let zoom = "zoom:".to_string() + &self.zoom.to_string();
         // for integration tests
         let serialized_model = serde_json::to_string(&self.get_session()).unwrap();
-        info!(" Serde {:?}", serialized_model);
+        let zoom = format! { "zoom: {};", &self.zoom };
+        let cursor = format! { "cursor: {};", match self.mouse_cursor {
+            CursorType::NS => "ns-resize",
+            CursorType::EW => "ew-resize",
+            CursorType::Default => "default",
+
         html! {
             <div>
 
@@ -1143,7 +1246,7 @@ impl Component for Model {
                 <input id="integration-test-model-dump" hidden=true >{serialized_model}</input>
 
                 <div class="main">
-                    <div id="grammars" class="grid-wrapper" style={zoom}
+                    <div id="grammars" class="grid-wrapper" style={zoom+&cursor}
                         // Global Keyboard shortcuts
                         onkeypress=self.link.callback(move |e : KeyPressEvent| {
                             Action::Noop

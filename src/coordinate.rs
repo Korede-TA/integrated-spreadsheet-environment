@@ -1,15 +1,21 @@
+use pest::Parser;
+use serde::{Deserialize, Serialize};
 use std::char::from_u32;
 use std::num::NonZeroU32;
 use std::option::Option;
 use std::panic;
 
-use crate::util::coord_show;
-use serde::{Deserialize, Serialize};
+use crate::coord;
+use crate::util::{coord_show, non_zero_u32_tuple};
+
+#[derive(Parser)]
+#[grammar = "coordinate.pest"]
+pub struct CoordinateParser;
 
 // Coordinate specifies the nested coordinate structure
 #[derive(Deserialize, PartialEq, Eq, Debug, Hash, Clone, Default)]
 pub struct Coordinate {
-    pub row_cols: Vec<(NonZeroU32, NonZeroU32)>, // should never be empty list
+    pub row_cols: Vec<(NonZeroU32, NonZeroU32)>, // TEST: should never be empty list
 }
 js_serializable!(Coordinate);
 js_deserializable!(Coordinate);
@@ -73,6 +79,7 @@ impl Coordinate {
         }
     }
 
+    // TEST: same as above (but mutable)
     fn row_mut(&mut self) -> &mut NonZeroU32 {
         if let Some(last) = self.row_cols.last_mut() {
             &mut last.0
@@ -105,6 +112,7 @@ impl Coordinate {
         }
     }
 
+    // TEST: same as above (but mutable)
     fn col_mut(&mut self) -> &mut NonZeroU32 {
         if let Some(last) = self.row_cols.last_mut() {
             &mut last.1
@@ -112,7 +120,7 @@ impl Coordinate {
             panic! {"a coordinate should always have a column, this one doesnt"}
         }
     }
-
+    // TEST: same as above (but mutable)
     pub fn full_col(&self) -> Col {
         Col(
             self.parent()
@@ -132,6 +140,7 @@ impl Coordinate {
     // if a cell is the parent, grandparent,..., (great xN)-grandparent of another
     // Optinoally returns: Some(N) if true (including N=0 if sibling),
     // or None if false
+    // Korede Check this
     fn is_n_parent(&self, other: &Self) -> Option<i32> {
         if self.row_cols.len() > other.row_cols.len() {
             return None;
@@ -146,7 +155,9 @@ impl Coordinate {
         }
         Some(n)
     }
-
+    // (3, 2) (2,2)
+    //"root-A1-B2-B3"
+    //"root-A1-B2-B2"
     pub fn neighbor_above(&self) -> Option<Coordinate> {
         let mut new_row_col = self.clone().row_cols;
         if let Some(last) = new_row_col.last_mut() {
@@ -163,7 +174,8 @@ impl Coordinate {
 
         None
     }
-
+    //"root-A1-B2-B3"
+    //"root-A1-B2-B4"
     pub fn neighbor_below(&self) -> Option<Coordinate> {
         let mut new_row_col = self.clone().row_cols;
         if let Some(last) = new_row_col.last_mut() {
@@ -247,7 +259,6 @@ impl Eq for Col {}
 macro_rules! coord {
     ( $coord_str:tt ) => {{
         let mut fragments: Vec<(NonZeroU32, NonZeroU32)> = Vec::new();
-
         let pairs = CoordinateParser::parse(Rule::coordinate, $coord_str)
             .unwrap_or_else(|e| panic!("{}", e));
 
@@ -309,4 +320,110 @@ macro_rules! coord_row {
 
         Row(coord!($parent_str), NonZeroU32::new(row).unwrap())
     }};
+}
+
+#[cfg(test)]
+mod tests {
+    // Note this useful idiom: importing names from outer (for mod tests) scope.
+    use super::*;
+
+    #[test]
+    fn test_row() {
+        assert_eq!(coord!("root-A1-B2-B3").row().get(), 3);
+    }
+
+    #[test]
+    // - parent.row_cols.len() == result.row_cols.len() - 1
+    fn test_child_of() {
+        // let param = coord!().row_cols.len();
+        // assert_eq!(
+        //     coord!("root-A1-B2-B3").child_of().len(),
+        //     coord!("root-A1-B2-B3").len() + 1
+        // )
+        unimplemented!();
+    }
+
+    #[test]
+    fn test_parent() {
+        assert_eq!(coord!("root").parent(), None);
+        assert_eq!(coord!("meta").parent(), None);
+    }
+
+    #[test]
+    fn test_to_string() {
+        assert_eq!(coord!("root-A1-B2-B3").to_string(), "root-A1-B2-B3");
+    }
+
+    #[test]
+    fn test_row_mut() {
+        unimplemented!()
+    }
+
+    #[test]
+    fn test_full_row() {
+        assert_ne!(
+            coord!("root-A1-B2-B3").full_row(),
+            coord_row!("root-A1-B1", "3")
+        );
+        assert_eq!(
+            coord!("root-A1-B2-B3").full_row(),
+            coord_row!("root-A1-B2", "3")
+        );
+    }
+
+    #[test]
+    fn test_row_to_string() {
+        assert_eq!(coord!("root-A1-B2-B3").row_to_string(), "root-A1-B2-3");
+        assert_eq!(coord!("root").row_to_string(), "1");
+        assert_eq!(coord!("meta").row_to_string(), "1");
+    }
+
+
+    #[test]
+    fn test_neighbor_above() {
+        assert_eq!(
+            coord!("root-A1-B2-B3").neighbor_above().unwrap(),
+            coord!("root-A1-B2-B2")
+        );
+        assert_ne!(
+            coord!("root-A1-B2-B3").neighbor_above().unwrap(),
+            coord!("root-A1-B2-B1")
+        );
+    }
+
+    #[test]
+    fn test_neighbor_below() {
+        assert_eq!(
+            coord!("root-A1-B2-B3").neighbor_below().unwrap(),
+            coord!("root-A1-B2-B4")
+        );
+        assert_ne!(
+            coord!("root-A1-B2-B3").neighbor_below().unwrap(),
+            coord!("root-A1-B2-B6")
+        );
+    }
+
+    #[test]
+    fn test_neighbor_left() {
+        assert_eq!(
+            coord!("root-A1-B2-B3").neighbor_left().unwrap(),
+            coord!("root-A1-B2-A3")
+        );
+        assert_ne!(
+            coord!("root-A1-B2-B3").neighbor_left().unwrap(),
+            coord!("root-A1-B2-B6")
+        );
+    }
+
+    #[test]
+    fn test_neighbor_right() {
+        assert_eq!(
+            coord!("root-A1-B2-B3").neighbor_right().unwrap(),
+            coord!("root-A1-B2-C3")
+        );
+        assert_ne!(
+            coord!("root-A1-B2-B3").neighbor_right().unwrap(),
+            coord!("root-A1-B2-C6")
+        );
+    }
 }
