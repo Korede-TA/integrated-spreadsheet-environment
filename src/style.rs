@@ -63,22 +63,23 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
     if coord.row_cols.len() == 1 {
         return grammar.style(coord);
     }
-    if grammar.style.width > 90.0 || grammar.style.height > 30.0 {
-        let (col_span, row_span, mut col_width, mut row_height) = {
-            let s = &model
-                .get_session()
-                .grammars
-                .get(&coord)
-                .expect(format! {"grammar map should have coord {}", coord.to_string()}.deref())
-                .style;
-            (s.col_span, s.row_span, s.width, s.height)
-        };
-        let mut s_col_span = String::new();
-        let mut s_row_span = String::new();
-        let n_col_span = col_span.1 - col_span.0;
-        let n_row_span = row_span.1 - row_span.0;
-        col_width = col_width + n_col_span as f64;
-        row_height = row_height + n_row_span as f64;
+
+    let (col_span, row_span, mut col_width, mut row_height) = {
+        let s = &model
+            .get_session()
+            .grammars
+            .get(&coord)
+            .expect(format! {"grammar map should have coord {}", coord.to_string()}.deref())
+            .style;
+        (s.col_span, s.row_span, s.width, s.height)
+    };
+    let mut s_col_span = String::new();
+    let mut s_row_span = String::new();
+    let n_col_span = col_span.1 - col_span.0;
+    let n_row_span = row_span.1 - row_span.0;
+    col_width = col_width + n_col_span as f64;
+    row_height = row_height + n_row_span as f64;
+    if n_col_span != 0 || n_row_span != 0 {
         if n_col_span != 0 {
             s_col_span = format! {
                 "\ngrid-column-start: {}; grid-column: {} / span {};",
@@ -98,6 +99,7 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
             s_col_span, s_row_span,
         };
     }
+
     if let Kind::Grid(_) = grammar.kind {
         return format! {
             "{}\nwidth: fit-content;\nheight: fit-content;\n",
