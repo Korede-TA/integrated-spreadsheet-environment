@@ -60,6 +60,7 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
         .get(coord)
         .expect("no grammar with this coordinate");
     // ignore root or meta
+
     if coord.row_cols.len() == 1 {
         return grammar.style(coord);
     }
@@ -79,6 +80,7 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
     let n_row_span = row_span.1 - row_span.0;
     col_width = col_width + n_col_span as f64;
     row_height = row_height + n_row_span as f64;
+
     if n_col_span != 0 || n_row_span != 0 {
         if n_col_span != 0 {
             s_col_span = format! {
@@ -92,9 +94,14 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
                 row_span.0.to_string(), row_span.0.to_string(), row_span.1.to_string(),
             };
         }
+        if let Kind::Grid(_) = grammar.kind {
+            return format! {
+                "{}\nwidth: {}px;\nheight: {}px; {} {}\nposition: static;",
+                grammar.style(coord), col_width, row_height, s_col_span, s_row_span,
+            };
+        }
         return format! {
-            "{}\nwidth: {}px;\nheight: {}px;
-            {} {}",
+            "{}\nwidth: {}px;\nheight: {}px;{} {}",
             grammar.style(coord), col_width, row_height,
             s_col_span, s_row_span,
         };

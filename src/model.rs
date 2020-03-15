@@ -413,10 +413,7 @@ impl Component for Model {
                         let tmp = start_col.clone();
                         start_col = end_col;
                         end_col = tmp;
-                    }
-                    // info!("1 test");
-                    // info!("start coord row-{}, column-{}", start_row, start_col);
-                    // info!("End coord row-{}, column-{}", end_row, end_col);                 
+                    }            
                     let depth_check = selection_start.row_cols.len().clone();
                     let ref_grammas = self.get_session().grammars.clone();
                     let mut check = false;
@@ -465,10 +462,16 @@ impl Component for Model {
             }
 
             Action::MergeCells() => {
+                if self.first_select_cell.is_none() || self.last_select_cell.is_none() {
+                    info!("Expect for select for two coord");
+                    return false;
+                }           
                 let (first_row, first_col) = self.first_select_cell.clone().unwrap().row_col();
                 let (last_row, last_col) = self.last_select_cell.clone().unwrap().row_col();
                 
                 let depth_check = self.last_select_cell.clone().unwrap().row_cols.len();
+                let parent_check = self.last_select_cell.clone().unwrap().parent();
+
                 let row_range = first_row.get()..=last_row.get();
                 let col_range = first_col.get()..=last_col.get(); 
                 
@@ -477,22 +480,22 @@ impl Component for Model {
                 let mut max_coord = Coordinate::default();
                 let mut max_grammar = Grammar::default();
                 let mut ref_grammas = self.get_session_mut().grammars.clone();
-                info!("1 test");
-                info!("last_row-{}, last_col-{}", last_row.get(), last_col.get());
                 for (coord, grammar) in ref_grammas.iter_mut() {
+                    if coord.parent() == parent_check { 
+                    }
                     if  coord.to_string().contains("root-") {
-                        if row_range.contains(&coord.row().get()) && col_range.contains(&coord.col().get()) && (coord.row_cols.len() == depth_check)                     
-                        {                         
-                            let coord_style = grammar.style.clone(); 
-                            if coord_style.display != false  {                                           
-                                if (coord.row().get() == last_row.get()) {  
+                        if row_range.contains(&coord.row().get()) && col_range.contains(&coord.col().get()) && coord.parent() == parent_check                    
+                        {                                                  
+                            let coord_style = grammar.style.clone();
+                            if coord_style.display != false  { 
+                                if coord.row().get() == last_row.get() {  
                                     merge_width = merge_width + coord_style.width;
                                 
                                 } 
-                                if (coord.col().get() == last_col.get()) {
+                                if coord.col().get() == last_col.get() {
                                     merge_height = merge_height + coord_style.height;
                                 }
-                                 if (coord.row().get() == last_row.get())
+                                    if coord.row().get() == last_row.get()
                                     && (coord.col().get() == last_col.get())
                                 {          
                                     max_coord = coord.clone();
@@ -501,19 +504,15 @@ impl Component for Model {
                                     grammar.style.display = false;
                                 }                                            
                             }
-                                                     
+                            grammar.kind =  Kind::Input("".to_string());                   
                             grammar.style.col_span.0 = first_col.get();
                             grammar.style.col_span.1 = last_col.get();
                             grammar.style.row_span.0 = first_row.get();
-                            grammar.style.row_span.1 = last_row.get();
-                            
+                            grammar.style.row_span.1 = last_row.get();                    
+                            self.get_session_mut()
+                                .grammars
+                                .insert(coord.clone(), grammar.clone());
                         }
-                        if (coord.row_cols.len() - 1 == depth_check) {
-                            grammar.style.display = false;                                              
-                        }  
-                        self.get_session_mut()
-                                    .grammars
-                                    .insert(coord.clone(), grammar.clone());
                     }                            
                 }
                 max_grammar.kind =  Kind::Input("".to_string());
@@ -522,12 +521,10 @@ impl Component for Model {
                 max_grammar.style.col_span.0 = first_col.get();
                 max_grammar.style.col_span.1 = last_col.get();
                 max_grammar.style.row_span.0 = first_row.get();
-                max_grammar.style.row_span.1 = last_row.get();
-                                      
+                max_grammar.style.row_span.1 = last_row.get();             
                 self.get_session_mut()
                     .grammars
                     .insert(max_coord.clone(), max_grammar.clone());
-              
                 true
             }
 
@@ -682,17 +679,28 @@ impl Component for Model {
             }
 
             Action::AddNestedGrid(coord, (rows, cols)) => {
+                if self.active_cell.is_none() {
+                    info!("Expect a cell is active");
+                    return false;
+                }
                 // height and width initial value
                 let mut tmp_heigth = 30.0;
                 let mut tmp_width = 90.0;
+
+                let current_cell = self.active_cell.clone();
+                let mut ref_grammas = self.get_session().grammars.clone();
+                let current_grammar = ref_grammas.get(&current_cell.clone().unwrap()).unwrap();
+
                 let (r, c) = non_zero_u32_tuple((rows, cols));
-                let grammar = Grammar::as_grid(r, c);
+                let mut grammar = Grammar::as_grid(r, c);
                 if let Kind::Grid(sub_coords) = grammar.clone().kind {
                     self.active_cell = sub_coords.first().map(|c| Coordinate::child_of(&coord, *c));
-                    // let row_val = coord
+                               
+                    let current_width = current_grammar.style.width;
+                    let current_height = current_grammar.style.height;
 
-                    let current_width = *self.col_widths.get(&coord.full_col()).unwrap_or(&90.0);
-                    let current_height = *self.row_heights.get(&coord.full_row()).unwrap_or(&30.0);
+                    // let current_width = *self.col_widths.get(&coord.full_col()).unwrap_or(&90.0);
+                    // let current_height = *self.row_heights.get(&coord.full_row()).unwrap_or(&30.0);
 
                     // check if active cell row height and width is greater than default value
                     if current_width > tmp_width {
@@ -706,32 +714,42 @@ impl Component for Model {
                         tmp_heigth = current_height / 3.0;
                     }
 
-                    for sub_coord in sub_coords {
-                        let new_coord = Coordinate::child_of(&coord, sub_coord);
-
-                        self.get_session_mut()
-                            .grammars
-                            .insert(new_coord.clone(), Grammar::default());
-
-                        // initialize row & col heights as well
-                        if !self.row_heights.contains_key(&new_coord.clone().full_row()) {
-                            self.row_heights
-                                .insert(new_coord.clone().full_row(), tmp_heigth);
-                            //30.0);
+                    
+                        for sub_coord in sub_coords {
+                            let new_coord = Coordinate::child_of(&coord, sub_coord);
+    
+                            self.get_session_mut()
+                                .grammars
+                                .insert(new_coord.clone(), Grammar::default());
+                            if current_grammar.style.col_span.0 == 0 && current_grammar.style.row_span.0 == 0 {
+                                // initialize row & col heights as well
+                                if !self.row_heights.contains_key(&new_coord.clone().full_row()) {
+                                    self.row_heights
+                                        .insert(new_coord.clone().full_row(), tmp_heigth);
+                                    //30.0);
+                                }
+                                if !self.col_widths.contains_key(&new_coord.clone().full_col()) {
+                                    self.col_widths
+                                        .insert(new_coord.clone().full_col(), tmp_width);
+                                    //90.0);
+                                }
+                            }
                         }
-                        if !self.col_widths.contains_key(&new_coord.clone().full_col()) {
-                            self.col_widths
-                                .insert(new_coord.clone().full_col(), tmp_width);
-                            //90.0);
-                        }
-                    }
+                    
+                    // info!("tmp_width-{},tmp_heigth-{}", tmp_width.clone(), tmp_heigth.clone());
+                    // info!("current_width-{}, current_height-{}", current_width.clone(), current_height.clone());
                 }
+               
                 if let Some(parent) = Coordinate::parent(&coord)
                     .and_then(|p| self.get_session_mut().grammars.get_mut(&p))
                 {
                     parent.kind = grammar.clone().kind; // make sure the parent gets set to Kind::Grid
-                }   
-
+                } 
+                 
+                if current_grammar.style.row_span.0 != 0 || current_grammar.style.col_span.0 != 0 {
+                    grammar.style.row_span = current_grammar.style.row_span.clone();
+                    grammar.style.col_span = current_grammar.style.col_span.clone();
+                }
                 self.get_session_mut()
                     .grammars
                     .insert(coord.clone(), grammar.clone());           

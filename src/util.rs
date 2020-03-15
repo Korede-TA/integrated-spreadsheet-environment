@@ -173,18 +173,30 @@ pub fn resize(m: &mut Model, coord: Coordinate, row_height: f64, col_width: f64)
             col_width_diff = new_col_width - *old_col_width;
             *old_col_width = new_col_width;
         }
-        info!("Coord resize {:?}", coord.clone());
-        for (c, g) in m.get_session_mut().grammars.iter_mut() {
-            if (c.row().get() == coord.row().get()) {
-                g.style.height = new_row_height;
+
+        /* Update style width and height for the resize coord and neighbor with same column or row
+            Also update new size for its parent coord and associate neighbor.
+        */
+        let mut current_coord = coord.clone();
+        let mut get_grammar = m.get_session_mut().grammars.clone();
+        while !current_coord.parent().is_none() {
+            let p_coord = current_coord.parent().clone();
+            for (c, g) in m.get_session_mut().grammars.iter_mut() {
+                if c.parent() == p_coord {
+                    if c.row().get() == current_coord.row().get() {
+                        g.style.height = new_row_height;
+                    }
+                    if c.col().get() == current_coord.col().get() {
+                        g.style.width = new_col_width;
+                    }
+                }
             }
-            if (c.col().get() == coord.col().get()) {
-                g.style.width = new_col_width;
+            if let Some(parent_grammar) = get_grammar.get_mut(&p_coord.clone().unwrap()) {
+                new_row_height = parent_grammar.style.height + (2 * 32) as f64;
+                new_col_width = parent_grammar.style.width + (2 * 92) as f64;
             }
+            current_coord = p_coord.unwrap();
         }
-        // m.get_session_mut()
-        //     .grammars
-        //     .insert(coord.clone(), new_grammar.clone());
         info! {"resizing cell: (row: {}, col: {}); height: {}, width: {}", coord.row_to_string(), coord.col_to_string(),  row_height_diff, col_width_diff};
         resize_diff(m, parent_coord, row_height_diff, col_width_diff);
     }

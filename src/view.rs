@@ -523,8 +523,8 @@ pub fn view_input_grammar(
                     } else {
                         coord.clone()
                     };
-                    let row_range = (first_row.get()..=last_row.get());
-                    let col_range = (first_col.get()..=last_col.get());
+                    let row_range = first_row.get()..=last_row.get();
+                    let col_range = first_col.get()..=last_col.get();
                     row_range.contains(&current_cell.row().get())
                         && col_range.contains(&current_cell.col().get())
                 }
@@ -650,7 +650,7 @@ pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordina
 
     html! {
         <div
-            class=format!{"cell grid row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
+            class=format!{"\ncell grid row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
             { nodes }
