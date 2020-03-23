@@ -94,12 +94,6 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
                 row_span.0.to_string(), row_span.0.to_string(), row_span.1.to_string(),
             };
         }
-        if let Kind::Grid(_) = grammar.kind {
-            return format! {
-                "{}\nwidth: {}px;\nheight: {}px; {} {}\nposition: static;",
-                grammar.style(coord), col_width, row_height, s_col_span, s_row_span,
-            };
-        }
         return format! {
             "{}\nwidth: {}px;\nheight: {}px;{} {}",
             grammar.style(coord), col_width, row_height,
