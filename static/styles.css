@@ -53,6 +53,10 @@ body {
   
 }
 
+.cell .interactive {
+  width: -webkit-fill-available;
+  height: -webkit-fill-available;
+}
 
 .cell-data.selection {
   background-color: rgb(14, 101, 235, 0.1);

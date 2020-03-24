@@ -63,6 +63,7 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
 
     if coord.row_cols.len() == 1 {
         return grammar.style(coord);
+        
     }
 
     let (col_span, row_span, mut col_width, mut row_height) = {
@@ -113,4 +114,19 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
         "{}\nwidth: {}px;\nheight: {}px;\n",
         grammar.style(coord), col_width, row_height,
     }
+}
+
+#[cfg(test)]
+mod tests {
+    // Note this useful idiom: importing names from outer (for mod tests) scope.
+    use super::*;
+
+    #[test]
+    fn test_style_to_string() {
+        assert_eq!(Style::default().to_string(),  
+            "/* border: 1px; NOTE: ignoring Style::border_* for now */
+    border-collapse: inherit;
+    font-weight: 400;
+    color: black;\n" )
+}
 }
