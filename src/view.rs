@@ -589,6 +589,11 @@ pub fn view_input_grammar(
     if is_active {
         info! {"{:?}", suggestions};
     }
+    if let Some(grammar) = m.get_session().grammars.get(&coord) {
+        if grammar.clone().style.display == true {
+            return html! { <> </> }
+        }
+    }
     // load the suggestion values, including the completion callbacks
     // and parse them into DOM nodes
     let suggestions_len = suggestions.len();
@@ -638,13 +643,21 @@ pub fn view_input_grammar(
         if is_active { "cell-active" } else { "cell-inactive" },
         if is_selected { "selection" } else { "" }
     };
+    
+
     html! {
         <div
             class=cell_classes
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
             <div contenteditable=true
-                class=cell_data_classes
+                class={ format!{ "cell-data {} {}", active_cell_class,
+                if is_selected {
+                    "selection"
+                } else {
+                    ""
+                }
+                } },
                 value=value
                 ref={
                     if is_active {
@@ -659,7 +672,6 @@ pub fn view_input_grammar(
                         // }
                         Action::Noop
                     } else if e.code() == "Space" && has_lookup_prefix {
-
                         Action::ToggleLookup(current_coord.clone())
                     } else if e.key() == "g" && e.ctrl_key() && is_active {
                         Action::AddNestedGrid(current_coord.clone(), (3, 3))
@@ -755,7 +767,7 @@ pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordina
     }
     html! {
         <div
-            class=format!{"cell grid row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
+            class=format!{"\ncell grid row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
             { nodes }

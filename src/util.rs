@@ -170,15 +170,42 @@ pub fn resize(m: &mut Model, coord: Coordinate, row_height: f64, col_width: f64)
     if let Some(parent_coord) = coord.parent() {
         let mut row_height_diff = 0.0;
         let mut col_width_diff = 0.0;
+        let mut new_row_height = 0.0;
+        let mut new_col_width = 0.0;
+        let mut new_grammar = Grammar::default();
         if let Some(old_row_height) = m.row_heights.get_mut(&coord.full_row()) {
-            let new_row_height = row_height + /* horizontal border width */ 2.0;
+            new_row_height = row_height + /* horizontal border width */ 2.0;
             row_height_diff = new_row_height - *old_row_height;
             *old_row_height = new_row_height;
         }
         if let Some(old_col_width) = m.col_widths.get_mut(&coord.full_col()) {
-            let new_col_width = col_width + /* vertiacl border height */ 2.0;
+            new_col_width = col_width + /* vertiacl border height */ 2.0;
             col_width_diff = new_col_width - *old_col_width;
             *old_col_width = new_col_width;
+        }
+
+        /* Update style width and height for the resize coord and neighbor with same column or row
+            Also update new size for its parent coord and associate neighbor.
+        */
+        let mut current_coord = coord.clone();
+        let mut get_grammar = m.get_session_mut().grammars.clone();
+        while !current_coord.parent().is_none() {
+            let p_coord = current_coord.parent().clone();
+            for (c, g) in m.get_session_mut().grammars.iter_mut() {
+                if c.parent() == p_coord {
+                    if c.row().get() == current_coord.row().get() {
+                        g.style.height = new_row_height;
+                    }
+                    if c.col().get() == current_coord.col().get() {
+                        g.style.width = new_col_width;
+                    }
+                }
+            }
+            if let Some(parent_grammar) = get_grammar.get_mut(&p_coord.clone().unwrap()) {
+                new_row_height = parent_grammar.style.height + (2 * 32) as f64;
+                new_col_width = parent_grammar.style.width + (2 * 92) as f64;
+            }
+            current_coord = p_coord.unwrap();
         }
         info! {"resizing cell: (row: {}, col: {}); height: {}, width: {}", coord.row_to_string(), coord.col_to_string(),  row_height_diff, col_width_diff};
         resize_diff(m, parent_coord, row_height_diff, col_width_diff);
