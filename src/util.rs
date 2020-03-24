@@ -5,20 +5,38 @@ use std::ops::Deref;
 use std::option::Option;
 use stdweb::unstable::TryFrom;
 use stdweb::web::{document, HtmlElement, IHtmlElement, INonElementParentNode};
+use stdweb::Value;
 
-use crate::coordinate::Coordinate;
+use crate::coordinate::{Col, Coordinate, Row};
 use crate::grammar::{Grammar, Kind};
 use crate::model::Model;
 use crate::row_col_vec;
 use crate::style::Style;
 
-pub fn move_grammar(map: &mut HashMap<Coordinate, Grammar>, source: Coordinate, dest: Coordinate) {
-    if let Some(source_grammar) = map.clone().get(&source) {
-        map.insert(dest.clone(), source_grammar.clone());
+// `move_grammar` function does all the necessary operations when copying nested grammars from one
+// coordinate in the grid to another including:
+// - copying each nested grammar all the way to the innermost cell
+// - adjusting the sizes of the grammars in row_heights and col_widths
+//
+// TODO:
+// - add error return value that can be checked to see if grammar move was successful
+// - add UNIT TEST to ensure that destination coord is only manipulated if source coord exists
+// - (maybe) incorporate dom_resize to get correct values
+pub fn move_grammar(m: &mut Model, source: Coordinate, dest: Coordinate) {
+    if let Some(source_grammar) = m.get_session_mut().grammars.clone().get(&source) {
+        // copy source grammar from map and insert into destination coordinate
+        m.get_session_mut()
+            .grammars
+            .insert(dest.clone(), source_grammar.clone());
+        // resizes new grammar
+        let row_height = m.row_heights.get(&source.full_row()).unwrap_or(&30.0);
+        let col_width = m.col_widths.get(&source.full_col()).unwrap_or(&90.0);
+        resize(m, dest.clone(), *row_height, *col_width);
+        // copying over child grammar values
         if let Kind::Grid(sub_coords) = source_grammar.clone().kind {
             for sub_coord in sub_coords {
                 move_grammar(
-                    map,
+                    m,
                     Coordinate::child_of(&source, sub_coord),
                     Coordinate::child_of(&dest, sub_coord),
                 );
@@ -131,6 +149,8 @@ pub fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
         style: Style::default(),
         kind: Kind::Grid(row_col_vec![(1, 1), (2, 1), (3, 1)]),
     };
+    m.col_widths.insert(root_coord.full_col(), 184.0); // set width of col
+    m.row_heights.insert(root_coord.full_row(), 184.0); // set width of col
 
     m.get_session_mut().grammars.insert(root_coord, defn);
     m.get_session_mut()
@@ -244,32 +264,13 @@ macro_rules! row_col_vec {
     };
 }
 
-/* TODO: get this working so w can color code lookups
-pub fn rainbow_stop(h: i32) -> String {
-    let f = |n| {
-        let k = (n + h * 12) % 12;
-        0.5 - (0.5
-            * (vec![vec![k - 3, 9 - k, 1].iter().min().cloned().unwrap(), -1]
-                .iter()
-                .max()
-                .cloned()
-                .unwrap() as f64))
-    };
-    let rgb2hex = |r, g, b: f64| {
-        format! {
-            "#{}",
-            vec![r,g,b].iter().map(|x : &f64| {
-                let (upper, lower) = {
-                    let v : f64 = (x*255.0).round();
-                    ((v/16.0).round() as u32, (v%16.0).round() as u32)
-                };
-                format!{
-                    "{:?}{:?}",
-                    std::char::from_digit(upper, 16), std::char::from_digit(lower, 16),
-                }
-            }).collet().join("")
-        }
-    };
-    rgb2hex(f(0), f(8), f(4))
+/* TODO: get this working so w can color code lookups */
+/*
+pub fn random_color() -> String {
+    (js! {
+        return Math.floor(Math.random()*16777215).toString(16);
+    })
+    .try_into()
+    .unwrap()
 }
 */

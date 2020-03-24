@@ -549,14 +549,7 @@ impl Component for Model {
             }
 
             Action::DoCompletion(source_coord, dest_coord) => {
-                move_grammar(
-                    &mut self.get_session_mut().grammars,
-                    source_coord,
-                    dest_coord.clone(),
-                );
-                let row_height = self.row_heights.get(&dest_coord.full_row()).unwrap();
-                let col_width = self.col_widths.get(&dest_coord.full_col()).unwrap();
-                resize(self, dest_coord, *row_height, *col_width);
+                move_grammar(self, source_coord, dest_coord.clone());
                 true
             }
 
@@ -1115,11 +1108,7 @@ impl Component for Model {
             Action::Lookup(source_coord, lookup_type) => {
                 match lookup_type {
                     Lookup::Cell(dest_coord) => {
-                        move_grammar(
-                            &mut self.get_session_mut().grammars,
-                            source_coord,
-                            dest_coord.clone(),
-                        );
+                        move_grammar(self, source_coord, dest_coord.clone());
                     }
                     _ => (),
                 }
@@ -1175,13 +1164,13 @@ impl Component for Model {
                 if let Kind::Grid(sub_coords) = &mut self.get_session_mut().meta.kind {
                     sub_coords.push(defn_meta_sub_coord.clone());
                 }
-                // rename old grammar to defn_name specified in defn_grammar button
-                if let Some(g) = self.get_session_mut().grammars.get_mut(&coord) {
-                    g.name = defn_name;
-                }
                 let defn_coord = Coordinate::child_of(&(coord!("meta")), defn_meta_sub_coord);
                 info! {"Adding Definition: {} to {}", coord.to_string(), defn_coord.to_string()};
-                move_grammar(&mut self.get_session_mut().grammars, coord, defn_coord);
+                move_grammar(self, coord, defn_coord.clone());
+                // give moved grammar name {defn_name} as specified in "Add Definition" button
+                if let Some(g) = self.get_session_mut().grammars.get_mut(&defn_coord) {
+                    g.name = defn_name;
+                }
                 true
             }
 
