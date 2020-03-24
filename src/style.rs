@@ -114,3 +114,23 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
         grammar.style(coord), col_width, row_height,
     }
 }
+
+pub enum Dimension {
+    MaxContent,
+    MinContent,
+    FitContent,
+    Px(f64),
+    Percentage(f64),
+}
+
+impl Dimension {
+    fn to_string(&self) -> String {
+        match self {
+            Dimension::MaxContent => "max-content".to_string(),
+            Dimension::MinContent => "min-content".to_string(),
+            Dimension::FitContent => "fit-content".to_string(),
+            Dimension::Px(x) => format! {"{}px", x},
+            Dimension::Percentage(x) => format! {"{}%", x},
+        }
+    }
+}
