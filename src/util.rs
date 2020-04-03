@@ -99,7 +99,7 @@ pub fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
     defn_label_style.font_weight = 600;
     m.col_widths.insert(root_coord.full_col(), 184.0); // set width of col
     m.row_heights.insert(root_coord.full_row(), 184.0); // set width of col
-    add_to_tree(
+    build_grammar_map(
         &mut m.get_session_mut().grammars,
         root_coord,
         gg![

@@ -333,7 +333,7 @@ impl Component for Model {
                 meta: meta_grammar.clone(),
                 grammars: {
                     let mut map = HashMap::new();
-                    add_to_tree(
+                    build_grammar_map(
                         &mut map,
                         coord!("root"),
                         gg![

@@ -24,7 +24,7 @@ pub enum MapEntry {
     GG(Vec<Vec<Box<MapEntry>>>),
 }
 
-pub fn add_to_tree(map: &mut HashMap<C, G>, root_coord: Coordinate, entry: MapEntry) {
+pub fn build_grammar_map(map: &mut HashMap<C, G>, root_coord: Coordinate, entry: MapEntry) {
     match entry {
         MapEntry::G(grammar) => {
             map.insert(root_coord, grammar);
@@ -37,7 +37,7 @@ pub fn add_to_tree(map: &mut HashMap<C, G>, root_coord: Coordinate, entry: MapEn
                         &root_coord,
                         non_zero_u32_tuple(((row_i + 1) as u32, (col_i + 1) as u32)),
                     );
-                    add_to_tree(map, new_coord, (**entry).clone());
+                    build_grammar_map(map, new_coord, (**entry).clone());
                     sub_coords.push(non_zero_u32_tuple(((row_i + 1) as u32, (col_i + 1) as u32)));
                 }
             }
@@ -76,7 +76,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_add_to_tree() {
+    fn test_build_grammar_map() {
         let mut map = HashMap::new();
         let entry = gg![
             [
@@ -98,7 +98,7 @@ mod tests {
                 ],
             ]
         ];
-        add_to_tree(&mut map, &coord!("root"), entry);
+        build_grammar_map(&mut map, &coord!("root"), entry);
         assert_eq!(map.keys().len(), 13);
     }
 }
