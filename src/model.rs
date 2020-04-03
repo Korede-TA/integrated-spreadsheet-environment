@@ -1,10 +1,11 @@
 use electron_sys::ipc_renderer;
 use pest::Parser;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::option::Option;
+use stdweb::traits::IEvent;
 use stdweb::unstable::TryInto;
 use stdweb::web::{document, IElement, INode, IParentNode};
 use wasm_bindgen::JsValue;
@@ -41,6 +42,8 @@ pub struct Model {
     pub first_select_cell: Option<Coordinate>,
     pub last_select_cell: Option<Coordinate>,
 
+    pub secondary_selections: HashSet<Coordinate>,
+
     // TODO: are `min_select_cell` and `max_select_cell` still useful
     pub min_select_cell: Option<Coordinate>,
     pub max_select_cell: Option<Coordinate>,
@@ -75,6 +78,7 @@ pub struct Model {
 
     // - `focus_node_ref` is a reference to the current cell that should be in focus
     pub focus_node_ref: NodeRef,
+    pub next_focus_node_ref: NodeRef,
 
     // - `resizing` is an optional reference to the current coordinate being resized
     //    (which is None if no resizing is happening)
@@ -142,6 +146,7 @@ pub enum Action {
 
     SetActiveCell(Coordinate),
 
+    NextSuggestion(Coordinate, /* index */ i32),
     DoCompletion(
         /* source: */ Coordinate,
         /* destination */ Coordinate,
@@ -184,8 +189,9 @@ pub enum Action {
 
     ChangeDefaultNestedGrid((NonZeroU32, NonZeroU32)),
 
-    ChangeDefaultDefinitionName(String),
+    SetCurrentDefinitionName(String),
 
+    // SetCurrentParentGrammar(Coordinate),
     ToggleLookup(Coordinate),
 
     AddDefinition(Coordinate, /* name */ String),
@@ -313,6 +319,9 @@ impl Component for Model {
 
             first_select_cell: None,
             last_select_cell: None,
+
+            secondary_selections: HashSet::new(),
+
             min_select_cell: None,
             max_select_cell: None,
             zoom: 1.0,
@@ -386,6 +395,7 @@ impl Component for Model {
             tasks: vec![],
 
             focus_node_ref: NodeRef::default(),
+            next_focus_node_ref: NodeRef::default(),
 
             shift_key_pressed: false,
 
@@ -447,6 +457,29 @@ impl Component for Model {
 
             Action::SetActiveCell(coord) => {
                 self.active_cell = Some(coord.clone());
+                let active_cell_id = format! {"cell-{}", coord.to_string()};
+                js! {
+                    try {
+                        let element = document.getElementById(@{active_cell_id.clone()});
+                        element.firstChild.focus();
+                    } catch (e) {
+                        console.log("cannot focus cell with coordinate ", @{active_cell_id});
+                    }
+                };
+                true
+            }
+
+            Action::NextSuggestion(coord, index) => {
+                let next_suggestion_id =
+                    format! {"cell-{}-suggestion-{}", coord.to_string(), index};
+                js! {
+                    try {
+                        let element = document.getElementById(@{next_suggestion_id.clone()});
+                        element.focus();
+                    } catch (e) {
+                        console.log("cannot focus on next suggestion");
+                    }
+                };
                 true
             }
 
@@ -1184,7 +1217,7 @@ impl Component for Model {
                 false
             }
 
-            Action::ChangeDefaultDefinitionName(name) => {
+            Action::SetCurrentDefinitionName(name) => {
                 self.default_definition_name = name;
                 false
             }
@@ -1211,7 +1244,6 @@ impl Component for Model {
     }
 
     fn view(&self) -> Html {
-        let _active_cell = self.active_cell.clone();
         let is_resizing = self.resizing.is_some();
         let zoom = format! { "zoom: {};", &self.zoom };
         let cursor = format! { "cursor: {};", match self.mouse_cursor {
@@ -1219,6 +1251,11 @@ impl Component for Model {
             CursorType::EW => "ew-resize",
             CursorType::Default => "default",
         }};
+        let (default_row, default_col) = {
+            let (r, c) = self.default_nested_row_cols.clone();
+            (r.get(), c.get())
+        };
+        let active_cell = self.active_cell.clone().expect("active_cell should be set");
         html! {
             <div>
 
@@ -1230,16 +1267,33 @@ impl Component for Model {
 
                 <div class="main">
                     <div id="grammars" class="grid-wrapper" style={zoom+&cursor}
-                        // Global Keyboard shortcuts
+                        // Global Key-mappings
                         onkeypress=self.link.callback(move |e : KeyPressEvent| {
-                            Action::Noop
+                            let keys = key_combination(&e);
+                            info! {"global keypress: {}", keys.clone()};
+                            match keys.deref() {
+                                // Tab (navigation) is handled in onkeydown
+                                "Ctrl-g" => {
+                                    Action::AddNestedGrid(active_cell.clone(), (default_row, default_col))
+                                }
+                                _ => Action::Noop
+                            }
                         })
                         // Global Key toggles
                         onkeydown=self.link.callback(move |e : KeyDownEvent| {
-                            if e.key() == "Shift" {
-                                Action::ToggleShiftKey(true)
-                            } else {
-                                Action::Noop
+                            let keys = key_combination(&e);
+                            match keys.deref() {
+                                // Tab is intercepted in onkeydown instead of onkeypress
+                                // to allow us prevent default tabbing behavior
+                                // "Tab" => {
+                                //     e.prevent_default();
+                                //     if let Some(c) = neighbor_right.clone().or(first_col_next_row.clone()) {
+                                //         return Action::SetActiveCell(c)
+                                //     }
+                                //     Action::Noop
+                                // }
+                                "Shift" => Action::ToggleShiftKey(true),
+                                _ => Action::Noop
                             }
                         })
                         onkeyup=self.link.callback(move |e : KeyUpEvent| {
@@ -1273,5 +1327,18 @@ impl Component for Model {
                 </div>
             </div>
         }
+    }
+}
+
+fn key_combination<K>(e: &K) -> String
+where
+    K: IKeyboardEvent,
+{
+    format! {"{}{}{}{}{}",
+        if e.meta_key() { "Meta-" } else { "" },
+        if e.ctrl_key() { "Ctrl-" } else { "" },
+        if e.alt_key() { "Alt-" } else { "" },
+        if e.shift_key() { "Shift-" } else { "" },
+        if e.key().trim() != "" { e.key() } else { e.code() } ,
     }
 }

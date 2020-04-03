@@ -1,8 +1,10 @@
+#![recursion_limit = "1024"]
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use stdweb::traits::IEvent;
 use stdweb::unstable::TryFrom;
-use stdweb::web::{HtmlElement, IHtmlElement};
+use stdweb::web::{html_element::InputElement, HtmlElement, IHtmlElement};
+// use web_sys::HtmlInputElement as InputElement;
 use yew::events::{ClickEvent, IKeyboardEvent, IMouseEvent, KeyPressEvent};
 use yew::prelude::*;
 use yew::services::reader::File;
@@ -205,12 +207,12 @@ pub fn view_menu_bar(m: &Model) -> Html {
             // - the last selected cell is the last (bottom-rightmost) child of the parent
             // cell, which should be a Kind::Grid grammar
             (Some(first), Some(last)) if first.parent() == last.parent() => {
-                if let Some((name, Kind::Grid(sub_coords))) = 
-                        /* get the coordinate of the parent, lookup the grammar, then get the grammar.name and kind */
+                if let Some((Kind::Grid(sub_coords))) = 
+                        /* get the coordinate of the parent, lookup the grammar, then get the grammar.kind */
                         first
                         .parent()
                         .and_then(|c| m.get_session().grammars.get(&c))
-                        .map(|g| (g.name.clone(), g.kind.clone()))
+                        .map(|g| (g.kind.clone()))
                     {
                         use std::cmp::Ordering;
                         let mut sc = sub_coords.clone();
@@ -235,15 +237,18 @@ pub fn view_menu_bar(m: &Model) -> Html {
                         let last_sc = sc.last().expect(
                             "add_definition_button: expect selection parent sub_coords.len > 1",
                         );
-                        let defn_name = if name == "" {
+                        let defn_name = if m.default_definition_name == "" {
                             first.parent().unwrap().to_string().replace("-", "_")
                         } else {
-                            name
+                            m.default_definition_name.clone()
                         };
                         (
+                            // can add definition?
                             *first_sc == first.row_col() &&
                             *last_sc == last.row_col(),
+                            // definition name
                             defn_name.clone(),
+                            // callback
                             m.link.callback(move |_| {
                                 Action::AddDefinition(first.parent().unwrap(), defn_name.clone())
                             }),
@@ -254,6 +259,20 @@ pub fn view_menu_bar(m: &Model) -> Html {
             }
             _ => (false, "".to_string(), m.link.callback(|_| Action::Noop)),
         };
+        /*
+        let suggestions: Vec<_> = m
+            .meta_suggestions
+            .iter()
+            .map(|(name, suggestion_coord)| {
+                html! {
+                    <option value={ name } onclick=m.link.callback(|e: ClickEvent| {
+                        Action::SetCurrentParentGrammar(suggestion_coord.clone())
+                    })>
+                    </option>
+                }
+            })
+            .collect();
+        */
 
         html! {
             <button class="menu-bar-button" disabled={ !can_add_definition } onclick=callback>
@@ -265,13 +284,32 @@ pub fn view_menu_bar(m: &Model) -> Html {
                     disabled={ !can_add_definition }
                     onchange=m.link.callback(move |e: ChangeData| {
                         if let ChangeData::Value(value) = e {
-                            return Action::ChangeDefaultDefinitionName(value);
+                            return Action::SetCurrentDefinitionName(value);
                         }
                         Action::Noop
                     })
                     onclick=m.link.callback(|e: ClickEvent| { e.prevent_default(); Action::Noop })
                     value={"".to_string()}>
                 </input>
+                /*
+                <div>
+                    <input
+                        class="active-cell-indicator"
+                        placeholder="Parent Name"
+                        size="10"
+                        disabled={ !can_add_definition }
+                        onchange=m.link.callback(move |e: ChangeData| {
+                            if let ChangeData::Value(value) = e {
+                                return Action::SetCurrentDefinitionName(value);
+                            }
+                            Action::Noop
+                        })
+                        onclick=m.link.callback(|e: ClickEvent| { e.prevent_default(); Action::Noop })
+                        value={parent_defn}>
+                    </input>
+                    { VList::new_with_children(suggestions) }
+                </div>
+                */
             </button>
         }
     };
@@ -373,6 +411,7 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                     .iter()
                     .filter_map(|(name, suggestion_coord)| {
                         // suggestion_coord
+                        // info! {"filtering suggestions by {}", value}
                         if let Some(suggestion_grammar) =
                             m.get_session().grammars.get(&suggestion_coord)
                         {
@@ -532,7 +571,7 @@ pub fn view_lookup_grammar(
             let dest = coord.clone();
             let source = lookup_coord.clone();
             suggestions_nodes.add_child(html!{
-                <a tabindex=-1
+                <a tabindex=2
                     onclick=m.link.callback(move |_ : ClickEvent| Action::DoCompletion(source.clone(), dest.clone()))>
                     { lookup_coord.to_string() }
                 </a>
@@ -561,7 +600,6 @@ pub fn view_lookup_grammar(
                         if is_active { "cell-active" } else { "cell-inactive" },
                       }
                 placeholder="coordinate"
-                value=value
                 ref={
                     if is_active {
                         m.focus_node_ref.clone()
@@ -574,6 +612,7 @@ pub fn view_lookup_grammar(
                 })
                 oninput=m.link.callback(move |e : InputData| Action::ChangeInput(c.clone(), e.value))>
             </div>
+            { value }
             { suggestions_div }
         </div>
     }
@@ -586,31 +625,38 @@ pub fn view_input_grammar(
     value: String,
     is_active: bool,
 ) -> Html {
-    if is_active {
-        info! {"{:?}", suggestions};
-    }
     // load the suggestion values, including the completion callbacks
     // and parse them into DOM nodes
-    let suggestions_len = suggestions.len();
-    let first_suggestion_ref = NodeRef::default();
+    let suggestions_len = if value.clone() != "" && is_active {
+        suggestions.len()
+    } else {
+        0
+    };
     let suggestions = if value.clone() != "" && is_active {
         let mut suggestion_nodes = VList::new();
-        let mut is_first_suggestion = true;
+        let mut suggestion_index = 1;
         for (s_coord, s_grammar) in suggestions {
+            let s_coord_2 = s_coord.clone();
             let c = coord.clone();
+            let dest_coord = coord.clone();
             suggestion_nodes.add_child(html! {
                     <a 
-                        ref={ 
-                            if is_first_suggestion {
-                                first_suggestion_ref.clone()
-                            } else { NodeRef::default() }
-                        }
-                        tabindex=-1
-                        onclick=m.link.callback(move |_ : ClickEvent| Action::DoCompletion(s_coord.clone(), c.clone()))>
+                        id=format!{"cell-{}-suggestion-{}", c.to_string(), suggestion_index}
+                        tabindex=2
+                        onkeydown=m.link.callback(move |e : KeyDownEvent| {
+                            if e.code() == "Tab" {
+                                e.prevent_default();
+                                return Action::NextSuggestion(c.clone(), if e.shift_key() { suggestion_index-1 } else { suggestion_index+1 });
+                            } else if e.code() == "Enter" || e.code() == "Space" {
+                                return Action::DoCompletion(s_coord_2.clone(), c.clone());
+                            }
+                            Action::Noop
+                        })
+                        onclick=m.link.callback(move |_ : ClickEvent| Action::DoCompletion(s_coord.clone(), dest_coord.clone()))>
                         { &s_grammar.name }
                     </a>
                 });
-            is_first_suggestion = false;
+            suggestion_index += 1;
         }
         html! {
             <div class="suggestion-content">
@@ -621,12 +667,13 @@ pub fn view_input_grammar(
         html! { <></> }
     };
     /*
-     * Calculating if a specific cell should be selected based on the top-rightmost
+     * Calculate if a specific cell should be selected based on the top-rightmost
      * and bottom-leftmost cells
      */
     let is_selected = cell_is_selected(&coord, &m.first_select_cell, &m.last_select_cell);
     let has_lookup_prefix: bool = value.clone() == "$";
     let current_coord = coord.clone();
+    let tab_coord = coord.clone();
     let focus_coord = coord.clone();
     let drag_coord = coord.clone();
     let shift_key_pressed = m.shift_key_pressed;
@@ -638,6 +685,30 @@ pub fn view_input_grammar(
         if is_active { "cell-active" } else { "cell-inactive" },
         if is_selected { "selection" } else { "" }
     };
+    // relevant coordinates for navigation purposes
+    let neighbor_left = current_coord
+        .neighbor_left()
+        .filter(|c| m.get_session().grammars.contains_key(&c))
+        .clone();
+    let neighbor_right = current_coord
+        .neighbor_right()
+        .filter(|c| m.get_session().grammars.contains_key(&c))
+        .clone();
+    let first_col_next_row = {
+        let temp = &mut current_coord.neighbor_below();
+        if let Some(t) = temp {
+            let col = t.col_mut();
+            *col = NonZeroU32::new(1).unwrap();
+            if m.get_session().grammars.contains_key(&t) {
+                Some(t.clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    };
+    let last_col_prev_row = /* TODO: get the correct value of this */ current_coord.neighbor_above();
     html! {
         <div
             class=cell_classes
@@ -645,27 +716,31 @@ pub fn view_input_grammar(
             style={ get_style(&m, &coord) }>
             <div contenteditable=true
                 class=cell_data_classes
-                value=value
-                ref={
-                    if is_active {
-                        m.focus_node_ref.clone()
-                    } else { NodeRef::default() }
-                }
+                onkeydown=m.link.callback(move |e : KeyDownEvent| {
+                    info!{"suggestion len {}", suggestions_len}
+                    if e.code() == "Tab" {
+                        e.prevent_default();
+                        if suggestions_len > 0 {
+                            return Action::NextSuggestion(tab_coord.clone(), 1);
+                        }
+                        let next_active_cell = neighbor_left.clone().or(last_col_prev_row.clone());
+                        // if e.shift_key() {
+                        //
+                        // } else {
+                        //     neighbor_right.clone().or(first_col_next_row.clone())
+                        // };
+                        return next_active_cell.map_or(Action::Noop, |c| Action::SetActiveCell(c));
+                    }
+                    Action::Noop
+                })
                 onkeypress=m.link.callback(move |e : KeyPressEvent| {
-                    if e.code() == "Tab" && suggestions_len > 0 {
-                        // TODO: fix this as part of focus ticket
-                        // if let Some(input) = first_suggestion_ref.try_into::<HtmlElement>() {
-                        //     input.focus();
-                        // }
-                        Action::Noop
-                    } else if e.code() == "Space" && has_lookup_prefix {
-
+                    if e.code() == "Space" && has_lookup_prefix {
                         Action::ToggleLookup(current_coord.clone())
-                    } else if e.key() == "g" && e.ctrl_key() && is_active {
-                        Action::AddNestedGrid(current_coord.clone(), (3, 3))
                     } else { Action::Noop }
                 })
-                oninput=m.link.callback(move |e : InputData| Action::ChangeInput(coord.clone(), e.value))
+                oninput=m.link.callback(move |e : InputData| {
+                    Action::ChangeInput(coord.clone(), e.value)
+                })
                 onclick=m.link.callback(move |e : ClickEvent| {
                     if e.shift_key() {
                         Action::Select(SelectMsg::End(new_selected_cell.clone()))
@@ -716,6 +791,7 @@ pub fn view_input_grammar(
                         Action::Noop
                     }
                 })>
+                { value }
             </div>
             { suggestions }
         </div>
@@ -737,12 +813,12 @@ pub fn view_text_grammar(m: &Model, coord: &Coordinate, value: String, is_active
                         if is_selected { "selection" } else { "" }
                     }
                 },
-                value=value
                 ref={
                     if is_active {
                         m.focus_node_ref.clone()
                     } else { NodeRef::default() }
                 }>
+                { value }
             </div>
         </div>
     }
@@ -763,6 +839,7 @@ pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordina
     }
 }
 
+// util function for determining if one cell's coordinate is within the range of selected cells.
 fn cell_is_selected(
     coord: &Coordinate,
     first_select_cell: &Option<Coordinate>,
