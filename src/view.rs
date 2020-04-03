@@ -709,6 +709,23 @@ pub fn view_input_grammar(
         }
     };
     let last_col_prev_row = /* TODO: get the correct value of this */ current_coord.neighbor_above();
+    let keydownhandler = m.link.callback(move |e: KeyDownEvent| {
+        info! {"suggestion len {}", suggestions_len}
+        if e.code() == "Tab" {
+            e.prevent_default();
+            if suggestions_len > 0 {
+                return Action::NextSuggestion(tab_coord.clone(), 1);
+            }
+            let next_active_cell = if e.shift_key() {
+                neighbor_left.clone().or(last_col_prev_row.clone())
+            } else {
+                neighbor_right.clone().or(first_col_next_row.clone())
+            };
+            info! {"next_active_cell {}", next_active_cell.clone().unwrap().to_string()};
+            return next_active_cell.map_or(Action::Noop, |c| Action::SetActiveCell(c));
+        }
+        Action::Noop
+    });
     html! {
         <div
             class=cell_classes
@@ -716,23 +733,7 @@ pub fn view_input_grammar(
             style={ get_style(&m, &coord) }>
             <div contenteditable=true
                 class=cell_data_classes
-                onkeydown=m.link.callback(move |e : KeyDownEvent| {
-                    info!{"suggestion len {}", suggestions_len}
-                    if e.code() == "Tab" {
-                        e.prevent_default();
-                        if suggestions_len > 0 {
-                            return Action::NextSuggestion(tab_coord.clone(), 1);
-                        }
-                        let next_active_cell = neighbor_left.clone().or(last_col_prev_row.clone());
-                        // if e.shift_key() {
-                        //
-                        // } else {
-                        //     neighbor_right.clone().or(first_col_next_row.clone())
-                        // };
-                        return next_active_cell.map_or(Action::Noop, |c| Action::SetActiveCell(c));
-                    }
-                    Action::Noop
-                })
+                onkeydown=keydownhandler
                 onkeypress=m.link.callback(move |e : KeyPressEvent| {
                     if e.code() == "Space" && has_lookup_prefix {
                         Action::ToggleLookup(current_coord.clone())
