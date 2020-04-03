@@ -105,7 +105,7 @@ impl Coordinate {
         }
     }
 
-    fn col_mut(&mut self) -> &mut NonZeroU32 {
+    pub fn col_mut(&mut self) -> &mut NonZeroU32 {
         if let Some(last) = self.row_cols.last_mut() {
             &mut last.1
         } else {
