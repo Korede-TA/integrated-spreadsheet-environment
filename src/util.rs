@@ -9,9 +9,10 @@ use stdweb::Value;
 
 use crate::coordinate::{Col, Coordinate, Row};
 use crate::grammar::{Grammar, Kind};
+use crate::grammar_map::*;
 use crate::model::Model;
-use crate::row_col_vec;
 use crate::style::Style;
+use crate::{g, gg, row_col_vec};
 
 // `move_grammar` function does all the necessary operations when copying nested grammars from one
 // coordinate in the grid to another including:
@@ -94,86 +95,38 @@ pub fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
     //  |--------(expandable)--------|
     //  ------------------------------
     //
-    let defn_label_coord = Coordinate::child_of(&root_coord, non_zero_u32_tuple((1, 1)));
     let mut defn_label_style = Style::default();
     defn_label_style.font_weight = 600;
-    m.col_widths.insert(defn_label_coord.full_col(), 184.0); // set width of col
-    let defn_label = Grammar {
-        name: "defn_label".to_string(),
-        style: defn_label_style,
-        kind: Kind::Text("Define Grammar".to_string()),
-    };
-
-    let defn_name_coord = Coordinate::child_of(&root_coord, non_zero_u32_tuple((2, 1)));
-    m.col_widths.insert(defn_name_coord.full_col(), 184.0); // set width of col
-    let defn_name = Grammar {
-        name: "defn_name".to_string(),
-        style: Style::default(),
-        kind: Kind::Input(String::new()),
-    };
-
-    let defn_body_coord = Coordinate::child_of(&root_coord, non_zero_u32_tuple((3, 1)));
-    let mut defn_body = Grammar::as_grid(NonZeroU32::new(2).unwrap(), NonZeroU32::new(2).unwrap());
-    defn_body.name = "defn_body".to_string();
-
-    let defn_body_A1_coord = Coordinate::child_of(&defn_body_coord, non_zero_u32_tuple((1, 1)));
-    let defn_body_A1 = Grammar {
-        name: "".to_string(),
-        style: Style::default(),
-        kind: Kind::Input(String::new()),
-    };
-
-    let defn_body_A2_coord = Coordinate::child_of(&defn_body_coord, non_zero_u32_tuple((2, 1)));
-    let defn_body_A2 = Grammar {
-        name: "".to_string(),
-        style: Style::default(),
-        kind: Kind::Input(String::new()),
-    };
-
-    let defn_body_B1_coord = Coordinate::child_of(&defn_body_coord, non_zero_u32_tuple((1, 2)));
-    let defn_body_B1 = Grammar {
-        name: "".to_string(),
-        style: Style::default(),
-        kind: Kind::Input(String::new()),
-    };
-
-    let defn_body_B2_coord = Coordinate::child_of(&defn_body_coord, non_zero_u32_tuple((2, 2)));
-    let defn_body_B2 = Grammar {
-        name: "".to_string(),
-        style: Style::default(),
-        kind: Kind::Input(String::new()),
-    };
-
-    let defn = Grammar {
-        name: "defn".to_string(),
-        style: Style::default(),
-        kind: Kind::Grid(row_col_vec![(1, 1), (2, 1), (3, 1)]),
-    };
     m.col_widths.insert(root_coord.full_col(), 184.0); // set width of col
     m.row_heights.insert(root_coord.full_row(), 184.0); // set width of col
-
-    m.get_session_mut().grammars.insert(root_coord, defn);
-    m.get_session_mut()
-        .grammars
-        .insert(defn_name_coord, defn_name);
-    m.get_session_mut()
-        .grammars
-        .insert(defn_label_coord, defn_label);
-    m.get_session_mut()
-        .grammars
-        .insert(defn_body_coord, defn_body);
-    m.get_session_mut()
-        .grammars
-        .insert(defn_body_A1_coord, defn_body_A1);
-    m.get_session_mut()
-        .grammars
-        .insert(defn_body_A2_coord, defn_body_A2);
-    m.get_session_mut()
-        .grammars
-        .insert(defn_body_B1_coord, defn_body_B1);
-    m.get_session_mut()
-        .grammars
-        .insert(defn_body_B2_coord, defn_body_B2);
+    add_to_tree(
+        &mut m.get_session_mut().grammars,
+        root_coord,
+        gg![
+            [
+                g!(Grammar {
+                    name: "defn_label".to_string(),
+                    style: defn_label_style,
+                    kind: Kind::Text("Define Grammar".to_string()),
+                }),
+                g!(Grammar {
+                    name: "defn_name".to_string(),
+                    style: Style::default(),
+                    kind: Kind::Input(String::new()),
+                })
+            ],
+            [gg![
+                [
+                    g!(Grammar::input("rule_name", "")),
+                    g!(Grammar::input("rule_grammar", ""))
+                ],
+                [
+                    g!(Grammar::input("rule_name", "")),
+                    g!(Grammar::input("rule_grammar", ""))
+                ]
+            ]]
+        ],
+    );
 }
 
 pub fn resize(m: &mut Model, coord: Coordinate, row_height: f64, col_width: f64) {

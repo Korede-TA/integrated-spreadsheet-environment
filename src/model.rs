@@ -338,26 +338,26 @@ impl Component for Model {
                         coord!("root"),
                         gg![
                             [
-                                g!(Grammar::text("", "A1")),
-                                g!(Grammar::text("", "B1")),
-                                g!(Grammar::text("", "C1"))
+                                g!(Grammar::input("", "A1")),
+                                g!(Grammar::input("", "B1")),
+                                g!(Grammar::input("", "C1"))
                             ],
                             [
-                                g!(Grammar::text("", "A2")),
-                                g!(Grammar::text("", "B2")),
-                                g!(Grammar::text("", "C2"))
+                                g!(Grammar::input("", "A2")),
+                                g!(Grammar::input("", "B2")),
+                                g!(Grammar::input("", "C2"))
                             ],
                             [
-                                g!(Grammar::text("", "A3")),
-                                g!(Grammar::text("", "B3")),
+                                g!(Grammar::input("", "A3")),
+                                g!(Grammar::input("", "B3")),
                                 gg![
                                     [
-                                        g!(Grammar::text("", "C3-A1")),
-                                        g!(Grammar::text("", "C3-B1"))
+                                        g!(Grammar::input("", "C3-A1")),
+                                        g!(Grammar::input("", "C3-B1"))
                                     ],
                                     [
-                                        g!(Grammar::text("", "C3-A2")),
-                                        g!(Grammar::text("", "C3-B2"))
+                                        g!(Grammar::input("", "C3-A2")),
+                                        g!(Grammar::input("", "C3-B2"))
                                     ]
                                 ]
                             ]
