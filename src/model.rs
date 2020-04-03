@@ -489,95 +489,149 @@ impl Component for Model {
                 true
             }
             Action::Select(SelectMsg::End(coord)) => {
-                if let Some(selection_start) = self.first_select_cell.clone() {
+                if let Some(mut selection_start) = self.first_select_cell.clone() {
                     // ensure that selection_start and selection_end have common parent
-                    let common_parent = selection_start.parent();
+                    let mut common_parent = selection_start.parent();
                     let mut selection_end = Some(coord.clone());
-                    while selection_end.clone().and_then(|c| c.parent()) != common_parent {
-                        selection_end = selection_end.and_then(|c| c.parent());
+                    let depth_start = selection_start.row_cols.len();
+                    let depth_end = selection_end.clone().unwrap().row_cols.len();
+                    // depend on which select coord has higher depth, find their common parent
+                    if depth_start < depth_end {
+                        while selection_end.clone().and_then(|c| c.parent()) != common_parent {
+                            selection_end = selection_end.and_then(|c| c.parent());
+                        }
+                    } else {
+                        common_parent = selection_end.clone().unwrap().parent();
+                        while selection_start.parent() != common_parent {
+                            selection_start = selection_start.parent().unwrap();
+                        }
+                    
                     }
-                    self.last_select_cell = selection_end;
+                 // find the min of row,col and max of row,col in selected region 
+                 // which may contain a span coord that has smaller or larger row,col
+                    let (mut start_row, mut start_col) = selection_start.clone().row_col();
+                    let (mut end_row, mut end_col) = selection_end.clone().unwrap().row_col();
+                    if start_row > end_row {
+                        let tmp = start_row.clone();
+                        start_row = end_row;
+                        end_row = tmp;
+                    } 
+                    if start_col > end_col {
+                        let tmp = start_col.clone();
+                        start_col = end_col;
+                        end_col = tmp;
+                    }            
+                    let depth_check = selection_start.row_cols.len().clone();
+                    let ref_grammas = self.get_session().grammars.clone();
+                    let mut check = false;
+                    while !check {
+                        check = true;
+                        let row_range = start_row.get()..=end_row.get();
+                        let col_range = start_col.get()..=end_col.get(); 
+                        for (coord, grammar) in ref_grammas.iter() {
+                            let (coord_row, coord_col) = coord.clone().row_col();
+                            let coord_depth = coord.clone().row_cols.len();
+                            if row_range.contains(&coord_row.get())
+                                && col_range.contains(&coord_col.get()) && (coord_depth == depth_check) {
+                                let col_span = grammar.clone().style.col_span;
+                                let row_span = grammar.clone().style.row_span;
+                                if col_span.0 != 0 && col_span.1 != 0 {
+                                    if col_span.0 < start_col.get() {
+                                        start_col = NonZeroU32::new(col_span.0).unwrap();
+                                        check = false;
+                                    }
+                                    if col_span.1 > end_col.get() {
+                                        end_col = NonZeroU32::new(col_span.1).unwrap();
+                                        check = false;
+                                    }
+                                }
+                                if row_span.0 != 0 && row_span.1 != 0 {
+                                    if row_span.0 < start_row.get() {
+                                        start_row = NonZeroU32::new(row_span.0).unwrap();
+                                        check = false;
+                                    }
+                                    if row_span.1 > end_row.get() {
+                                        end_row = NonZeroU32::new(row_span.1).unwrap();
+                                        check = false;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    
+                    selection_start.row_cols[depth_check - 1] = (start_row, start_col);
+                    selection_end.as_mut().unwrap().row_cols[depth_check - 1] = (end_row, end_col);
+                    self.first_select_cell = Some(selection_start.clone());
+                    self.last_select_cell = selection_end.clone();
                 }
                 true
             }
 
             Action::MergeCells() => {
+                if self.first_select_cell.is_none() || self.last_select_cell.is_none() {
+                    info!("Expect for select for two coord");
+                    return false;
+                }           
                 let (first_row, first_col) = self.first_select_cell.clone().unwrap().row_col();
                 let (last_row, last_col) = self.last_select_cell.clone().unwrap().row_col();
-                let (mut min_select_row, mut max_select_row) = if first_row.get() > last_row.get() {
-                    (last_row.get(), first_row.get())
-                // (a..=b) is shorthand for an integer Range that's inclusive of lower and upper bounds
-                } else {
-                    (first_row.get(), last_row.get())
-                };
-                let (mut min_select_col, mut max_select_col) = if first_col.get() > last_col.get() {
-                    (last_col.get(), first_col.get())
-                } else {
-                    (first_col.get(), last_col.get())
-                };
+                
+                let depth_check = self.last_select_cell.clone().unwrap().row_cols.len();
+                let parent_check = self.last_select_cell.clone().unwrap().parent();
+
+                let row_range = first_row.get()..=last_row.get();
+                let col_range = first_col.get()..=last_col.get(); 
+                
                 let mut merge_height = 0.00;
                 let mut merge_width = 0.00;
                 let mut max_coord = Coordinate::default();
                 let mut max_grammar = Grammar::default();
                 let mut ref_grammas = self.get_session_mut().grammars.clone();
                 for (coord, grammar) in ref_grammas.iter_mut() {
-                    if min_select_row <= coord.row().get()
-                        && coord.row().get() <= max_select_row
-                        && min_select_col <= coord.col().get()
-                        && coord.col().get() <= max_select_col
-                        && coord.to_string().contains("root-")
-                        && grammar.style.display == true
-                    {
-                        let coord_style = grammar.style.clone();
-                        if (coord.row().get() == max_select_row)
-                            && (coord.col().get() == max_select_col)
-                        {
-                            merge_width = merge_width + coord_style.width;
-                            merge_height = merge_height + coord_style.height;
-                            max_coord = coord.clone();
-                            max_grammar = grammar.clone();
-                            continue;
-                        } else if (coord.row().get() == max_select_row) {
-                            merge_width = merge_width + coord_style.width;
-                        } else if coord.col().get() == max_select_col {
-                            merge_height = merge_height + coord_style.height;
-                        }
-                        if (coord.row().get() != max_select_row)
-                            || (coord.col().get() != max_select_col)
-                        {
-                            grammar.style.display = false;
-                            merge_height = merge_height;
-                            merge_width = merge_width;
-                        }
-                        grammar.style.col_span.0 = min_select_col;
-                        grammar.style.col_span.1 = max_select_col;
-                        grammar.style.row_span.0 = min_select_row;
-                        grammar.style.row_span.1 = max_select_row;
-                        self.get_session_mut()
-                            .grammars
-                            .insert(coord.clone(), grammar.clone());
+                    if coord.parent() == parent_check { 
                     }
+                    if  coord.to_string().contains("root-") {
+                        if row_range.contains(&coord.row().get()) && col_range.contains(&coord.col().get()) && coord.parent() == parent_check                    
+                        {                                                  
+                            let coord_style = grammar.style.clone();
+                            if coord_style.display != false  { 
+                                if coord.row().get() == last_row.get() {  
+                                    merge_width = merge_width + coord_style.width;
+                                
+                                } 
+                                if coord.col().get() == last_col.get() {
+                                    merge_height = merge_height + coord_style.height;
+                                }
+                                    if coord.row().get() == last_row.get()
+                                    && (coord.col().get() == last_col.get())
+                                {          
+                                    max_coord = coord.clone();
+                                    max_grammar = grammar.clone();
+                                } else {
+                                    grammar.style.display = false;
+                                }                                            
+                            }
+                            grammar.kind =  Kind::Input("".to_string());                   
+                            grammar.style.col_span.0 = first_col.get();
+                            grammar.style.col_span.1 = last_col.get();
+                            grammar.style.row_span.0 = first_row.get();
+                            grammar.style.row_span.1 = last_row.get();                    
+                            self.get_session_mut()
+                                .grammars
+                                .insert(coord.clone(), grammar.clone());
+                        }
+                    }                            
                 }
+                max_grammar.kind =  Kind::Input("".to_string());
                 max_grammar.style.width = merge_width;
                 max_grammar.style.height = merge_height;
-                max_grammar.style.col_span.0 = min_select_col;
-                max_grammar.style.col_span.1 = max_select_col;
-                max_grammar.style.row_span.0 = min_select_row;
-                max_grammar.style.row_span.1 = max_select_row;
-                info!("Min cell r-{}, c-{}", min_select_row, min_select_col);
-                info!("Max cell r-{}, c-{}", max_select_row, max_select_col);
-
+                max_grammar.style.col_span.0 = first_col.get();
+                max_grammar.style.col_span.1 = last_col.get();
+                max_grammar.style.row_span.0 = first_row.get();
+                max_grammar.style.row_span.1 = last_row.get();             
                 self.get_session_mut()
                     .grammars
                     .insert(max_coord.clone(), max_grammar.clone());
-                info!(
-                    "col_span inside {} - {}",
-                    max_grammar.style.col_span.0, max_grammar.style.col_span.1
-                );
-                info!(
-                    "row_span inside {} - {}",
-                    max_grammar.style.row_span.0, max_grammar.style.row_span.1
-                );
                 true
             }
 
@@ -725,17 +779,28 @@ impl Component for Model {
             }
 
             Action::AddNestedGrid(coord, (rows, cols)) => {
+                if self.active_cell.is_none() {
+                    info!("Expect a cell is active");
+                    return false;
+                }
                 // height and width initial value
-                let mut tmp_heigt = 30.0;
+                let mut tmp_heigth = 30.0;
                 let mut tmp_width = 90.0;
+
+                let current_cell = self.active_cell.clone();
+                let mut ref_grammas = self.get_session().grammars.clone();
+                let current_grammar = ref_grammas.get(&current_cell.clone().unwrap()).unwrap();
+
                 let (r, c) = non_zero_u32_tuple((rows, cols));
-                let grammar = Grammar::as_grid(r, c);
+                let mut grammar = Grammar::as_grid(r, c);
                 if let Kind::Grid(sub_coords) = grammar.clone().kind {
                     self.active_cell = sub_coords.first().map(|c| Coordinate::child_of(&coord, *c));
-                    // let row_val = coord
+                               
+                    let current_width = current_grammar.style.width;
+                    let current_height = current_grammar.style.height;
 
-                    let current_width = *self.col_widths.get(&coord.full_col()).unwrap_or(&90.0);
-                    let current_height = *self.row_heights.get(&coord.full_row()).unwrap_or(&30.0);
+                    // let current_width = *self.col_widths.get(&coord.full_col()).unwrap_or(&90.0);
+                    // let current_height = *self.row_heights.get(&coord.full_row()).unwrap_or(&30.0);
 
                     // check if active cell row height and width is greater than default value
                     if current_width > tmp_width {
@@ -743,46 +808,59 @@ impl Component for Model {
                         //Get the actual amount of cell being created and use it instead of "3" being HARD CODED.
                         tmp_width = current_width / 3.0;
                     }
-                    if current_height > tmp_heigt {
+                    if current_height > tmp_heigth {
                         // set width argument to active cell width if greater
                         //Get the actual amount of cell being created and use it instead of "3" being HARD CODED.
-                        tmp_heigt = current_height / 3.0;
+                        tmp_heigth = current_height / 3.0;
                     }
 
-                    for sub_coord in sub_coords {
-                        let new_coord = Coordinate::child_of(&coord, sub_coord);
-
-                        self.get_session_mut()
-                            .grammars
-                            .insert(new_coord.clone(), Grammar::default());
-
-                        // initialize row & col heights as well
-                        if !self.row_heights.contains_key(&new_coord.clone().full_row()) {
-                            self.row_heights
-                                .insert(new_coord.clone().full_row(), tmp_heigt);
-                            //30.0);
+                    
+                        for sub_coord in sub_coords {
+                            let new_coord = Coordinate::child_of(&coord, sub_coord);
+    
+                            self.get_session_mut()
+                                .grammars
+                                .insert(new_coord.clone(), Grammar::default());
+                            if current_grammar.style.col_span.0 == 0 && current_grammar.style.row_span.0 == 0 {
+                                // initialize row & col heights as well
+                                if !self.row_heights.contains_key(&new_coord.clone().full_row()) {
+                                    self.row_heights
+                                        .insert(new_coord.clone().full_row(), tmp_heigth);
+                                    //30.0);
+                                }
+                                if !self.col_widths.contains_key(&new_coord.clone().full_col()) {
+                                    self.col_widths
+                                        .insert(new_coord.clone().full_col(), tmp_width);
+                                    //90.0);
+                                }
+                            }
                         }
-                        if !self.col_widths.contains_key(&new_coord.clone().full_col()) {
-                            self.col_widths
-                                .insert(new_coord.clone().full_col(), tmp_width);
-                            //90.0);
-                        }
-                    }
+                    
+                    // info!("tmp_width-{},tmp_heigth-{}", tmp_width.clone(), tmp_heigth.clone());
+                    // info!("current_width-{}, current_height-{}", current_width.clone(), current_height.clone());
                 }
+               
                 if let Some(parent) = Coordinate::parent(&coord)
                     .and_then(|p| self.get_session_mut().grammars.get_mut(&p))
                 {
                     parent.kind = grammar.clone().kind; // make sure the parent gets set to Kind::Grid
+                } 
+                 
+                if current_grammar.style.row_span.0 != 0 || current_grammar.style.col_span.0 != 0 {
+                    grammar.style.row_span = current_grammar.style.row_span.clone();
+                    grammar.style.col_span = current_grammar.style.col_span.clone();
                 }
                 self.get_session_mut()
                     .grammars
-                    .insert(coord.clone(), grammar);
+                    .insert(coord.clone(), grammar.clone());           
                 resize(
                     self,
-                    coord,
-                    (rows as f64) * (/* default row height */tmp_heigt),
+                    coord.clone(),
+                    (rows as f64) * (/* default row height */tmp_heigth),
                     (cols as f64) * (/* default col width */tmp_width),
                 );
+                
+               
                 true
             }
 
@@ -1240,11 +1318,16 @@ impl Component for Model {
             })
             .collect();
 
+            
+            
+
         should_render
     }
 
     fn view(&self) -> Html {
         let is_resizing = self.resizing.is_some();
+        // for integration tests
+        let serialized_model = serde_json::to_string(&self.get_session()).unwrap();
         let zoom = format! { "zoom: {};", &self.zoom };
         let cursor = format! { "cursor: {};", match self.mouse_cursor {
             CursorType::NS => "ns-resize",
@@ -1264,6 +1347,7 @@ impl Component for Model {
                 { view_menu_bar(&self) }
 
                 { view_tab_bar(&self) }
+                <input id="integration-test-model-dump" hidden=true >{serialized_model}</input>
 
                 <div class="main">
                     <div id="grammars" class="grid-wrapper" style={zoom+&cursor}

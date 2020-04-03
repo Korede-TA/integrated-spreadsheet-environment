@@ -31,8 +31,14 @@ pub fn build_grammar_map(map: &mut HashMap<C, G>, root_coord: Coordinate, entry:
         }
         MapEntry::GG(entry_table) => {
             let mut sub_coords = vec![];
+            let mut rows = 0;
+            let mut cols = 0;
             for (row_i, entry_row) in entry_table.iter().enumerate() {
+                rows = row_i;
                 for (col_i, entry) in entry_row.iter().enumerate() {
+                    if col_i > cols {
+                        cols = col_i
+                    }
                     let new_coord = Coordinate::child_of(
                         &root_coord,
                         non_zero_u32_tuple(((row_i + 1) as u32, (col_i + 1) as u32)),
@@ -45,7 +51,12 @@ pub fn build_grammar_map(map: &mut HashMap<C, G>, root_coord: Coordinate, entry:
                 root_coord,
                 Grammar {
                     name: String::new(),
-                    style: Style::default(),
+                    style: {
+                        let mut s = Style::default();
+                        s.width = 90.0 * (cols as f64);
+                        s.height = 30.0 * (cols as f64);
+                        s
+                    },
                     kind: Kind::Grid(sub_coords),
                 },
             );

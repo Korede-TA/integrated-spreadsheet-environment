@@ -330,40 +330,40 @@ pub fn view_menu_bar(m: &Model) -> Html {
                     }
                 }>
             </input>
-            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::SaveSession()) >
+            <button id="SaveSession" class="menu-bar-button" onclick=m.link.callback(|_| Action::SaveSession()) >
                 { "Save" }
             </button>
             <button class="menu-bar-button">
                 { "Git" }
             </button>
-            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::ZoomIn)>
+            <button id="ZoomIn" class="menu-bar-button" onclick=m.link.callback(|_| Action::ZoomIn)>
                 { "Zoom In (+)" }
             </button>
-            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::ZoomReset)>
+            <button id="ZoomReset" class="menu-bar-button" onclick=m.link.callback(|_| Action::ZoomReset)>
                 { "Zoom Reset" }
             </button>
-            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::ZoomOut)>
+            <button id="ZoomOut" class="menu-bar-button" onclick=m.link.callback(|_| Action::ZoomOut)>
                 { "Zoom Out (-)" }
             </button>
-            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::Recreate)>
+            <button id="Reset" class="menu-bar-button" onclick=m.link.callback(|_| Action::Recreate)>
                 { "Reset" }
             </button>
             //<>
                 { nest_grid_button }
             //</>
-            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::InsertRow)>
+            <button id="InsertRow" class="menu-bar-button" onclick=m.link.callback(|_| Action::InsertRow)>
                 { "Insert Row" }
             </button>
-            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::InsertCol)>
+            <button id="InsertCol" class="menu-bar-button" onclick=m.link.callback(|_| Action::InsertCol)>
                 { "Insert Column" }
             </button>
-            <button class="menu-bar-button" onclick=m.link.callback(move |_ : ClickEvent| Action::MergeCells())>
+            <button id="Merge" class="menu-bar-button" onclick=m.link.callback(move |_ : ClickEvent| Action::MergeCells())>
                 { "Merge" }
             </button>
-            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::DeleteRow)>
+            <button id="DeleteRow" class="menu-bar-button" onclick=m.link.callback(|_| Action::DeleteRow)>
                 { "Delete Row" }
             </button>
-            <button class="menu-bar-button" onclick=m.link.callback(|_| Action::DeleteCol)>
+            <button id="DeleteCol" class="menu-bar-button" onclick=m.link.callback(|_| Action::DeleteCol)>
                 { "Delete Column" }
             </button>
             //<>
@@ -625,6 +625,11 @@ pub fn view_input_grammar(
     value: String,
     is_active: bool,
 ) -> Html {
+    if let Some(grammar) = m.get_session().grammars.get(&coord) {
+        if grammar.clone().style.display == true {
+            return html! { <> </> };
+        }
+    }
     // load the suggestion values, including the completion callbacks
     // and parse them into DOM nodes
     let suggestions_len = if value.clone() != "" && is_active {
@@ -832,7 +837,7 @@ pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordina
     }
     html! {
         <div
-            class=format!{"cell grid row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
+            class=format!{"\ncell grid row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
             { nodes }

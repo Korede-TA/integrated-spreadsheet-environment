@@ -1,3 +1,4 @@
+#![feature(core_intrinsics)]
 use std::char::from_u32;
 use std::collections::HashMap;
 use std::num::NonZeroU32;
@@ -43,21 +44,27 @@ pub fn move_grammar(m: &mut Model, source: Coordinate, dest: Coordinate) {
                 );
             }
         }
+        info! {"move gr {:?}", map}
     }
 }
 
 pub fn non_zero_u32_tuple(val: (u32, u32)) -> (NonZeroU32, NonZeroU32) {
     let (row, col) = val;
+    info!{"non_ze {:?}", (NonZeroU32::new(row).unwrap(), NonZeroU32::new(col).unwrap())};
     (NonZeroU32::new(row).unwrap(), NonZeroU32::new(col).unwrap())
+    
 }
 
 pub fn row_col_to_string((row, col): (u32, u32)) -> String {
     let row_str = row.to_string();
     let col_str = from_u32(col + 64).unwrap();
+    info!{"forrrrrmmma{:?} {:?}", row, col}
+    info!{"forrrrrmmma{:?}", format! {"{}{}", col_str, row_str}}
     format! {"{}{}", col_str, row_str}
 }
 
 pub fn coord_show(row_cols: Vec<(u32, u32)>) -> Option<String> {
+    info!{"coord_show {:?}", row_cols}
     match row_cols.split_first() {
         Some((&(1, 1), rest)) => {
             let mut output = "root".to_string();
@@ -65,6 +72,7 @@ pub fn coord_show(row_cols: Vec<(u32, u32)>) -> Option<String> {
                 output.push('-');
                 output.push_str(row_col_to_string(*rc).deref());
             }
+            info!{"coord_show2 {:?}", output}
             Some(output)
         }
         Some((&(1, 2), rest)) => {
@@ -73,6 +81,7 @@ pub fn coord_show(row_cols: Vec<(u32, u32)>) -> Option<String> {
                 output.push('-');
                 output.push_str(row_col_to_string(*rc).deref());
             }
+            info!{"coord_show3 {:?}", output}
             Some(output)
         }
         _ => None,
@@ -133,15 +142,42 @@ pub fn resize(m: &mut Model, coord: Coordinate, row_height: f64, col_width: f64)
     if let Some(parent_coord) = coord.parent() {
         let mut row_height_diff = 0.0;
         let mut col_width_diff = 0.0;
+        let mut new_row_height = 0.0;
+        let mut new_col_width = 0.0;
+        let mut new_grammar = Grammar::default();
         if let Some(old_row_height) = m.row_heights.get_mut(&coord.full_row()) {
-            let new_row_height = row_height + /* horizontal border width */ 2.0;
+            new_row_height = row_height + /* horizontal border width */ 2.0;
             row_height_diff = new_row_height - *old_row_height;
             *old_row_height = new_row_height;
         }
         if let Some(old_col_width) = m.col_widths.get_mut(&coord.full_col()) {
-            let new_col_width = col_width + /* vertiacl border height */ 2.0;
+            new_col_width = col_width + /* vertiacl border height */ 2.0;
             col_width_diff = new_col_width - *old_col_width;
             *old_col_width = new_col_width;
+        }
+
+        /* Update style width and height for the resize coord and neighbor with same column or row
+            Also update new size for its parent coord and associate neighbor.
+        */
+        let mut current_coord = coord.clone();
+        let mut get_grammar = m.get_session_mut().grammars.clone();
+        while !current_coord.parent().is_none() {
+            let p_coord = current_coord.parent().clone();
+            for (c, g) in m.get_session_mut().grammars.iter_mut() {
+                if c.parent() == p_coord {
+                    if c.row().get() == current_coord.row().get() {
+                        g.style.height = new_row_height;
+                    }
+                    if c.col().get() == current_coord.col().get() {
+                        g.style.width = new_col_width;
+                    }
+                }
+            }
+            if let Some(parent_grammar) = get_grammar.get_mut(&p_coord.clone().unwrap()) {
+                new_row_height = parent_grammar.style.height + (2 * 32) as f64;
+                new_col_width = parent_grammar.style.width + (2 * 92) as f64;
+            }
+            current_coord = p_coord.unwrap();
         }
         info! {"resizing cell: (row: {}, col: {}); height: {}, width: {}", coord.row_to_string(), coord.col_to_string(),  row_height_diff, col_width_diff};
         resize_diff(m, parent_coord, row_height_diff, col_width_diff);
@@ -218,12 +254,34 @@ macro_rules! row_col_vec {
 }
 
 /* TODO: get this working so w can color code lookups */
-/*
-pub fn random_color() -> String {
-    (js! {
-        return Math.floor(Math.random()*16777215).toString(16);
-    })
-    .try_into()
-    .unwrap()
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_move_grammar() {
+        // move_grammar(map: &mut HashMap<Coordinate, Grammar>, source: Coordinate, dest: Coordinate)
+        unimplemented!();
+    }
+
+    #[test]
+    fn test_non_zero_u32_tuple() {
+        
+        assert_eq!(non_zero_u32_tuple((1, 2)),(NonZeroU32::new(1).unwrap(), NonZeroU32::new(2).unwrap()));
+        assert_ne!(non_zero_u32_tuple((1, 2)), (NonZeroU32::new(2).unwrap(), NonZeroU32::new(2).unwrap()));
+        // unimplemented!();
+    }
+
+    #[test]
+    fn test_row_col_to_string() {
+        assert_eq!(row_col_to_string((2,2)), "B2");
+        assert_ne!(row_col_to_string((2,2)), "A2");
+        // unimplemented!();
+    }
+
+    #[test]
+    fn test_coord_show() {
+        assert_eq!(coord_show(vec![(1, 1), (1, 1)]).unwrap(), "root-A1");
+        assert_ne!(coord_show(vec![(1, 1), (1, 1)]).unwrap(), "root")
+        // unimplemented!();
+    }
 }
-*/
