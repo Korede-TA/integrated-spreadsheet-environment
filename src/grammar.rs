@@ -127,19 +127,26 @@ impl Grammar {
         }
     }
 
-    pub fn text(name: String, value: String) -> Grammar {
+    // NOTE: more info on this pattern here: https://hermanradtke.com/2015/05/06/creating-a-rust-function-that-accepts-string-or-str.html
+    pub fn text<S>(name: S, value: S) -> Grammar
+    where
+        S: Into<String>,
+    {
         Grammar {
-            name: name,
+            name: name.into(),
             style: Style::default(),
-            kind: Kind::Text(value),
+            kind: Kind::Text(value.into()),
         }
     }
 
-    pub fn input(name: String, value: String) -> Grammar {
+    pub fn input<S>(name: S, value: S) -> Grammar
+    where
+        S: Into<String>,
+    {
         Grammar {
-            name: name,
+            name: name.into(),
             style: Style::default(),
-            kind: Kind::Input(value),
+            kind: Kind::Input(value.into()),
         }
     }
 

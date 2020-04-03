@@ -6,6 +6,10 @@ use std::panic;
 use crate::util::coord_show;
 use serde::{Deserialize, Serialize};
 
+#[derive(Parser)]
+#[grammar = "coordinate.pest"]
+pub struct CoordinateParser;
+
 // Coordinate specifies the nested coordinate structure
 #[derive(Deserialize, PartialEq, Eq, Debug, Hash, Clone, Default)]
 pub struct Coordinate {

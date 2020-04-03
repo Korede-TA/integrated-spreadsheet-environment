@@ -17,6 +17,7 @@ extern crate pest_derive;
 
 pub mod coordinate;
 pub mod grammar;
+pub mod grammar_map;
 pub mod model;
 pub mod session;
 pub mod style;
