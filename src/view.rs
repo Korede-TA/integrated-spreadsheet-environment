@@ -3,6 +3,7 @@ use std::num::NonZeroU32;
 use std::ops::Deref;
 use stdweb::traits::IEvent;
 use stdweb::unstable::TryFrom;
+use stdweb::unstable::TryInto;
 use stdweb::web::{html_element::InputElement, HtmlElement, IHtmlElement};
 // use web_sys::HtmlInputElement as InputElement;
 use yew::events::{ClickEvent, IKeyboardEvent, IMouseEvent, KeyPressEvent};
@@ -593,7 +594,7 @@ pub fn view_lookup_grammar(
             class=format!{"cell suggestion lookup row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
-            <b style="font-size: 20px;">{ "$" }</b>
+            <b style=format!{"font-size: 20px; color: {};", random_color()}>{ "$" }</b>
             <div contenteditable=true
                 class=format!{
                         "cell-data {}",
@@ -886,4 +887,16 @@ fn cell_is_selected(
         }
         _ => false,
     }
+}
+
+fn random_color() -> String {
+    js! (
+        var col = "";
+        for (var i=0; i<6; i++) {
+            col += (Math.random()*16|0).toString(16);
+        }
+        return "#"+col;
+    )
+    .try_into()
+    .unwrap()
 }
