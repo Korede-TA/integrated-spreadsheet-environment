@@ -1317,10 +1317,11 @@ impl Component for Model {
             Action::HideContextMenu => {
                 self.context_menu_position = None;
                 true
+            }
 
             Action::SetCurrentDefinitionName(name) => {
                 self.default_definition_name = name;
-                fals
+                false
             }
         };
 
@@ -1393,7 +1394,6 @@ impl Component for Model {
                         // context menu
                         oncontextmenu=self.link.callback(move |e: ContextMenuEvent| {
                             e.prevent_default();
-                            info!("X: {:?}", e.client_x());
                             Action::ShowContextMenu((e.client_x() as f64, e.client_y() as f64))
                         })
                         // Global Key toggles
@@ -1456,3 +1456,4 @@ where
         if e.key().trim() != "" { e.key() } else { e.code() } ,
     }
 }
+

@@ -5,7 +5,7 @@ authors = ["Korede Aderele <kaderele@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-yew = { git = "https://github.com/yewstack/yew", features = ["toml", "yaml", "msgpack", "cbor"] }
+yew = { version = "0.12", features = ["toml", "yaml", "msgpack", "cbor"] }
 maplit = "1.0.2"
 # cargo-web = "0.6.26"
 stdweb = "0.4.3"
@@ -41,8 +41,6 @@ features = [
   'Document',
   'Element',
   'HtmlElement',
-  'HtmlInputElement',
   'Node',
   'Window',
 ]
-

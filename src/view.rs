@@ -861,23 +861,22 @@ pub fn view_context_menu(m: &Model) -> Html {
     let option_nodes = {
         let mut v = VList::new();
         for (option_name, option_action, option_param) in default_options {
-            let mut param = true;
+            let mut shouldRender = true;
             
-            //Switch exceptions
+            //Conditional for the options that should only show under certain circumstances
             if option_param == false {
-                param = false;
-                info!("first {:?}", m.first_select_cell);
-                info!("last {:?}", m.last_select_cell);
+                shouldRender = false;
+                //Conditions Manager on the conditional context-menu Option
                 match option_name.clone() {
                     
                     "Merge" => if m.last_select_cell != None{
-                        param = true;
+                        shouldRender = true;
                     }
-                    _   => info!("Param not managed {:?}", option_name)
+                    _   => info!("Parameter not managed {:?}", option_name)
                 }
             }
-
-            if param == true {
+            //Option render
+            if shouldRender == true {
                 v.add_child(html! {
                     <li class="context-menu-option" onclick=option_action>
                         { option_name }
