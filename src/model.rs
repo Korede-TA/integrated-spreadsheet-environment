@@ -1,25 +1,27 @@
 use electron_sys::ipc_renderer;
 use pest::Parser;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::option::Option;
+use stdweb::traits::IEvent;
 use stdweb::unstable::TryInto;
 use stdweb::web::{document, IElement, INode, IParentNode};
 use wasm_bindgen::JsValue;
-use yew::events::KeyPressEvent;
+use yew::events::{KeyDownEvent, KeyPressEvent, KeyUpEvent};
 use yew::prelude::*;
 use yew::services::reader::{File, FileData, ReaderService, ReaderTask};
 use yew::services::ConsoleService;
 
 use crate::coordinate::{Col, Coordinate, Row};
 use crate::grammar::{Grammar, Kind, Lookup};
+use crate::grammar_map::*;
 use crate::session::Session;
 use crate::style::Style;
 use crate::util::{move_grammar, non_zero_u32_tuple, resize, resize_diff};
 use crate::view::{view_grammar, view_menu_bar, view_side_nav, view_tab_bar};
-use crate::{coord, coord_col, coord_row, row_col_vec};
+use crate::{coord, coord_col, coord_row, g, gg, row_col_vec};
 
 #[derive(Parser)]
 #[grammar = "coordinate.pest"]
@@ -28,28 +30,81 @@ pub struct CoordinateParser;
 // Model contains the entire state of the application
 #[derive(Debug)]
 pub struct Model {
+    // Parts of the application state are described below:
+
+    // - `view_root` represents the parent grammar that the view starts rendering from
     view_root: Coordinate,
-    pub first_select_cell: Option<Coordinate>,
-    pub last_select_cell: Option<Coordinate>,
-    pub min_select_cell: Option<Coordinate>,
-    pub max_select_cell: Option<Coordinate>,
+
+    // - `active_cell`
     pub active_cell: Option<Coordinate>,
 
+    // - `first_select_cell` is the top-leftmost cell in a selection
+    // - `last_select_cell` is the bottom-rightmost cell in a selection
+    pub first_select_cell: Option<Coordinate>,
+    pub last_select_cell: Option<Coordinate>,
+
+    pub secondary_selections: HashSet<Coordinate>,
+
+    // TODO: are `min_select_cell` and `max_select_cell` still useful
+    pub min_select_cell: Option<Coordinate>,
+    pub max_select_cell: Option<Coordinate>,
+
+    // - `shift_key_pressed` is a simple indicator for when shift key is toggled
+    pub shift_key_pressed: bool,
+
+    // - `zoom` is the value that corresponds to how "zoomed" the sheet is
     pub zoom: f32,
-    pub default_suggestions: Vec<Coordinate>,
-    pub suggestions: HashMap<Coordinate, Vec<Coordinate>>,
+
+    // - `meta_suggestions` contains a map of the name of suggestions to the
+    //   suggested grammars stored in coord_col!("meta", "A")
+    pub meta_suggestions: Vec<(String, Coordinate)>,
+
+    // - `lookups` represent an ordered list of coordinates that have lookups corresponding
+    // to them. the indexes are used to generate correspoding color coding for each lookup
+    pub lookups: Vec<Coordinate>,
+
+    // - `col_widths` & `row_heights` map coordinate to sizes based on column or row
     pub col_widths: HashMap<Col, f64>,
     pub row_heights: HashMap<Row, f64>,
-    pub select_grammar: Vec<Coordinate>,
+
+    // - `sessions` represents the currently open sessions that are shown in the tab bar,
+    //   where each session
+    // - `current_session_index` tells us which of the open sessions is currently active
     pub sessions: Vec<Session>,
     pub current_session_index: usize,
+
+    // - `side_menus` represent the state
     pub side_menus: Vec<SideMenu>,
     pub open_side_menu: Option<i32>,
+
+    // - `focus_node_ref` is a reference to the current cell that should be in focus
     pub focus_node_ref: NodeRef,
+    pub next_focus_node_ref: NodeRef,
+
+    // - `resizing` is an optional reference to the current coordinate being resized
+    //    (which is None if no resizing is happening)
     pub resizing: Option<Coordinate>,
+
+    // - `link` is a function of the Yew framework for referring back to the current component
+    //    so actions can be chained, for instance
     pub link: ComponentLink<Model>,
+
+    // - `default_nested_row_cols` shows the default number of rows and columns
+    //   created by Ctrl+G or the "Nest Grid" button
+    // - `default_definition_name` shows the default name of the grammar created
+    //   by Ctrl+G the "Add Definition" button
+    pub default_nested_row_cols: (NonZeroU32, NonZeroU32),
+    pub default_definition_name: String,
+
+    // - `mouse_cursor` corresponds to the appearance of the mouse cursor
+    pub mouse_cursor: CursorType,
+
+    // - `console` and `reader` are used to access native browser APIs for the
+    //    dev console and FileReader respectively
     console: ConsoleService,
     reader: ReaderService,
+
+    // - `tasks` are used to store asynchronous requests to read/load files
     tasks: Vec<ReaderTask>,
 }
 
@@ -59,11 +114,26 @@ pub struct SideMenu {
     pub icon_path: String,
 }
 
+// SUBACTIONS
+// Sub-actions for resize-related operations
 pub enum ResizeMsg {
     Start(Coordinate),
     X(f64),
     Y(f64),
     End,
+}
+
+// Sub-actions for adjusting the current look of the cursor
+#[derive(Debug)]
+pub enum CursorType {
+    NS,
+    EW,
+    Default,
+}
+
+pub enum SelectMsg {
+    Start(Coordinate),
+    End(Coordinate),
 }
 
 // ACTIONS
@@ -77,6 +147,7 @@ pub enum Action {
 
     SetActiveCell(Coordinate),
 
+    NextSuggestion(Coordinate, /* index */ i32),
     DoCompletion(
         /* source: */ Coordinate,
         /* destination */ Coordinate,
@@ -108,23 +179,28 @@ pub enum Action {
     ZoomReset,
 
     Resize(ResizeMsg),
+    SetCursorType(CursorType),
+    Select(SelectMsg),
 
-    // Alerts and stuff
-    Alert(String),
-
-    SetSelectedCells(Coordinate),
     Lookup(
         /* source: */ Coordinate,
         /* lookup_type: */ Lookup,
     ),
+    MergeCells(),
 
+    ChangeDefaultNestedGrid((NonZeroU32, NonZeroU32)),
+
+    SetCurrentDefinitionName(String),
+
+    // SetCurrentParentGrammar(Coordinate),
     ToggleLookup(Coordinate),
 
-    DefnUpdateName(Coordinate, /* name */ String),
-    DefnUpdateRule(Coordinate, /* rule Row  */ Row),
-    DefnAddRule(Coordinate), // adds a new column, points rule coordinate to bottom of ~meta~ sub-table
-    // Definition Rules are represented as grammars
-    MergeCells(),
+    AddDefinition(Coordinate, /* name */ String),
+
+    ToggleShiftKey(bool),
+
+    // Alerts and stuff
+    Alert(String),
 }
 
 impl Model {
@@ -215,9 +291,9 @@ impl Component for Model {
         let meta_grammar = Grammar {
             name: "meta".to_string(),
             style: Style::default(),
-            kind: Kind::Grid(row_col_vec![(1, 1), (2, 1), (3, 1)]),
+            kind: Kind::Grid(row_col_vec![(1, 1), (2, 1), (3, 1), (4, 1), (5, 1), (6, 1)]),
         };
-        let m = Model {
+        let mut m = Model {
             view_root: coord!("root"),
             col_widths: hashmap! {
                coord_col!("root","A") => 90.0,
@@ -233,54 +309,61 @@ impl Component for Model {
                coord_row!("meta","1") => 180.0,
             },
             active_cell: Some(coord!("root-A1")),
-            first_select_cell: None,
-            last_select_cell: None,
-            min_select_cell: None,
-            max_select_cell: None,
-            default_suggestions: vec![coord!("meta-A1"), coord!("meta-A2"), coord!("meta-A3")],
-            suggestions: HashMap::new(),
+            meta_suggestions: vec![
+                ("js_grammar".to_string(), coord!("meta-A1")),
+                ("java_grammar".to_string(), coord!("meta-A2")),
+                ("defn".to_string(), coord!("meta-A3")),
+            ],
 
             console: ConsoleService::new(),
             reader: ReaderService::new(),
 
-            select_grammar: vec![],
+            first_select_cell: None,
+            last_select_cell: None,
+
+            secondary_selections: HashSet::new(),
+
+            min_select_cell: None,
+            max_select_cell: None,
             zoom: 1.0,
 
             sessions: vec![Session {
                 title: "my session".to_string(),
                 root: root_grammar.clone(),
                 meta: meta_grammar.clone(),
-                grammars: hashmap! {
-                    coord!("root")    => root_grammar.clone(),
-                    coord!("root-A1") => Grammar::default(),
-                    coord!("root-A2") => Grammar::default(),
-                    coord!("root-A3") => Grammar::default(),
-                    coord!("root-B1") => Grammar::default(),
-                    coord!("root-B2") => Grammar::default(),
-                    coord!("root-B3") => Grammar::default(),
-                    coord!("meta")    => meta_grammar.clone(),
-                    coord!("meta-A1") => Grammar::text("js grammar".to_string(), "This is js".to_string()),
-                    coord!("meta-A2") => Grammar::text("java grammar".to_string(), "This is java".to_string()),
-                    coord!("meta-A3") => Grammar {
-                        name: "defn".to_string(),
-                        style: Style::default(),
-                        kind: Kind::Defn(
-                            "".to_string(),
-                            coord!("meta-A3"),
-                            vec![
-                                ("".to_string(), coord!("meta-A3-B1")),
+                grammars: {
+                    let mut map = HashMap::new();
+                    build_grammar_map(
+                        &mut map,
+                        coord!("root"),
+                        gg![
+                            [
+                                g!(Grammar::input("", "A1")),
+                                g!(Grammar::input("", "B1")),
+                                g!(Grammar::input("", "C1"))
                             ],
-                        ),
-                    },
-                    coord!("meta-A3-A1")    => Grammar::default(),
-                    coord!("meta-A3-B1")    => Grammar {
-                        name: "root".to_string(),
-                        style: Style::default(),
-                        kind: Kind::Grid(row_col_vec![ (1,1), (2,1), (1,2), (2,2) ]),
-                    },
-                    coord!("meta-A3-B1-A1") => Grammar::input("".to_string(), "sub-grammar name".to_string()),
-                    coord!("meta-A3-B1-B1") => Grammar::text("".to_string(), "+".to_string()),
-                    coord!("meta-A3-B1-C1") => Grammar::default(),
+                            [
+                                g!(Grammar::input("", "A2")),
+                                g!(Grammar::input("", "B2")),
+                                g!(Grammar::input("", "C2"))
+                            ],
+                            [
+                                g!(Grammar::input("", "A3")),
+                                g!(Grammar::input("", "B3")),
+                                gg![
+                                    [
+                                        g!(Grammar::input("", "C3-A1")),
+                                        g!(Grammar::input("", "C3-B1"))
+                                    ],
+                                    [
+                                        g!(Grammar::input("", "C3-A2")),
+                                        g!(Grammar::input("", "C3-B2"))
+                                    ]
+                                ]
+                            ]
+                        ],
+                    );
+                    map
                 },
             }],
 
@@ -312,15 +395,37 @@ impl Component for Model {
             tasks: vec![],
 
             focus_node_ref: NodeRef::default(),
+            next_focus_node_ref: NodeRef::default(),
+
+            shift_key_pressed: false,
+
+            default_nested_row_cols: non_zero_u32_tuple((3, 3)),
+
+            default_definition_name: "".to_string(),
+
+            mouse_cursor: CursorType::Default,
+
+            lookups: vec![],
         };
-        // apply_definition_grammar(&mut m, coord!("meta-A3"));
+        // load suggestions from
+        m.meta_suggestions = m
+            .query_col(coord_col!("meta", "A"))
+            .iter()
+            .filter_map(|coord| {
+                if let Some(name) = m.get_session().grammars.get(coord).map(|g| g.name.clone()) {
+                    Some((name, coord.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect();
         m
     }
 
     // The update function is split into sub-update functions that
     // are specifc to each EventType
     fn update(&mut self, event_type: Self::Message) -> ShouldRender {
-        match event_type {
+        let should_render = match event_type {
             Action::Noop => false,
 
             Action::Alert(message) => {
@@ -336,111 +441,202 @@ impl Component for Model {
                             kind: Kind::Input(_),
                             ..
                         } => {
-                            info!("{}", &new_value);
                             g.kind = Kind::Input(new_value);
                         }
                         Grammar {
                             kind: Kind::Lookup(_, lookup_type),
                             ..
                         } => {
-                            info!("{}", &new_value);
                             g.kind = Kind::Lookup(new_value, lookup_type.clone());
                         }
                         _ => (),
                     }
                 }
-                false
-            }
-
-            Action::SetActiveCell(coord) => {
-                self.first_select_cell = Some(coord.clone());
-                self.last_select_cell = None;
-                self.min_select_cell = None;
-                self.max_select_cell = None;
-                self.active_cell = Some(coord.clone());
                 true
             }
 
-            Action::SetSelectedCells(coord) => {
-                self.last_select_cell = Some(coord.clone());
-                if self.first_select_cell.is_none() || self.last_select_cell.is_none() {
-                    return false;
-                }
-                let mut first_select_row = NonZeroU32::new(1).unwrap();
-                let mut first_select_col = NonZeroU32::new(1).unwrap();
-                let mut last_select_row = NonZeroU32::new(1).unwrap();
-                let mut last_select_col = NonZeroU32::new(1).unwrap();
+            Action::SetActiveCell(coord) => {
+                self.active_cell = Some(coord.clone());
+                let active_cell_id = format! {"cell-{}", coord.to_string()};
+                js! {
+                    try {
+                        let element = document.getElementById(@{active_cell_id.clone()});
+                        element.firstChild.focus();
+                    } catch (e) {
+                        console.log("cannot focus cell with coordinate ", @{active_cell_id});
+                    }
+                };
+                true
+            }
 
-                let mut min_select_row = NonZeroU32::new(1).unwrap();
-                let mut max_select_row = NonZeroU32::new(1).unwrap();
-                let mut min_select_col = NonZeroU32::new(1).unwrap();
-                let mut max_select_col = NonZeroU32::new(1).unwrap();
-                first_select_row = self.first_select_cell.as_ref().unwrap().row();
-                first_select_col = self.first_select_cell.as_ref().unwrap().col();
-                last_select_row = self.last_select_cell.as_ref().unwrap().row();
-                last_select_col = self.last_select_cell.as_ref().unwrap().col();
-                if first_select_row < last_select_row {
-                    min_select_row = first_select_row;
-                    max_select_row = last_select_row;
-                } else {
-                    min_select_row = last_select_row;
-                    max_select_row = first_select_row;
-                }
-                if first_select_col < last_select_col {
-                    min_select_col = first_select_col;
-                    max_select_col = last_select_col;
-                } else {
-                    min_select_col = last_select_col;
-                    max_select_col = first_select_col;
-                }
+            Action::NextSuggestion(coord, index) => {
+                let next_suggestion_id =
+                    format! {"cell-{}-suggestion-{}", coord.to_string(), index};
+                js! {
+                    try {
+                        let element = document.getElementById(@{next_suggestion_id.clone()});
+                        element.focus();
+                    } catch (e) {
+                        console.log("cannot focus on next suggestion");
+                    }
+                };
+                true
+            }
 
-                let ref_grammas = self.get_session().grammars.clone();
-                for (coord, grammar) in &ref_grammas {
-                    if min_select_row <= coord.row()
-                        && coord.row() <= max_select_row
-                        && min_select_col <= coord.col()
-                        && coord.col() <= max_select_col
-                        && coord.to_string().contains("root-")
-                    {
-                        let col_span = grammar.style.col_span;
-                        let row_span = grammar.style.row_span;
-                        if col_span[0] > 0 && col_span[1] > 0 {
-                            if col_span[0] < min_select_col.get() {
-                                min_select_col = NonZeroU32::new(col_span[0]).unwrap();
-                            }
-                            if col_span[1] > max_select_col.get() {
-                                max_select_col = NonZeroU32::new(col_span[1]).unwrap();
-                            }
+            Action::Select(SelectMsg::Start(coord)) => {
+                self.first_select_cell = Some(coord.clone());
+                self.last_select_cell = None;
+                true
+            }
+            Action::Select(SelectMsg::End(coord)) => {
+                if let Some(mut selection_start) = self.first_select_cell.clone() {
+                    // ensure that selection_start and selection_end have common parent
+                    let mut common_parent = selection_start.parent();
+                    let mut selection_end = Some(coord.clone());
+                    let depth_start = selection_start.row_cols.len();
+                    let depth_end = selection_end.clone().unwrap().row_cols.len();
+                    // depend on which select coord has higher depth, find their common parent
+                    if depth_start < depth_end {
+                        while selection_end.clone().and_then(|c| c.parent()) != common_parent {
+                            selection_end = selection_end.and_then(|c| c.parent());
                         }
-                        if row_span[0] > 0 && row_span[1] > 0 {
-                            if row_span[0] < min_select_row.get() {
-                                min_select_row = NonZeroU32::new(row_span[0]).unwrap();
-                            }
-                            if row_span[1] > max_select_row.get() {
-                                max_select_row = NonZeroU32::new(row_span[1]).unwrap();
+                    } else {
+                        common_parent = selection_end.clone().unwrap().parent();
+                        while selection_start.parent() != common_parent {
+                            selection_start = selection_start.parent().unwrap();
+                        }
+                    
+                    }
+                 // find the min of row,col and max of row,col in selected region 
+                 // which may contain a span coord that has smaller or larger row,col
+                    let (mut start_row, mut start_col) = selection_start.clone().row_col();
+                    let (mut end_row, mut end_col) = selection_end.clone().unwrap().row_col();
+                    if start_row > end_row {
+                        let tmp = start_row.clone();
+                        start_row = end_row;
+                        end_row = tmp;
+                    } 
+                    if start_col > end_col {
+                        let tmp = start_col.clone();
+                        start_col = end_col;
+                        end_col = tmp;
+                    }            
+                    let depth_check = selection_start.row_cols.len().clone();
+                    let ref_grammas = self.get_session().grammars.clone();
+                    let mut check = false;
+                    while !check {
+                        check = true;
+                        let row_range = start_row.get()..=end_row.get();
+                        let col_range = start_col.get()..=end_col.get(); 
+                        for (coord, grammar) in ref_grammas.iter() {
+                            let (coord_row, coord_col) = coord.clone().row_col();
+                            let coord_depth = coord.clone().row_cols.len();
+                            if row_range.contains(&coord_row.get())
+                                && col_range.contains(&coord_col.get()) && (coord_depth == depth_check) {
+                                let col_span = grammar.clone().style.col_span;
+                                let row_span = grammar.clone().style.row_span;
+                                if col_span.0 != 0 && col_span.1 != 0 {
+                                    if col_span.0 < start_col.get() {
+                                        start_col = NonZeroU32::new(col_span.0).unwrap();
+                                        check = false;
+                                    }
+                                    if col_span.1 > end_col.get() {
+                                        end_col = NonZeroU32::new(col_span.1).unwrap();
+                                        check = false;
+                                    }
+                                }
+                                if row_span.0 != 0 && row_span.1 != 0 {
+                                    if row_span.0 < start_row.get() {
+                                        start_row = NonZeroU32::new(row_span.0).unwrap();
+                                        check = false;
+                                    }
+                                    if row_span.1 > end_row.get() {
+                                        end_row = NonZeroU32::new(row_span.1).unwrap();
+                                        check = false;
+                                    }
+                                }
                             }
                         }
                     }
+                    
+                    
+                    selection_start.row_cols[depth_check - 1] = (start_row, start_col);
+                    selection_end.as_mut().unwrap().row_cols[depth_check - 1] = (end_row, end_col);
+                    self.first_select_cell = Some(selection_start.clone());
+                    self.last_select_cell = selection_end.clone();
                 }
+                true
+            }
 
-                self.min_select_cell = Some(Coordinate {
-                    row_cols: vec![(min_select_row, min_select_col)],
-                });
-                self.max_select_cell = Some(Coordinate {
-                    row_cols: vec![(max_select_row, max_select_col)],
-                });
+            Action::MergeCells() => {
+                if self.first_select_cell.is_none() || self.last_select_cell.is_none() {
+                    info!("Expect for select for two coord");
+                    return false;
+                }           
+                let (first_row, first_col) = self.first_select_cell.clone().unwrap().row_col();
+                let (last_row, last_col) = self.last_select_cell.clone().unwrap().row_col();
+                
+                let depth_check = self.last_select_cell.clone().unwrap().row_cols.len();
+                let parent_check = self.last_select_cell.clone().unwrap().parent();
+
+                let row_range = first_row.get()..=last_row.get();
+                let col_range = first_col.get()..=last_col.get(); 
+                
+                let mut merge_height = 0.00;
+                let mut merge_width = 0.00;
+                let mut max_coord = Coordinate::default();
+                let mut max_grammar = Grammar::default();
+                let mut ref_grammas = self.get_session_mut().grammars.clone();
+                for (coord, grammar) in ref_grammas.iter_mut() {
+                    if coord.parent() == parent_check { 
+                    }
+                    if  coord.to_string().contains("root-") {
+                        if row_range.contains(&coord.row().get()) && col_range.contains(&coord.col().get()) && coord.parent() == parent_check                    
+                        {                                                  
+                            let coord_style = grammar.style.clone();
+                            if coord_style.display != false  { 
+                                if coord.row().get() == last_row.get() {  
+                                    merge_width = merge_width + coord_style.width;
+                                
+                                } 
+                                if coord.col().get() == last_col.get() {
+                                    merge_height = merge_height + coord_style.height;
+                                }
+                                    if coord.row().get() == last_row.get()
+                                    && (coord.col().get() == last_col.get())
+                                {          
+                                    max_coord = coord.clone();
+                                    max_grammar = grammar.clone();
+                                } else {
+                                    grammar.style.display = false;
+                                }                                            
+                            }
+                            grammar.kind =  Kind::Input("".to_string());                   
+                            grammar.style.col_span.0 = first_col.get();
+                            grammar.style.col_span.1 = last_col.get();
+                            grammar.style.row_span.0 = first_row.get();
+                            grammar.style.row_span.1 = last_row.get();                    
+                            self.get_session_mut()
+                                .grammars
+                                .insert(coord.clone(), grammar.clone());
+                        }
+                    }                            
+                }
+                max_grammar.kind =  Kind::Input("".to_string());
+                max_grammar.style.width = merge_width;
+                max_grammar.style.height = merge_height;
+                max_grammar.style.col_span.0 = first_col.get();
+                max_grammar.style.col_span.1 = last_col.get();
+                max_grammar.style.row_span.0 = first_row.get();
+                max_grammar.style.row_span.1 = last_row.get();             
+                self.get_session_mut()
+                    .grammars
+                    .insert(max_coord.clone(), max_grammar.clone());
                 true
             }
 
             Action::DoCompletion(source_coord, dest_coord) => {
-                move_grammar(
-                    &mut self.get_session_mut().grammars,
-                    source_coord,
-                    dest_coord.clone(),
-                );
-                let row_height = self.row_heights.get(&dest_coord.full_row()).unwrap();
-                let col_width = self.col_widths.get(&dest_coord.full_col()).unwrap();
-                resize(self, dest_coord, *row_height, *col_width);
+                move_grammar(self, source_coord, dest_coord.clone());
                 true
             }
 
@@ -644,17 +840,28 @@ impl Component for Model {
             }
 
             Action::AddNestedGrid(coord, (rows, cols)) => {
+                if self.active_cell.is_none() {
+                    info!("Expect a cell is active");
+                    return false;
+                }
                 // height and width initial value
-                let mut tmp_heigt = 30.0;
+                let mut tmp_heigth = 30.0;
                 let mut tmp_width = 90.0;
+
+                let current_cell = self.active_cell.clone();
+                let mut ref_grammas = self.get_session().grammars.clone();
+                let current_grammar = ref_grammas.get(&current_cell.clone().unwrap()).unwrap();
+
                 let (r, c) = non_zero_u32_tuple((rows, cols));
-                let grammar = Grammar::as_grid(r, c);
+                let mut grammar = Grammar::as_grid(r, c);
                 if let Kind::Grid(sub_coords) = grammar.clone().kind {
                     self.active_cell = sub_coords.first().map(|c| Coordinate::child_of(&coord, *c));
-                    // let row_val = coord
+                               
+                    let current_width = current_grammar.style.width;
+                    let current_height = current_grammar.style.height;
 
-                    let current_width = self.col_widths[&coord.full_col()];
-                    let current_height = self.row_heights[&coord.full_row()];
+                    // let current_width = *self.col_widths.get(&coord.full_col()).unwrap_or(&90.0);
+                    // let current_height = *self.row_heights.get(&coord.full_row()).unwrap_or(&30.0);
 
                     // check if active cell row height and width is greater than default value
                     if current_width > tmp_width {
@@ -662,44 +869,59 @@ impl Component for Model {
                         //Get the actual amount of cell being created and use it instead of "3" being HARD CODED.
                         tmp_width = current_width / 3.0;
                     }
-                    if current_height > tmp_heigt {
+                    if current_height > tmp_heigth {
                         // set width argument to active cell width if greater
                         //Get the actual amount of cell being created and use it instead of "3" being HARD CODED.
-                        tmp_heigt = current_height / 3.0;
+                        tmp_heigth = current_height / 3.0;
                     }
 
-                    for sub_coord in sub_coords {
-                        let new_coord = Coordinate::child_of(&coord, sub_coord);
-                        self.get_session_mut()
-                            .grammars
-                            .insert(new_coord.clone(), Grammar::default());
-                        // initialize row & col heights as well
-                        if !self.row_heights.contains_key(&new_coord.clone().full_row()) {
-                            self.row_heights
-                                .insert(new_coord.clone().full_row(), tmp_heigt);
-                            //30.0);
+                    
+                        for sub_coord in sub_coords {
+                            let new_coord = Coordinate::child_of(&coord, sub_coord);
+    
+                            self.get_session_mut()
+                                .grammars
+                                .insert(new_coord.clone(), Grammar::default());
+                            if current_grammar.style.col_span.0 == 0 && current_grammar.style.row_span.0 == 0 {
+                                // initialize row & col heights as well
+                                if !self.row_heights.contains_key(&new_coord.clone().full_row()) {
+                                    self.row_heights
+                                        .insert(new_coord.clone().full_row(), tmp_heigth);
+                                    //30.0);
+                                }
+                                if !self.col_widths.contains_key(&new_coord.clone().full_col()) {
+                                    self.col_widths
+                                        .insert(new_coord.clone().full_col(), tmp_width);
+                                    //90.0);
+                                }
+                            }
                         }
-                        if !self.col_widths.contains_key(&new_coord.clone().full_col()) {
-                            self.col_widths
-                                .insert(new_coord.clone().full_col(), tmp_width);
-                            //90.0);
-                        }
-                    }
+                    
+                    // info!("tmp_width-{},tmp_heigth-{}", tmp_width.clone(), tmp_heigth.clone());
+                    // info!("current_width-{}, current_height-{}", current_width.clone(), current_height.clone());
                 }
+               
                 if let Some(parent) = Coordinate::parent(&coord)
                     .and_then(|p| self.get_session_mut().grammars.get_mut(&p))
                 {
                     parent.kind = grammar.clone().kind; // make sure the parent gets set to Kind::Grid
+                } 
+                 
+                if current_grammar.style.row_span.0 != 0 || current_grammar.style.col_span.0 != 0 {
+                    grammar.style.row_span = current_grammar.style.row_span.clone();
+                    grammar.style.col_span = current_grammar.style.col_span.clone();
                 }
                 self.get_session_mut()
                     .grammars
-                    .insert(coord.clone(), grammar);
+                    .insert(coord.clone(), grammar.clone());           
                 resize(
                     self,
-                    coord,
-                    (rows as f64) * (/* default row height */tmp_heigt),
+                    coord.clone(),
+                    (rows as f64) * (/* default row height */tmp_heigth),
                     (cols as f64) * (/* default col width */tmp_width),
                 );
+                
+               
                 true
             }
 
@@ -933,7 +1155,7 @@ impl Component for Model {
                                 u = i.col().get() as usize;
                                 temp.insert(u, grammars[&i].clone());
                             }
-                            info!("{:?}", temp);
+
                             u = 0;
                         }
                         if temp.len() == 0 {
@@ -1008,6 +1230,9 @@ impl Component for Model {
                             ],
                         ),
                     },
+                    coord!("meta-A4") => Grammar::default_button(),
+                    coord!("meta-A5") => Grammar::default_slider(),
+                    coord!("meta-A6") => Grammar::default_toggle(),
                     coord!("meta-A3-A1")    => Grammar::default(),
                     coord!("meta-A3-B1")    => Grammar {
                         name: "root".to_string(),
@@ -1024,37 +1249,37 @@ impl Component for Model {
             Action::Resize(msg) => {
                 match msg {
                     ResizeMsg::Start(coord) => {
-                        info! {"drag start"};
                         self.resizing = Some(coord);
                     }
                     ResizeMsg::X(offset_x) => {
                         if let Some(coord) = self.resizing.clone() {
-                            info! {"drag x: {}", offset_x};
                             resize_diff(self, coord, 0.0, offset_x);
+                            self.mouse_cursor = CursorType::EW;
                         }
                     }
                     ResizeMsg::Y(offset_y) => {
                         if let Some(coord) = self.resizing.clone() {
-                            info! {"drag y: {}", offset_y};
                             resize_diff(self, coord, offset_y, 0.0);
+                            self.mouse_cursor = CursorType::NS;
                         }
                     }
                     ResizeMsg::End => {
-                        info! {"drag end"};
                         self.resizing = None;
+                        self.mouse_cursor = CursorType::Default;
                     }
                 }
+                true
+            }
+
+            Action::SetCursorType(cursor_type) => {
+                self.mouse_cursor = cursor_type;
                 true
             }
 
             Action::Lookup(source_coord, lookup_type) => {
                 match lookup_type {
                     Lookup::Cell(dest_coord) => {
-                        move_grammar(
-                            &mut self.get_session_mut().grammars,
-                            source_coord,
-                            dest_coord.clone(),
-                        );
+                        move_grammar(self, source_coord, dest_coord.clone());
                     }
                     _ => (),
                 }
@@ -1093,38 +1318,87 @@ impl Component for Model {
              * 3) Defining how grammars connect with respective drivers and have values evaluated
              *    and passed back to the interface.
              */
-            Action::DefnUpdateName(coord, name) => {
-                // updates the name of a new or existing grammar.
-                let _defn_name_coord = Coordinate::child_of(&coord, non_zero_u32_tuple((1, 1)));
-                if let Some(g) = self.get_session_mut().grammars.get_mut(&coord) {
-                    match g {
-                        Grammar {
-                            kind: Kind::Input(_),
-                            ..
-                        } => {
-                            info! {"updating defn name: {}", &name};
-                            g.kind = Kind::Input(name);
-                        }
-                        _ => (),
-                    }
+            Action::AddDefinition(coord, defn_name) => {
+                // adds a new grammar or sub-grammar to the meta
+                let max_a_row =
+                    self.query_col(coord_col!("meta", "A"))
+                        .iter()
+                        .fold(1, |max_a_row, c| {
+                            if c.col().get() == 1 && c.row().get() > max_a_row {
+                                c.row().get()
+                            } else {
+                                max_a_row
+                            }
+                        });
+                // add new sub_coord to coord!("meta") grid
+                let defn_meta_sub_coord = non_zero_u32_tuple((max_a_row + 1, 1));
+                if let Kind::Grid(sub_coords) = &mut self.get_session_mut().meta.kind {
+                    sub_coords.push(defn_meta_sub_coord.clone());
+                }
+                let defn_coord = Coordinate::child_of(&(coord!("meta")), defn_meta_sub_coord);
+                info! {"Adding Definition: {} to {}", coord.to_string(), defn_coord.to_string()};
+                move_grammar(self, coord, defn_coord.clone());
+                // give moved grammar name {defn_name} as specified in "Add Definition" button
+                if let Some(g) = self.get_session_mut().grammars.get_mut(&defn_coord) {
+                    g.name = defn_name;
                 }
                 true
             }
-            Action::DefnUpdateRule(_coord, _rule_row) => {
-                let _rule_row_coord = {};
-                true
-            }
-            Action::DefnAddRule(_coord) => {
-                // TODO adds a new column, points rule coordinate to bottom of ~meta~ sub-table
+
+            Action::ToggleShiftKey(toggle) => {
+                self.shift_key_pressed = toggle;
                 false
             }
-        }
+
+            Action::ChangeDefaultNestedGrid(row_col) => {
+                self.default_nested_row_cols = row_col;
+                false
+            }
+
+            Action::SetCurrentDefinitionName(name) => {
+                self.default_definition_name = name;
+                false
+            }
+        };
+
+        self.meta_suggestions = self
+            .query_col(coord_col!("meta", "A"))
+            .iter()
+            .filter_map(|coord| {
+                if let Some(name) = self
+                    .get_session()
+                    .grammars
+                    .get(coord)
+                    .map(|g| g.name.clone())
+                {
+                    Some((name, coord.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+            
+            
+
+        should_render
     }
 
     fn view(&self) -> Html {
-        let _active_cell = self.active_cell.clone();
         let is_resizing = self.resizing.is_some();
-        let zoom = "zoom:".to_string() + &self.zoom.to_string();
+        // for integration tests
+        let serialized_model = serde_json::to_string(&self.get_session()).unwrap();
+        let zoom = format! { "zoom: {};", &self.zoom };
+        let cursor = format! { "cursor: {};", match self.mouse_cursor {
+            CursorType::NS => "ns-resize",
+            CursorType::EW => "ew-resize",
+            CursorType::Default => "default",
+        }};
+        let (default_row, default_col) = {
+            let (r, c) = self.default_nested_row_cols.clone();
+            (r.get(), c.get())
+        };
+        let active_cell = self.active_cell.clone().expect("active_cell should be set");
         html! {
             <div>
 
@@ -1133,13 +1407,47 @@ impl Component for Model {
                 { view_menu_bar(&self) }
 
                 { view_tab_bar(&self) }
+                <input id="integration-test-model-dump" hidden=true >{serialized_model}</input>
 
                 <div class="main">
-                    <div id="grammars" class="grid-wrapper" style={zoom}
+                    <div id="grammars" class="grid-wrapper" style={zoom+&cursor}
+                        // Global Key-mappings
                         onkeypress=self.link.callback(move |e : KeyPressEvent| {
-                            // Global Key-Shortcuts
-                            Action::Noop
+                            let keys = key_combination(&e);
+                            info! {"global keypress: {}", keys.clone()};
+                            match keys.deref() {
+                                // Tab (navigation) is handled in onkeydown
+                                "Ctrl-g" => {
+                                    Action::AddNestedGrid(active_cell.clone(), (default_row, default_col))
+                                }
+                                _ => Action::Noop
+                            }
                         })
+                        // Global Key toggles
+                        onkeydown=self.link.callback(move |e : KeyDownEvent| {
+                            let keys = key_combination(&e);
+                            match keys.deref() {
+                                // Tab is intercepted in onkeydown instead of onkeypress
+                                // to allow us prevent default tabbing behavior
+                                // "Tab" => {
+                                //     e.prevent_default();
+                                //     if let Some(c) = neighbor_right.clone().or(first_col_next_row.clone()) {
+                                //         return Action::SetActiveCell(c)
+                                //     }
+                                //     Action::Noop
+                                // }
+                                "Shift" => Action::ToggleShiftKey(true),
+                                _ => Action::Noop
+                            }
+                        })
+                        onkeyup=self.link.callback(move |e : KeyUpEvent| {
+                            if e.key() == "Shift" {
+                                Action::ToggleShiftKey(false)
+                            } else {
+                                Action::Noop
+                            }
+                        })
+                        // Global Mouse event/toggles
                         onmouseup=self.link.callback(move |e : MouseUpEvent| {
                             if is_resizing.clone() {
                                 Action::Resize(ResizeMsg::End)
@@ -1163,5 +1471,18 @@ impl Component for Model {
                 </div>
             </div>
         }
+    }
+}
+
+fn key_combination<K>(e: &K) -> String
+where
+    K: IKeyboardEvent,
+{
+    format! {"{}{}{}{}{}",
+        if e.meta_key() { "Meta-" } else { "" },
+        if e.ctrl_key() { "Ctrl-" } else { "" },
+        if e.alt_key() { "Alt-" } else { "" },
+        if e.shift_key() { "Shift-" } else { "" },
+        if e.key().trim() != "" { e.key() } else { e.code() } ,
     }
 }
