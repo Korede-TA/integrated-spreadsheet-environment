@@ -606,6 +606,7 @@ pub fn view_lookup_grammar(
                     } else { NodeRef::default() }
                 }
                 onkeydown=m.link.callback(move |e : KeyDownEvent| {
+                    Action::HideContextMenu;
                     if e.code() == "Backspace" && can_toggle {
                         Action::ToggleLookup(to_toggle.clone())
                     } else { Action::Noop }
@@ -626,7 +627,7 @@ pub fn view_input_grammar(
     is_active: bool,
 ) -> Html {
     if let Some(grammar) = m.get_session().grammars.get(&coord) {
-        if grammar.clone().style.display == true {
+        if grammar.clone().style.display == false {
             return html! { <> </> };
         }
     }
@@ -649,6 +650,7 @@ pub fn view_input_grammar(
                         id=format!{"cell-{}-suggestion-{}", c.to_string(), suggestion_index}
                         tabindex=2
                         onkeydown=m.link.callback(move |e : KeyDownEvent| {
+                            Action::HideContextMenu;
                             if e.code() == "Tab" {
                                 e.prevent_default();
                                 return Action::NextSuggestion(c.clone(), if e.shift_key() { suggestion_index-1 } else { suggestion_index+1 });
@@ -715,6 +717,7 @@ pub fn view_input_grammar(
     };
     let last_col_prev_row = /* TODO: get the correct value of this */ current_coord.neighbor_above();
     let keydownhandler = m.link.callback(move |e: KeyDownEvent| {
+        Action::HideContextMenu;
         info! {"suggestion len {}", suggestions_len}
         if e.code() == "Tab" {
             e.prevent_default();
