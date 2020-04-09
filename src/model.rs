@@ -1155,7 +1155,10 @@ impl Component for Model {
         let is_resizing = self.resizing.is_some();
         let zoom = "zoom:".to_string() + &self.zoom.to_string();
         html! {
-            <div>
+            <div 
+            onclick=self.link.callback(move |e: ClickEvent| {
+                Action::HideContextMenu
+            })>
 
                 { view_side_nav(&self) }
 
@@ -1168,6 +1171,7 @@ impl Component for Model {
                         // context menu
                         oncontextmenu=self.link.callback(move |e: ContextMenuEvent| {
                             e.prevent_default();
+                            info!("X: {:?}", e.client_x());
                             Action::ShowContextMenu((e.client_x() as f64, e.client_y() as f64))
                         })
                         // Global Keyboard shortcuts
@@ -1212,10 +1216,10 @@ impl Component for Model {
                             Action::HideContextMenu
                         })*/>
                         { view_grammar(&self, coord!{"root"}) }
+                        { view_context_menu(&self) }
                     </div>
                 </div>
 
-                { view_context_menu(&self) }
             </div>
         }
     }

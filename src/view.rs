@@ -719,25 +719,43 @@ pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordina
 
 pub fn view_context_menu(m: &Model) -> Html {
     let default_options = vec![
-        ("Save", m.link.callback(|_| Action::SaveSession())),
-        ("Zoom In (+)", m.link.callback(|_| Action::ZoomIn)),
-        ("Zoom Reset", m.link.callback(|_| Action::ZoomReset)),
-        ("Zoom Out (-)", m.link.callback(|_| Action::ZoomOut)),
-        ("Reset", m.link.callback(|_| Action::Recreate)),
-        ("Insert Row", m.link.callback(|_| Action::InsertRow)),
-        ("Insert Col", m.link.callback(|_| Action::InsertCol)),
-        ("Merge", m.link.callback(|_| Action::MergeCells())),
-        ("Delete Row", m.link.callback(|_| Action::DeleteRow)),
-        ("Delete Col", m.link.callback(|_| Action::DeleteCol)),
+        ("Save", m.link.callback(|_| Action::SaveSession()), true),
+        ("Zoom In (+)", m.link.callback(|_| Action::ZoomIn), true),
+        ("Zoom Reset", m.link.callback(|_| Action::ZoomReset), true),
+        ("Zoom Out (-)", m.link.callback(|_| Action::ZoomOut), true),
+        ("Reset", m.link.callback(|_| Action::Recreate), true),
+        ("Insert Row", m.link.callback(|_| Action::InsertRow), true),
+        ("Insert Col", m.link.callback(|_| Action::InsertCol), true),
+        ("Merge", m.link.callback(|_| Action::MergeCells()), false),
+        ("Delete Row", m.link.callback(|_| Action::DeleteRow), true),
+        ("Delete Col", m.link.callback(|_| Action::DeleteCol), true),
     ];
     let option_nodes = {
         let mut v = VList::new();
-        for (option_name, option_action) in default_options {
-            v.add_child(html! {
-                <li class="context-menu-option" onclick=option_action>
-                    { option_name }
-                </li>
-            });
+        for (option_name, option_action, option_param) in default_options {
+            let mut param = true;
+            
+            //Switch exceptions
+            if option_param == false {
+                param = false;
+                info!("first {:?}", m.first_select_cell);
+                info!("last {:?}", m.last_select_cell);
+                match option_name.clone() {
+                    
+                    "Merge" => if m.last_select_cell != None{
+                        param = true;
+                    }
+                    _   => info!("Param not managed {:?}", option_name)
+                }
+            }
+
+            if param == true {
+                v.add_child(html! {
+                    <li class="context-menu-option" onclick=option_action>
+                        { option_name }
+                    </li>
+                });
+            }
         }
         v
     };
