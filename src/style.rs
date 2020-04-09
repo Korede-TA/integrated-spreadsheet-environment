@@ -65,7 +65,6 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
         return grammar.style(coord);
         
     }
-
     let (col_span, row_span, mut col_width, mut row_height) = {
         let s = &model
             .get_session()
@@ -140,6 +139,7 @@ impl Dimension {
 //     // Note this useful idiom: importing names from outer (for mod tests) scope.
 //     use super::*;
 
+<<<<<<< HEAD
 //     #[test]
 //     fn test_style_to_string() {
 //         assert_eq!(Style::default().to_string(),  
@@ -148,3 +148,13 @@ impl Dimension {
 //     font-weight: 400;
 //     color: black;\n" )
 // }
+=======
+    #[test]
+    fn test_style_to_string() {
+        assert_eq!(Style::default().to_string(),  
+            "/* border: 1px; NOTE: ignoring Style::border_* for now */
+    border-collapse: inherit;
+    font-weight: 400;
+    color: black;\n" );
+}
+>>>>>>> f38f25db87cf6f2e2c070a955101b6a5b09a41a8
