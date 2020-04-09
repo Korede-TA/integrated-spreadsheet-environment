@@ -1,11 +1,9 @@
-#![recursion_limit = "1024"]
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use stdweb::traits::IEvent;
 use stdweb::unstable::TryFrom;
 use stdweb::unstable::TryInto;
 use stdweb::web::{html_element::InputElement, HtmlElement, IHtmlElement};
-// use web_sys::HtmlInputElement as InputElement;
 use yew::events::{ClickEvent, IKeyboardEvent, IMouseEvent, KeyPressEvent};
 use yew::prelude::*;
 use yew::services::reader::File;
@@ -292,25 +290,6 @@ pub fn view_menu_bar(m: &Model) -> Html {
                     onclick=m.link.callback(|e: ClickEvent| { e.prevent_default(); Action::Noop })
                     value={"".to_string()}>
                 </input>
-                /*
-                <div>
-                    <input
-                        class="active-cell-indicator"
-                        placeholder="Parent Name"
-                        size="10"
-                        disabled={ !can_add_definition }
-                        onchange=m.link.callback(move |e: ChangeData| {
-                            if let ChangeData::Value(value) = e {
-                                return Action::SetCurrentDefinitionName(value);
-                            }
-                            Action::Noop
-                        })
-                        onclick=m.link.callback(|e: ClickEvent| { e.prevent_default(); Action::Noop })
-                        value={parent_defn}>
-                    </input>
-                    { VList::new_with_children(suggestions) }
-                </div>
-                */
             </button>
         }
     };
@@ -411,8 +390,6 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                     .meta_suggestions
                     .iter()
                     .filter_map(|(name, suggestion_coord)| {
-                        // suggestion_coord
-                        // info! {"filtering suggestions by {}", value}
                         if let Some(suggestion_grammar) =
                             m.get_session().grammars.get(&suggestion_coord)
                         {
@@ -627,7 +604,7 @@ pub fn view_input_grammar(
     is_active: bool,
 ) -> Html {
     if let Some(grammar) = m.get_session().grammars.get(&coord) {
-        if grammar.clone().style.display == true {
+        if grammar.clone().style.display == false {
             return html! { <> </> };
         }
     }
