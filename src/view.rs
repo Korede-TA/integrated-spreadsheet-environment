@@ -626,7 +626,7 @@ pub fn view_input_grammar(
     is_active: bool,
 ) -> Html {
     if let Some(grammar) = m.get_session().grammars.get(&coord) {
-        if grammar.clone().style.display == true {
+        if grammar.clone().style.display == false {
             return html! { <> </> };
         }
     }

@@ -44,7 +44,7 @@ pub fn move_grammar(m: &mut Model, source: Coordinate, dest: Coordinate) {
                 );
             }
         }
-        info! {"move gr {:?}", map}
+        // info! {"move gr {:?}", map}
     }
 }
 
