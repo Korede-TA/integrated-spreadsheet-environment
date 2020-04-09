@@ -765,10 +765,8 @@ impl Component for Model {
                             merge_height = merge_height;
                             merge_width = merge_width;
                         }
-                        grammar.style.col_span[0] = min_select_col.get();
-                        grammar.style.col_span[1] = max_select_col.get();
-                        grammar.style.row_span[0] = min_select_row.get();
-                        grammar.style.row_span[1] = max_select_row.get();
+                        grammar.style.col_span = (min_select_col.get(), max_select_col.get());
+                        grammar.style.row_span = (min_select_row.get(), max_select_row.get());
                         self.get_session_mut()
                             .grammars
                             .insert(coord.clone(), grammar.clone());
@@ -776,10 +774,8 @@ impl Component for Model {
                 }
                 max_grammar.style.width = merge_width;
                 max_grammar.style.height = merge_height;
-                max_grammar.style.col_span[0] = min_select_col.get();
-                max_grammar.style.col_span[1] = max_select_col.get();
-                max_grammar.style.row_span[0] = min_select_row.get();
-                max_grammar.style.row_span[1] = max_select_row.get();
+                max_grammar.style.col_span = (min_select_col.get(), max_select_col.get());
+                max_grammar.style.row_span = (min_select_row.get(), max_select_row.get());
                 self.get_session_mut()
                     .grammars
                     .insert(max_coord, max_grammar);
