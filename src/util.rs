@@ -13,7 +13,7 @@ use crate::grammar::{Grammar, Kind};
 use crate::grammar_map::*;
 use crate::model::Model;
 use crate::style::Style;
-use crate::{g, gg, row_col_vec};
+use crate::{g, grid, row_col_vec};
 
 // `move_grammar` function does all the necessary operations when copying nested grammars from one
 // coordinate in the grid to another including:
@@ -103,7 +103,7 @@ pub fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
     build_grammar_map(
         &mut m.get_session_mut().grammars,
         root_coord,
-        gg![
+        grid![
             [
                 g!(Grammar {
                     name: "defn_label".to_string(),
@@ -116,7 +116,7 @@ pub fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
                     kind: Kind::Input(String::new()),
                 })
             ],
-            [gg![
+            [grid![
                 [
                     g!(Grammar::input("rule_name", "")),
                     g!(Grammar::input("rule_grammar", ""))
