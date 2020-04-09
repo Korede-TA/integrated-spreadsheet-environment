@@ -31,6 +31,7 @@ body {
 
 .cell {
   /* border: 1px dashed var(--border-light-grey); */
+  box-shadow: 1px 0px 0px rgba(0, 0, 0, 0.1);
   border-collapse: collapse;
   font-family: "Lucida Console", Monaco, monospace;
   background: #aaa;
@@ -52,9 +53,13 @@ body {
   
 }
 
+.cell .interactive {
+  width: -webkit-fill-available;
+  height: -webkit-fill-available;
+}
 
 .cell-data.selection {
-  background-color: rgb(14, 101, 235, 0.1);
+  background-color: rgba(14, 102, 235, 0.16);
 }
 
 .cell-data {

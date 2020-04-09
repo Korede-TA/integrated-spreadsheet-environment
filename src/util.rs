@@ -1,3 +1,4 @@
+#![feature(core_intrinsics)]
 use std::char::from_u32;
 use std::collections::HashMap;
 use std::num::NonZeroU32;
@@ -5,40 +6,65 @@ use std::ops::Deref;
 use std::option::Option;
 use stdweb::unstable::TryFrom;
 use stdweb::web::{document, HtmlElement, IHtmlElement, INonElementParentNode};
+use stdweb::Value;
 
-use crate::coordinate::Coordinate;
+use crate::coordinate::{Col, Coordinate, Row};
 use crate::grammar::{Grammar, Kind};
+use crate::grammar_map::*;
 use crate::model::Model;
-use crate::row_col_vec;
 use crate::style::Style;
+use crate::{g, gg, row_col_vec};
 
-pub fn move_grammar(map: &mut HashMap<Coordinate, Grammar>, source: Coordinate, dest: Coordinate) {
-    if let Some(source_grammar) = map.clone().get(&source) {
-        map.insert(dest.clone(), source_grammar.clone());
+// `move_grammar` function does all the necessary operations when copying nested grammars from one
+// coordinate in the grid to another including:
+// - copying each nested grammar all the way to the innermost cell
+// - adjusting the sizes of the grammars in row_heights and col_widths
+//
+// TODO:
+// - add error return value that can be checked to see if grammar move was successful
+// - add UNIT TEST to ensure that destination coord is only manipulated if source coord exists
+// - (maybe) incorporate dom_resize to get correct values
+pub fn move_grammar(m: &mut Model, source: Coordinate, dest: Coordinate) {
+    if let Some(source_grammar) = m.get_session_mut().grammars.clone().get(&source) {
+        // copy source grammar from map and insert into destination coordinate
+        m.get_session_mut()
+            .grammars
+            .insert(dest.clone(), source_grammar.clone());
+        // resizes new grammar
+        let row_height = m.row_heights.get(&source.full_row()).unwrap_or(&30.0);
+        let col_width = m.col_widths.get(&source.full_col()).unwrap_or(&90.0);
+        resize(m, dest.clone(), *row_height, *col_width);
+        // copying over child grammar values
         if let Kind::Grid(sub_coords) = source_grammar.clone().kind {
             for sub_coord in sub_coords {
                 move_grammar(
-                    map,
+                    m,
                     Coordinate::child_of(&source, sub_coord),
                     Coordinate::child_of(&dest, sub_coord),
                 );
             }
         }
+        info! {"move gr {:?}", map}
     }
 }
 
 pub fn non_zero_u32_tuple(val: (u32, u32)) -> (NonZeroU32, NonZeroU32) {
     let (row, col) = val;
+    info!{"non_ze {:?}", (NonZeroU32::new(row).unwrap(), NonZeroU32::new(col).unwrap())};
     (NonZeroU32::new(row).unwrap(), NonZeroU32::new(col).unwrap())
+    
 }
 
 pub fn row_col_to_string((row, col): (u32, u32)) -> String {
     let row_str = row.to_string();
     let col_str = from_u32(col + 64).unwrap();
+    info!{"forrrrrmmma{:?} {:?}", row, col}
+    info!{"forrrrrmmma{:?}", format! {"{}{}", col_str, row_str}}
     format! {"{}{}", col_str, row_str}
 }
 
 pub fn coord_show(row_cols: Vec<(u32, u32)>) -> Option<String> {
+    info!{"coord_show {:?}", row_cols}
     match row_cols.split_first() {
         Some((&(1, 1), rest)) => {
             let mut output = "root".to_string();
@@ -46,6 +72,7 @@ pub fn coord_show(row_cols: Vec<(u32, u32)>) -> Option<String> {
                 output.push('-');
                 output.push_str(row_col_to_string(*rc).deref());
             }
+            info!{"coord_show2 {:?}", output}
             Some(output)
         }
         Some((&(1, 2), rest)) => {
@@ -54,6 +81,7 @@ pub fn coord_show(row_cols: Vec<(u32, u32)>) -> Option<String> {
                 output.push('-');
                 output.push_str(row_col_to_string(*rc).deref());
             }
+            info!{"coord_show3 {:?}", output}
             Some(output)
         }
         _ => None,
@@ -76,99 +104,80 @@ pub fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
     //  |--------(expandable)--------|
     //  ------------------------------
     //
-    let defn_label_coord = Coordinate::child_of(&root_coord, non_zero_u32_tuple((1, 1)));
     let mut defn_label_style = Style::default();
     defn_label_style.font_weight = 600;
-    m.col_widths.insert(defn_label_coord.full_col(), 184.0); // set width of col
-    let defn_label = Grammar {
-        name: "defn_label".to_string(),
-        style: defn_label_style,
-        kind: Kind::Text("Define Grammar".to_string()),
-    };
-
-    let defn_name_coord = Coordinate::child_of(&root_coord, non_zero_u32_tuple((2, 1)));
-    m.col_widths.insert(defn_name_coord.full_col(), 184.0); // set width of col
-    let defn_name = Grammar {
-        name: "defn_name".to_string(),
-        style: Style::default(),
-        kind: Kind::Input(String::new()),
-    };
-
-    let defn_body_coord = Coordinate::child_of(&root_coord, non_zero_u32_tuple((3, 1)));
-    let mut defn_body = Grammar::as_grid(NonZeroU32::new(2).unwrap(), NonZeroU32::new(2).unwrap());
-    defn_body.name = "defn_body".to_string();
-
-    let defn_body_A1_coord = Coordinate::child_of(&defn_body_coord, non_zero_u32_tuple((1, 1)));
-    let defn_body_A1 = Grammar {
-        name: "".to_string(),
-        style: Style::default(),
-        kind: Kind::Input(String::new()),
-    };
-
-    let defn_body_A2_coord = Coordinate::child_of(&defn_body_coord, non_zero_u32_tuple((2, 1)));
-    let defn_body_A2 = Grammar {
-        name: "".to_string(),
-        style: Style::default(),
-        kind: Kind::Input(String::new()),
-    };
-
-    let defn_body_B1_coord = Coordinate::child_of(&defn_body_coord, non_zero_u32_tuple((1, 2)));
-    let defn_body_B1 = Grammar {
-        name: "".to_string(),
-        style: Style::default(),
-        kind: Kind::Input(String::new()),
-    };
-
-    let defn_body_B2_coord = Coordinate::child_of(&defn_body_coord, non_zero_u32_tuple((2, 2)));
-    let defn_body_B2 = Grammar {
-        name: "".to_string(),
-        style: Style::default(),
-        kind: Kind::Input(String::new()),
-    };
-
-    let defn = Grammar {
-        name: "defn".to_string(),
-        style: Style::default(),
-        kind: Kind::Grid(row_col_vec![(1, 1), (2, 1), (3, 1)]),
-    };
-
-    m.get_session_mut().grammars.insert(root_coord, defn);
-    m.get_session_mut()
-        .grammars
-        .insert(defn_name_coord, defn_name);
-    m.get_session_mut()
-        .grammars
-        .insert(defn_label_coord, defn_label);
-    m.get_session_mut()
-        .grammars
-        .insert(defn_body_coord, defn_body);
-    m.get_session_mut()
-        .grammars
-        .insert(defn_body_A1_coord, defn_body_A1);
-    m.get_session_mut()
-        .grammars
-        .insert(defn_body_A2_coord, defn_body_A2);
-    m.get_session_mut()
-        .grammars
-        .insert(defn_body_B1_coord, defn_body_B1);
-    m.get_session_mut()
-        .grammars
-        .insert(defn_body_B2_coord, defn_body_B2);
+    m.col_widths.insert(root_coord.full_col(), 184.0); // set width of col
+    m.row_heights.insert(root_coord.full_row(), 184.0); // set width of col
+    build_grammar_map(
+        &mut m.get_session_mut().grammars,
+        root_coord,
+        gg![
+            [
+                g!(Grammar {
+                    name: "defn_label".to_string(),
+                    style: defn_label_style,
+                    kind: Kind::Text("Define Grammar".to_string()),
+                }),
+                g!(Grammar {
+                    name: "defn_name".to_string(),
+                    style: Style::default(),
+                    kind: Kind::Input(String::new()),
+                })
+            ],
+            [gg![
+                [
+                    g!(Grammar::input("rule_name", "")),
+                    g!(Grammar::input("rule_grammar", ""))
+                ],
+                [
+                    g!(Grammar::input("rule_name", "")),
+                    g!(Grammar::input("rule_grammar", ""))
+                ]
+            ]]
+        ],
+    );
 }
 
 pub fn resize(m: &mut Model, coord: Coordinate, row_height: f64, col_width: f64) {
     if let Some(parent_coord) = coord.parent() {
         let mut row_height_diff = 0.0;
         let mut col_width_diff = 0.0;
+        let mut new_row_height = 0.0;
+        let mut new_col_width = 0.0;
+        let mut new_grammar = Grammar::default();
         if let Some(old_row_height) = m.row_heights.get_mut(&coord.full_row()) {
-            let new_row_height = row_height + /* horizontal border width */ 2.0;
+            new_row_height = row_height + /* horizontal border width */ 2.0;
             row_height_diff = new_row_height - *old_row_height;
             *old_row_height = new_row_height;
         }
         if let Some(old_col_width) = m.col_widths.get_mut(&coord.full_col()) {
-            let new_col_width = col_width + /* vertiacl border height */ 2.0;
+            new_col_width = col_width + /* vertiacl border height */ 2.0;
             col_width_diff = new_col_width - *old_col_width;
             *old_col_width = new_col_width;
+        }
+
+        /* Update style width and height for the resize coord and neighbor with same column or row
+            Also update new size for its parent coord and associate neighbor.
+        */
+        let mut current_coord = coord.clone();
+        let mut get_grammar = m.get_session_mut().grammars.clone();
+        while !current_coord.parent().is_none() {
+            let p_coord = current_coord.parent().clone();
+            for (c, g) in m.get_session_mut().grammars.iter_mut() {
+                if c.parent() == p_coord {
+                    if c.row().get() == current_coord.row().get() {
+                        g.style.height = new_row_height;
+                    }
+                    if c.col().get() == current_coord.col().get() {
+                        g.style.width = new_col_width;
+                    }
+                }
+            }
+            if let Some(parent_grammar) = get_grammar.get_mut(&p_coord.clone().unwrap()) {
+                new_row_height = parent_grammar.style.height + (2 * 32) as f64;
+                new_col_width = parent_grammar.style.width + (2 * 92) as f64;
+            }
+            current_coord = p_coord.unwrap();
         }
         info! {"resizing cell: (row: {}, col: {}); height: {}, width: {}", coord.row_to_string(), coord.col_to_string(),  row_height_diff, col_width_diff};
         resize_diff(m, parent_coord, row_height_diff, col_width_diff);
@@ -242,4 +251,37 @@ macro_rules! row_col_vec {
             v
         }
     };
+}
+
+/* TODO: get this working so w can color code lookups */
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_move_grammar() {
+        // move_grammar(map: &mut HashMap<Coordinate, Grammar>, source: Coordinate, dest: Coordinate)
+        unimplemented!();
+    }
+
+    #[test]
+    fn test_non_zero_u32_tuple() {
+        
+        assert_eq!(non_zero_u32_tuple((1, 2)),(NonZeroU32::new(1).unwrap(), NonZeroU32::new(2).unwrap()));
+        assert_ne!(non_zero_u32_tuple((1, 2)), (NonZeroU32::new(2).unwrap(), NonZeroU32::new(2).unwrap()));
+        // unimplemented!();
+    }
+
+    #[test]
+    fn test_row_col_to_string() {
+        assert_eq!(row_col_to_string((2,2)), "B2");
+        assert_ne!(row_col_to_string((2,2)), "A2");
+        // unimplemented!();
+    }
+
+    #[test]
+    fn test_coord_show() {
+        assert_eq!(coord_show(vec![(1, 1), (1, 1)]).unwrap(), "root-A1");
+        assert_ne!(coord_show(vec![(1, 1), (1, 1)]).unwrap(), "root")
+        // unimplemented!();
+    }
 }

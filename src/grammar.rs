@@ -127,19 +127,50 @@ impl Grammar {
         }
     }
 
-    pub fn text(name: String, value: String) -> Grammar {
+    // NOTE: more info on this pattern here: https://hermanradtke.com/2015/05/06/creating-a-rust-function-that-accepts-string-or-str.html
+    pub fn text<S>(name: S, value: S) -> Grammar
+    where
+        S: Into<String>,
+    {
         Grammar {
-            name: name,
+            name: name.into(),
             style: Style::default(),
-            kind: Kind::Text(value),
+            kind: Kind::Text(value.into()),
         }
     }
 
-    pub fn input(name: String, value: String) -> Grammar {
+    pub fn input<S>(name: S, value: S) -> Grammar
+    where
+        S: Into<String>,
+    {
         Grammar {
-            name: name,
+            name: name.into(),
             style: Style::default(),
-            kind: Kind::Input(value),
+            kind: Kind::Input(value.into()),
+        }
+    }
+
+    pub fn default_button() -> Grammar {
+        Grammar {
+            name: "button".to_string(),
+            style: Style::default(),
+            kind: Kind::Interactive("".to_string(), Interactive::Button()),
+        }
+    }
+
+    pub fn default_slider() -> Grammar {
+        Grammar {
+            name: "slider".to_string(),
+            style: Style::default(),
+            kind: Kind::Interactive("".to_string(), Interactive::Slider(0.0, 0.0, 100.0)),
+        }
+    }
+
+    pub fn default_toggle() -> Grammar {
+        Grammar {
+            name: "toggle".to_string(),
+            style: Style::default(),
+            kind: Kind::Interactive("".to_string(), Interactive::Toggle(false)),
         }
     }
 

@@ -60,28 +60,29 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
         .get(coord)
         .expect("no grammar with this coordinate");
     // ignore root or meta
+
     if coord.row_cols.len() == 1 {
         return grammar.style(coord);
+        
     }
-    if grammar.style.width > 90.0 || grammar.style.height > 30.0 {
-        let (col_span, row_span, mut col_width, mut row_height) = {
-            let s = &model
-                .get_session()
-                .grammars
-                .get(&coord)
-                .expect(format! {"grammar map should have coord {}", coord.to_string()}.deref())
-                .style;
-            (s.col_span, s.row_span, s.width, s.height)
-        };
-        let mut s_col_span = String::new();
-        let mut s_row_span = String::new();
-        let n_col_span = col_span.1 - col_span.0;
-        let n_row_span = row_span.1 - row_span.0;
-        col_width = col_width + (3 * n_col_span) as f64;
-        row_height = row_height + (3 * n_row_span) as f64;
-        info!("-------------------------------------------");
-        info!("col_span {} - {}", col_span.0, col_span.1);
-        info!("row_span {} - {}", row_span.0, row_span.1);
+
+    let (col_span, row_span, mut col_width, mut row_height) = {
+        let s = &model
+            .get_session()
+            .grammars
+            .get(&coord)
+            .expect(format! {"grammar map should have coord {}", coord.to_string()}.deref())
+            .style;
+        (s.col_span, s.row_span, s.width, s.height)
+    };
+    let mut s_col_span = String::new();
+    let mut s_row_span = String::new();
+    let n_col_span = col_span.1 - col_span.0;
+    let n_row_span = row_span.1 - row_span.0;
+    col_width = col_width + n_col_span as f64;
+    row_height = row_height + n_row_span as f64;
+
+    if n_col_span != 0 || n_row_span != 0 {
         if n_col_span != 0 {
             s_col_span = format! {
                 "\ngrid-column-start: {}; grid-column: {} / span {};",
@@ -95,12 +96,12 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
             };
         }
         return format! {
-            "{}\nwidth: {}px;\nheight: {}px;
-            {} {}",
+            "{}\nwidth: {}px;\nheight: {}px;{} {}",
             grammar.style(coord), col_width, row_height,
             s_col_span, s_row_span,
         };
     }
+
     if let Kind::Grid(_) = grammar.kind {
         return format! {
             "{}\nwidth: fit-content;\nheight: fit-content;\n",
@@ -113,4 +114,37 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
         "{}\nwidth: {}px;\nheight: {}px;\n",
         grammar.style(coord), col_width, row_height,
     }
+}
+
+pub enum Dimension {
+    MaxContent,
+    MinContent,
+    FitContent,
+    Px(f64),
+    Percentage(f64),
+}
+
+impl Dimension {
+    fn to_string(&self) -> String {
+        match self {
+            Dimension::MaxContent => "max-content".to_string(),
+            Dimension::MinContent => "min-content".to_string(),
+            Dimension::FitContent => "fit-content".to_string(),
+            Dimension::Px(x) => format! {"{}px", x},
+            Dimension::Percentage(x) => format! {"{}%", x},
+        }
+    }
+}
+
+mod tests {
+    // Note this useful idiom: importing names from outer (for mod tests) scope.
+    use super::*;
+
+    #[test]
+    fn test_style_to_string() {
+        assert_eq!(Style::default().to_string(),  
+            "/* border: 1px; NOTE: ignoring Style::border_* for now */
+    border-collapse: inherit;
+    font-weight: 400;
+    color: black;\n" )
 }
