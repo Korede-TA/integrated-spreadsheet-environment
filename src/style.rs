@@ -64,7 +64,6 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
     if coord.row_cols.len() == 1 {
         return grammar.style(coord);
     }
-
     let (col_span, row_span, mut col_width, mut row_height) = {
         let s = &model
             .get_session()

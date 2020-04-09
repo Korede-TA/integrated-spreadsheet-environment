@@ -7,7 +7,6 @@ use stdweb::web::{html_element::InputElement, HtmlElement, IHtmlElement};
 use yew::events::{ClickEvent, IKeyboardEvent, IMouseEvent, KeyPressEvent};
 use yew::prelude::*;
 use yew::services::reader::File;
-use yew::virtual_dom::VList;
 use yew::{html, ChangeData, Html, InputData};
 
 use crate::coordinate::Coordinate;
