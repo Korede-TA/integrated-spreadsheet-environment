@@ -23,7 +23,6 @@ use crate::util::{move_grammar, non_zero_u32_tuple, resize, resize_diff};
 use crate::view::{view_context_menu, view_grammar, view_menu_bar, view_side_nav, view_tab_bar};
 use crate::{coord, coord_col, coord_row, g, grid, row_col_vec};
 
-
 #[derive(Parser)]
 #[grammar = "coordinate.pest"]
 pub struct CoordinateParser;
@@ -506,20 +505,12 @@ impl Component for Model {
                         _ => (),
                     }
                 }
-                true
+                false
             }
 
             Action::SetActiveCell(coord) => {
                 self.active_cell = Some(coord.clone());
-                let active_cell_id = format! {"cell-{}", coord.to_string()};
-                js! {
-                    try {
-                        let element = document.getElementById(@{active_cell_id.clone()});
-                        element.firstChild.focus();
-                    } catch (e) {
-                        console.log("cannot focus cell with coordinate ", @{active_cell_id});
-                    }
-                };
+                focus_on_cell(&coord);
                 true
             }
 
@@ -881,9 +872,9 @@ impl Component for Model {
                 // dump file contents into script tag and attach to the DOM
                 let script = document().create_element("script").unwrap();
                 script.set_text_content(file_contents);
-                script.set_attribute("type", "text/javascript");
-                script.set_attribute("class", "ise-driver");
-                script.set_attribute("defer", "true");
+                let _ = script.set_attribute("type", "text/javascript");
+                let _ = script.set_attribute("class", "ise-driver");
+                let _ = script.set_attribute("defer", "true");
                 let head = document().query_selector("head").unwrap().unwrap();
                 head.append_child(&script);
                 true
@@ -899,29 +890,27 @@ impl Component for Model {
                 let mut tmp_width = 90.0;
 
                 let current_cell = self.active_cell.clone();
-                let mut ref_grammas = self.get_session().grammars.clone();
+                let ref_grammas = self.get_session().grammars.clone();
                 let current_grammar = ref_grammas.get(&current_cell.clone().unwrap()).unwrap();
 
                 let (r, c) = non_zero_u32_tuple((rows, cols));
                 let mut grammar = Grammar::as_grid(r, c);
                 if let Kind::Grid(sub_coords) = grammar.clone().kind {
+                    // set active cell to first cell inside the new nested grammar
                     self.active_cell = sub_coords.first().map(|c| Coordinate::child_of(&coord, *c));
 
                     let current_width = current_grammar.style.width;
                     let current_height = current_grammar.style.height;
 
-                    // let current_width = *&self.col_widths.get(&coord.full_col()).unwrap_or(&90.0);
-                    // let current_height = *&self.row_heights.get(&coord.full_row()).unwrap_or(&30.0);
-
                     // check if active cell row height and width is greater than default value
                     if current_width > tmp_width {
                         // set height argument to active cell height if greater
-                        //Get the actual amount of cell being created and use it instead of "3" being HARD CODED.
+                        // TODO: use the actual number of columns instead of hard coded "3" .
                         tmp_width = current_width / 3.0;
                     }
                     if current_height > tmp_heigth {
                         // set width argument to active cell width if greater
-                        //Get the actual amount of cell being created and use it instead of "3" being HARD CODED.
+                        // TODO: use the actual number of rows instead of hard coded "3" .
                         tmp_heigth = current_height / 3.0;
                     }
 
@@ -936,20 +925,17 @@ impl Component for Model {
                         {
                             // initialize row & col heights as well
                             if !&self.row_heights.contains_key(&new_coord.clone().full_row()) {
-                                &self.row_heights
+                                &self
+                                    .row_heights
                                     .insert(new_coord.clone().full_row(), tmp_heigth);
-                                //30.0);
                             }
                             if !&self.col_widths.contains_key(&new_coord.clone().full_col()) {
-                                &self.col_widths
+                                &self
+                                    .col_widths
                                     .insert(new_coord.clone().full_col(), tmp_width);
-                                //90.0);
                             }
                         }
                     }
-
-                    // info!("tmp_width-{},tmp_heigth-{}", tmp_width.clone(), tmp_heigth.clone());
-                    // info!("current_width-{}, current_height-{}", current_width.clone(), current_height.clone());
                 }
 
                 if let Some(parent) = Coordinate::parent(&coord)
@@ -1337,7 +1323,9 @@ impl Component for Model {
             Action::ToggleLookup(coord) => {
                 match self.get_session_mut().grammars.get_mut(&coord) {
                     Some(
-                        g @ Grammar {
+                        g
+                        @
+                        Grammar {
                             kind: Kind::Input(_),
                             ..
                         },
@@ -1345,7 +1333,9 @@ impl Component for Model {
                         g.kind = Kind::Lookup("".to_string(), None);
                     }
                     Some(
-                        g @ Grammar {
+                        g
+                        @
+                        Grammar {
                             kind: Kind::Lookup(_, _),
                             ..
                         },
@@ -1386,7 +1376,7 @@ impl Component for Model {
                 }
                 let defn_coord = Coordinate::child_of(&(coord!("meta")), defn_meta_sub_coord);
                 info! {"Adding Definition: {} to {}", coord.to_string(), defn_coord.to_string()};
-                
+
                 move_grammar(self, coord, defn_coord.clone());
                 // give moved grammar name {defn_name} as specified in "Add Definition" button
                 if let Some(g) = self.get_session_mut().grammars.get_mut(&defn_coord) {
@@ -1549,4 +1539,16 @@ where
         if e.shift_key() { "Shift-" } else { "" },
         if e.key().trim() != "" { e.key() } else { e.code() } ,
     }
+}
+
+fn focus_on_cell(c: &Coordinate) {
+    let cell_id = format! {"cell-{}", c.to_string()};
+    js! {
+        try {
+            let element = document.getElementById(@{cell_id.clone()});
+            element.firstChild.focus();
+        } catch (e) {
+            console.log("cannot focus cell with coordinate ", @{cell_id.to_string()});
+        }
+    };
 }

@@ -6,8 +6,8 @@ use stdweb::unstable::TryInto;
 use stdweb::web::{html_element::InputElement, HtmlElement, IHtmlElement};
 use yew::events::{ClickEvent, IKeyboardEvent, IMouseEvent, KeyPressEvent};
 use yew::prelude::*;
-use yew::virtual_dom::vlist::VList;
 use yew::services::reader::File;
+use yew::virtual_dom::vlist::VList;
 use yew::{html, ChangeData, Html, InputData};
 
 use crate::coordinate::Coordinate;
@@ -687,11 +687,32 @@ pub fn view_input_grammar(
     // relevant coordinates for navigation purposes
     let neighbor_left = current_coord
         .neighbor_left()
-        .filter(|c| m.get_session().grammars.contains_key(&c))
+        .and_then(|c| {
+            // check if grammar corresponding to left neighbor coord exists...
+            m.get_session().grammars.get(&c).map(|g| {
+                // ... and if it's a grid, select it's first cell
+                if let Kind::Grid(_) = g.kind {
+                    Coordinate::child_of(&c, non_zero_u32_tuple((1, 1)))
+                } else {
+                    c.clone()
+                }
+            })
+        })
         .clone();
     let neighbor_right = current_coord
         .neighbor_right()
-        .filter(|c| m.get_session().grammars.contains_key(&c))
+        .and_then(|c| {
+            // check if grammar corresponding to right neighbor coord exists...
+            m.get_session().grammars.get(&c).map(|g| {
+                // ... and if it's a grid, select it's first cell
+                // TODO: make this select the last (bottom-rightmost) nested cell
+                if let Kind::Grid(_) = g.kind {
+                    Coordinate::child_of(&c, non_zero_u32_tuple((1, 1)))
+                } else {
+                    c.clone()
+                }
+            })
+        })
         .clone();
     let first_col_next_row = {
         let temp = &mut current_coord.neighbor_below();
@@ -716,9 +737,15 @@ pub fn view_input_grammar(
                 return Action::NextSuggestion(tab_coord.clone(), 1);
             }
             let next_active_cell = if e.shift_key() {
-                neighbor_left.clone().or(last_col_prev_row.clone())
+                neighbor_left
+                    .clone()
+                    .or(last_col_prev_row.clone())
+                    .or(tab_coord.parent().and_then(|c| c.neighbor_left()))
             } else {
-                neighbor_right.clone().or(first_col_next_row.clone())
+                neighbor_right
+                    .clone()
+                    .or(first_col_next_row.clone())
+                    .or(tab_coord.parent().and_then(|c| c.neighbor_right()))
             };
             info! {"next_active_cell {}", next_active_cell.clone().unwrap().to_string()};
             return next_active_cell.map_or(Action::Noop, |c| Action::SetActiveCell(c));
