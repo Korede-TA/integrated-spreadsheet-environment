@@ -433,7 +433,8 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                         class=format!{"cell interactive row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
                         id=format!{"cell-{}", coord.to_string()}
                         style={ get_style(&m, &coord) }>
-                        <button>
+                        <button
+                        onclick=m.link.callback(|_| Action::HideContextMenu)>
                             { name }
                         </button>
                     </div>
@@ -442,6 +443,7 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
             Kind::Interactive(name, Interactive::Slider(value, min, max)) => {
                 html! {
                     <div
+                        onclick=m.link.callback(|_| Action::HideContextMenu)
                         class=format!{"cell interactive row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
                         id=format!{"cell-{}", coord.to_string()}
                         style={ get_style(&m, &coord) }>
@@ -454,6 +456,7 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
             Kind::Interactive(name, Interactive::Toggle(checked)) => {
                 html! {
                     <div
+                        onclick=m.link.callback(|_| Action::HideContextMenu)
                         class=format!{"cell interactive row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
                         id=format!{"cell-{}", coord.to_string()}
                         style={ get_style(&m, &coord) }>
@@ -520,6 +523,7 @@ pub fn view_defn_grammar(
     let c = coord.clone();
     html! {
         <div
+            onclick=m.link.callback(|_| Action::HideContextMenu)
             class=format!{"cell grid row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
@@ -546,6 +550,7 @@ pub fn view_defn_variant_grammar(
     }
     html! {
         <div
+            onclick=m.link.callback(|_| Action::HideContextMenu)
             class=format!{"cell variant row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
@@ -578,7 +583,9 @@ pub fn view_lookup_grammar(
             })
         }
         html! {
-            <div class="suggestion-content">
+            <div
+                onclick=m.link.callback(|_| Action::HideContextMenu)
+                class="suggestion-content">
                 { suggestions_nodes }
             </div>
         }
@@ -590,6 +597,7 @@ pub fn view_lookup_grammar(
     let can_toggle: bool = value.clone().deref() == "";
     html! {
         <div
+            onclick=m.link.callback(|_| Action::HideContextMenu)
             class=format!{"cell suggestion lookup row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
@@ -666,7 +674,9 @@ pub fn view_input_grammar(
             suggestion_index += 1;
         }
         html! {
-            <div class="suggestion-content">
+            <div
+            onclick=m.link.callback(|_| Action::HideContextMenu)
+            class="suggestion-content">
                 { suggestion_nodes }
             </div>
         }
@@ -717,7 +727,6 @@ pub fn view_input_grammar(
     };
     let last_col_prev_row = /* TODO: get the correct value of this */ current_coord.neighbor_above();
     let keydownhandler = m.link.callback(move |e: KeyDownEvent| {
-        Action::HideContextMenu;
         info! {"suggestion len {}", suggestions_len}
         if e.code() == "Tab" {
             e.prevent_default();
@@ -736,6 +745,7 @@ pub fn view_input_grammar(
     });
     html! {
         <div
+            onclick=m.link.callback(|_| Action::HideContextMenu)
             class=cell_classes
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
@@ -811,6 +821,7 @@ pub fn view_text_grammar(m: &Model, coord: &Coordinate, value: String, is_active
     let is_selected = cell_is_selected(coord, &m.first_select_cell, &m.last_select_cell);
     html! {
         <div
+            onclick=m.link.callback(|_| Action::HideContextMenu)
             class=format!{"cell suggestion row-{} col-{}", coord.row_to_string(), coord.col_to_string(),}
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
@@ -840,6 +851,7 @@ pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordina
     }
     html! {
         <div
+            onclick=m.link.callback(|_| Action::HideContextMenu)
             class=format!{"\ncell grid row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
@@ -850,36 +862,50 @@ pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordina
 
 pub fn view_context_menu(m: &Model) -> Html {
     let default_options = vec![
-        ("Save", m.link.callback(|_| Action::SaveSession()), true),
-        ("Zoom In (+)", m.link.callback(|_| Action::ZoomIn), true),
-        ("Zoom Reset", m.link.callback(|_| Action::ZoomReset), true),
-        ("Zoom Out (-)", m.link.callback(|_| Action::ZoomOut), true),
-        ("Reset", m.link.callback(|_| Action::Recreate), true),
-        ("Insert Row", m.link.callback(|_| Action::InsertRow), true),
-        ("Insert Col", m.link.callback(|_| Action::InsertCol), true),
-        ("Merge", m.link.callback(|_| Action::MergeCells()), false),
-        ("Delete Row", m.link.callback(|_| Action::DeleteRow), true),
-        ("Delete Col", m.link.callback(|_| Action::DeleteCol), true),
+        ("Insert Row", m.link.callback(|_| Action::InsertRow), true, 1),
+        ("Insert Col", m.link.callback(|_| Action::InsertCol), true, 1),
+        ("Delete Row", m.link.callback(|_| Action::DeleteRow), true, 1),
+        ("Delete Col", m.link.callback(|_| Action::DeleteCol), true, 1),
+
+        ("----------",  m.link.callback(|_| Action::HideContextMenu), true, 0),
+
+        ("Zoom In (+)", m.link.callback(|_| Action::ZoomIn), true, 2),
+        ("Zoom Reset", m.link.callback(|_| Action::ZoomReset), true, 2),
+        ("Zoom Out (-)", m.link.callback(|_| Action::ZoomOut), true, 2),
+
+        ("----------",  m.link.callback(|_| Action::HideContextMenu), true, 0),
+
+        ("Save", m.link.callback(|_| Action::SaveSession()), true, 3),
+        ("Reset", m.link.callback(|_| Action::Recreate), true, 3),
+        ("Merge", m.link.callback(|_| Action::MergeCells()), false, 3),
+
     ];
+    /*option Name and action are what their name means
+    option_param represents the default or conditionnal render of an option
+    option_layer represents the visual layer of the option on the context menu that for now only helps the break
+        But will evolve in the future
+    */
     let option_nodes = {
         let mut v = VList::new();
-        for (option_name, option_action, option_param) in default_options {
-            let mut shouldRender = true;
-            
+        
+        for (option_name, option_action, option_param, option_layer) in default_options {
+            let mut should_render = true;
+
             //Conditional for the options that should only show under certain circumstances
-            if option_param == false {
-                shouldRender = false;
+            if !option_param {
+                should_render = false;
                 //Conditions Manager on the conditional context-menu Option
                 match option_name.clone() {
-                    
-                    "Merge" => if m.last_select_cell != None{
-                        shouldRender = true;
+                    "Merge" => {
+                        if m.last_select_cell != None {
+                            should_render = true;
+                        }
                     }
-                    _   => info!("Parameter not managed {:?}", option_name)
+                    _ => info!("Parameter not managed {:?}", option_name),
                 }
             }
             //Option render
-            if shouldRender == true {
+            if should_render {
                 v.add_child(html! {
                     <li class="context-menu-option" onclick=option_action>
                         { option_name }
@@ -897,14 +923,16 @@ pub fn view_context_menu(m: &Model) -> Html {
     };
 
     html! {
-        <div class="context-menu" style=position_style>
+        <div
+            onclick=m.link.callback(|_| Action::HideContextMenu)
+            class="context-menu" style=position_style>
             <ul class="context-menu-options">
                 {option_nodes}
             </ul>
         </div>
     }
 }
-      // util function for determining if one cell's coordinate is within the range of selected cells.
+// util function for determining if one cell's coordinate is within the range of selected cells.
 fn cell_is_selected(
     coord: &Coordinate,
     first_select_cell: &Option<Coordinate>,
