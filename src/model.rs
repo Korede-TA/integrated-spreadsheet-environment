@@ -21,7 +21,7 @@ use crate::session::Session;
 use crate::style::Style;
 use crate::util::{move_grammar, non_zero_u32_tuple, resize, resize_diff};
 use crate::view::{view_context_menu, view_grammar, view_menu_bar, view_side_nav, view_tab_bar};
-use crate::{coord, coord_col, coord_row, g, gg, row_col_vec};
+use crate::{coord, coord_col, coord_row, g, grid, row_col_vec};
 
 
 #[derive(Parser)]
@@ -50,7 +50,7 @@ pub struct Model {
     pub min_select_cell: Option<Coordinate>,
     pub max_select_cell: Option<Coordinate>,
 
-    // - `shift_key_pressed` is a simple indicator for when shift key is toggled
+    // - `shift_key_pressed` is a simple indicator for when shift key is togridled
     pub shift_key_pressed: bool,
 
     // - `zoom` is the value that corresponds to how "zoomed" the sheet is
@@ -141,7 +141,7 @@ pub enum SelectMsg {
 }
 
 // ACTIONS
-// Triggered in the view, sent to update function
+// Trigridered in the view, sent to update function
 pub enum Action {
     // Do nothing
     Noop,
@@ -201,7 +201,7 @@ pub enum Action {
 
     AddDefinition(Coordinate, /* name */ String),
 
-    ToggleShiftKey(bool),
+    TogridleShiftKey(bool),
 
     // Alerts and stuff
     Alert(String),
@@ -1354,7 +1354,7 @@ impl Component for Model {
                         g.kind = Kind::Input("".to_string());
                     }
                     _ => {
-                        info! { "[Action::ToggleLookup] cannot toggle non-Input/Lookup kind of grammar" }
+                        info! { "[Action::ToggleLookup] cannot togridle non-Input/Lookup kind of grammar" }
                     }
                 };
                 true
@@ -1395,8 +1395,8 @@ impl Component for Model {
                 true
             }
 
-            Action::ToggleShiftKey(toggle) => {
-                self.shift_key_pressed = toggle;
+            Action::TogridleShiftKey(togridle) => {
+                self.shift_key_pressed = togridle;
                 false
             }
 
@@ -1490,10 +1490,10 @@ impl Component for Model {
                             e.prevent_default();
                             Action::ShowContextMenu((e.client_x() as f64, e.client_y() as f64))
                         })
-                        // Global Key toggles
+                        // Global Key togridles
                         onkeydown=self.link.callback(move |e: KeyDownEvent| {
                             if e.key() == "Shift" {
-                                Action::ToggleShiftKey(true)
+                                Action::TogridleShiftKey(true)
                             } else {
                                 Action::Noop
 
@@ -1501,12 +1501,12 @@ impl Component for Model {
                         })
                         onkeyup=self.link.callback(move |e: KeyUpEvent| {
                             if e.key() == "Shift" {
-                                Action::ToggleShiftKey(false)
+                                Action::TogridleShiftKey(false)
                             } else {
                                 Action::Noop
                             }
                         })
-                        // Global Mouse event/toggles
+                        // Global Mouse event/togridles
                         onmouseup=self.link.callback(move |e: MouseUpEvent| {
                             if is_resizing.clone() {
                                 Action::Resize(ResizeMsg::End)
