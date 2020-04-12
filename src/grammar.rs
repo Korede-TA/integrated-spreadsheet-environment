@@ -22,7 +22,7 @@ js_deserializable!(Grammar);
 // Kinds of grammars in the system.
 // Since this is an Enum, a Grammar's kind field
 // can only be set to one these variants at a time
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, PartialEq)]
 pub enum Kind {
     // Read-only text grammar
     Text(String),
@@ -53,7 +53,7 @@ js_serializable!(Kind);
 js_deserializable!(Kind);
 
 // Kinds of lookup grammars
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum Lookup {
     Cell(Coordinate),
     Range {
@@ -66,7 +66,7 @@ pub enum Lookup {
 }
 
 // Kinds of interactive grammars
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, PartialEq)]
 pub enum Interactive {
     Button(),
     Slider(/*value*/ f64, /*min*/ f64, /*max*/ f64),

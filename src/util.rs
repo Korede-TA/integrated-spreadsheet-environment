@@ -13,7 +13,7 @@ use crate::grammar::{Grammar, Kind};
 use crate::grammar_map::*;
 use crate::model::Model;
 use crate::style::Style;
-use crate::{g, gg, row_col_vec};
+use crate::{g, grid, row_col_vec};
 
 // `move_grammar` function does all the necessary operations when copying nested grammars from one
 // coordinate in the grid to another including:
@@ -44,26 +44,21 @@ pub fn move_grammar(m: &mut Model, source: Coordinate, dest: Coordinate) {
                 );
             }
         }
-        //info! {"move gr {:?}", map}
     }
 }
 
 pub fn non_zero_u32_tuple(val: (u32, u32)) -> (NonZeroU32, NonZeroU32) {
     let (row, col) = val;
-    info! {"non_ze {:?}", (NonZeroU32::new(row).unwrap(), NonZeroU32::new(col).unwrap())};
     (NonZeroU32::new(row).unwrap(), NonZeroU32::new(col).unwrap())
 }
 
 pub fn row_col_to_string((row, col): (u32, u32)) -> String {
     let row_str = row.to_string();
     let col_str = from_u32(col + 64).unwrap();
-    info! {"forrrrrmmma{:?} {:?}", row, col}
-    info! {"forrrrrmmma{:?}", format! {"{}{}", col_str, row_str}}
     format! {"{}{}", col_str, row_str}
 }
 
 pub fn coord_show(row_cols: Vec<(u32, u32)>) -> Option<String> {
-    info! {"coord_show {:?}", row_cols}
     match row_cols.split_first() {
         Some((&(1, 1), rest)) => {
             let mut output = "root".to_string();
@@ -71,7 +66,6 @@ pub fn coord_show(row_cols: Vec<(u32, u32)>) -> Option<String> {
                 output.push('-');
                 output.push_str(row_col_to_string(*rc).deref());
             }
-            info! {"coord_show2 {:?}", output}
             Some(output)
         }
         Some((&(1, 2), rest)) => {
@@ -80,7 +74,6 @@ pub fn coord_show(row_cols: Vec<(u32, u32)>) -> Option<String> {
                 output.push('-');
                 output.push_str(row_col_to_string(*rc).deref());
             }
-            info! {"coord_show3 {:?}", output}
             Some(output)
         }
         _ => None,
@@ -110,7 +103,7 @@ pub fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
     build_grammar_map(
         &mut m.get_session_mut().grammars,
         root_coord,
-        gg![
+        grid![
             [
                 g!(Grammar {
                     name: "defn_label".to_string(),
@@ -123,7 +116,7 @@ pub fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {
                     kind: Kind::Input(String::new()),
                 })
             ],
-            [gg![
+            [grid![
                 [
                     g!(Grammar::input("rule_name", "")),
                     g!(Grammar::input("rule_grammar", ""))

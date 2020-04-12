@@ -23,6 +23,7 @@ use crate::util::{move_grammar, non_zero_u32_tuple, resize, resize_diff};
 use crate::view::{view_context_menu, view_grammar, view_menu_bar, view_side_nav, view_tab_bar};
 use crate::{coord, coord_col, coord_row, g, gg, row_col_vec};
 
+
 #[derive(Parser)]
 #[grammar = "coordinate.pest"]
 pub struct CoordinateParser;
@@ -342,7 +343,7 @@ impl Component for Model {
                     build_grammar_map(
                         &mut map,
                         coord!("root"),
-                        gg![
+                        grid![
                             [
                                 g!(Grammar::input("", "A1")),
                                 g!(Grammar::input("", "B1")),
@@ -356,7 +357,7 @@ impl Component for Model {
                             [
                                 g!(Grammar::input("", "A3")),
                                 g!(Grammar::input("", "B3")),
-                                gg![
+                                grid![
                                     [
                                         g!(Grammar::input("", "C3-A1")),
                                         g!(Grammar::input("", "C3-B1"))
@@ -369,6 +370,51 @@ impl Component for Model {
                             ]
                         ],
                     );
+                    build_grammar_map(
+                        &mut map,
+                        coord!("meta"),
+                        grid![
+                            [g!(Grammar::input("", "A1"))],
+                            [g!(Grammar::input("", "A2"))],
+                            [g!(Grammar::default_button())],
+                            [g!(Grammar::default_slider())],
+                            [g!(Grammar::default_toggle())]
+                        ],
+                    );
+                    build_grammar_map(
+                        &mut map,
+                        coord!("meta-A6"),
+                        grid![
+                            [
+                                g!(Grammar {
+                                    name: "defn_label".to_string(),
+                                    style: {
+                                        let mut s = Style::default();
+                                        s.font_weight = 600;
+                                        s
+                                    },
+                                    kind: Kind::Text("Define Grammar".to_string()),
+                                }),
+                                g!(Grammar {
+                                    name: "defn_name".to_string(),
+                                    style: Style::default(),
+                                    kind: Kind::Input(String::new()),
+                                })
+                            ],
+                            [grid![
+                                [
+                                    g!(Grammar::input("rule_name", "")),
+                                    g!(Grammar::input("rule_grammar", ""))
+                                ],
+                                [
+                                    g!(Grammar::input("rule_name", "")),
+                                    g!(Grammar::input("rule_grammar", ""))
+                                ]
+                            ]]
+                        ],
+                    );
+                    assert!(map.contains_key(&(coord!("root"))));
+                    assert!(map.contains_key(&(coord!("root-C3-B2"))));
                     map
                 },
             }],
@@ -690,6 +736,63 @@ impl Component for Model {
                 true
             }
 
+            Action::MergeCells() => {
+                if self.min_select_cell.is_none() || self.max_select_cell.is_none() {
+                    return false;
+                }
+                let mut min_select_row = self.min_select_cell.as_ref().unwrap().row();
+                let mut max_select_row = self.max_select_cell.as_ref().unwrap().row();
+                let mut min_select_col = self.min_select_cell.as_ref().unwrap().col();
+                let mut max_select_col = self.max_select_cell.as_ref().unwrap().col();
+                let mut merge_height = 0.00;
+                let mut merge_width = 0.00;
+                let mut max_coord = Coordinate::default();
+                let mut max_grammar = Grammar::default();
+                let mut ref_grammas = self.get_session().grammars.clone();
+                for (coord, grammar) in ref_grammas.iter_mut() {
+                    if min_select_row <= coord.row()
+                        && coord.row() <= max_select_row
+                        && min_select_col <= coord.col()
+                        && coord.col() <= max_select_col
+                        && coord.to_string().contains("root-")
+                        && grammar.style.display == true
+                    {
+                        let coord_style = grammar.style.clone();
+                        if (coord.row() == max_select_row) && (coord.col() == max_select_col) {
+                            merge_width = merge_width + coord_style.width;
+                            merge_height = merge_height + coord_style.height;
+                            max_coord = coord.clone();
+                            max_grammar = grammar.clone();
+                            continue;
+                        } else if (coord.row() == max_select_row) {
+                            merge_width = merge_width + coord_style.width;
+                        } else if coord.col() == max_select_col {
+                            merge_height = merge_height + coord_style.height;
+                        }
+                        if (coord.row() != max_select_row) || (coord.col() != max_select_col) {
+                            grammar.style.display = false;
+                            merge_height = merge_height;
+                            merge_width = merge_width;
+                        }
+                        grammar.style.col_span = (min_select_col.get(), max_select_col.get());
+                        grammar.style.row_span = (min_select_row.get(), max_select_row.get());
+                        self.get_session_mut()
+                            .grammars
+                            .insert(coord.clone(), grammar.clone());
+                    }
+                }
+                max_grammar.style.width = merge_width;
+                max_grammar.style.height = merge_height;
+                max_grammar.style.col_span = (min_select_col.get(), max_select_col.get());
+                max_grammar.style.row_span = (min_select_row.get(), max_select_row.get());
+                self.get_session_mut()
+                    .grammars
+                    .insert(max_coord, max_grammar);
+                self.min_select_cell = None;
+                self.max_select_cell = None;
+                true
+            }
+
             Action::ReadDriverFiles(files_list) => {
                 // Get the main file and miscellaneous/additional files from the drivers list
                 let (main_file, misc_files) = {
@@ -977,7 +1080,6 @@ impl Component for Model {
                 }
                 true
             }
-
             Action::DeleteRow => {
                 //Taking Active cell
                 if let Some(coord) = self.active_cell.clone() {

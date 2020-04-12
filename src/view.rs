@@ -1,14 +1,13 @@
-#![recursion_limit = "1024"]
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use stdweb::traits::IEvent;
 use stdweb::unstable::TryFrom;
+use stdweb::unstable::TryInto;
 use stdweb::web::{html_element::InputElement, HtmlElement, IHtmlElement};
-// use web_sys::HtmlInputElement as InputElement;
 use yew::events::{ClickEvent, IKeyboardEvent, IMouseEvent, KeyPressEvent};
 use yew::prelude::*;
+use yew::virtual_dom::vlist::VList;
 use yew::services::reader::File;
-use yew::virtual_dom::VList;
 use yew::{html, ChangeData, Html, InputData};
 
 use crate::coordinate::Coordinate;
@@ -291,25 +290,6 @@ pub fn view_menu_bar(m: &Model) -> Html {
                     onclick=m.link.callback(|e: ClickEvent| { e.prevent_default(); Action::Noop })
                     value={"".to_string()}>
                 </input>
-                /*
-                <div>
-                    <input
-                        class="active-cell-indicator"
-                        placeholder="Parent Name"
-                        size="10"
-                        disabled={ !can_add_definition }
-                        onchange=m.link.callback(move |e: ChangeData| {
-                            if let ChangeData::Value(value) = e {
-                                return Action::SetCurrentDefinitionName(value);
-                            }
-                            Action::Noop
-                        })
-                        onclick=m.link.callback(|e: ClickEvent| { e.prevent_default(); Action::Noop })
-                        value={parent_defn}>
-                    </input>
-                    { VList::new_with_children(suggestions) }
-                </div>
-                */
             </button>
         }
     };
@@ -410,8 +390,6 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                     .meta_suggestions
                     .iter()
                     .filter_map(|(name, suggestion_coord)| {
-                        // suggestion_coord
-                        // info! {"filtering suggestions by {}", value}
                         if let Some(suggestion_grammar) =
                             m.get_session().grammars.get(&suggestion_coord)
                         {
@@ -601,7 +579,7 @@ pub fn view_lookup_grammar(
             class=format!{"cell suggestion lookup row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(&m, &coord) }>
-            <b style="font-size: 20px;">{ "$" }</b>
+            <b style=format!{"font-size: 20px; color: {};", random_color()}>{ "$" }</b>
             <div contenteditable=true
                 class=format!{
                         "cell-data {}",
@@ -973,4 +951,16 @@ fn cell_is_selected(
         }
         _ => false,
     }
+}
+
+fn random_color() -> String {
+    js! (
+        var col = "";
+        for (var i=0; i<6; i++) {
+            col += (Math.random()*16|0).toString(16);
+        }
+        return "#"+col;
+    )
+    .try_into()
+    .unwrap()
 }

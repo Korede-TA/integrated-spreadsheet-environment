@@ -1,3 +1,5 @@
+use pest::Parser;
+
 use std::collections::HashMap;
 use std::num::NonZeroU32;
 
@@ -11,33 +13,34 @@ use crate::util::non_zero_u32_tuple;
 #[grammar = "coordinate.pest"]
 pub struct CoordinateParser;
 
-type C = Coordinate;
-type G = Grammar;
-
 #[derive(Clone)]
-pub struct GrammarMap(HashMap<C, G>);
+pub struct GrammarMap(HashMap<Coordinate, Grammar>);
 
 #[derive(Clone)]
 pub enum MapEntry {
     G(Grammar),
     // using `Box` here is necessary so Rust can infer a proper size of enum
-    GG(Vec<Vec<Box<MapEntry>>>),
+    Grid(Vec<Vec<Box<MapEntry>>>),
 }
 
-pub fn build_grammar_map(map: &mut HashMap<C, G>, root_coord: Coordinate, entry: MapEntry) {
+pub fn build_grammar_map(
+    map: &mut HashMap<Coordinate, Grammar>,
+    root_coord: Coordinate,
+    entry: MapEntry,
+) {
     match entry {
         MapEntry::G(grammar) => {
             map.insert(root_coord, grammar);
         }
-        MapEntry::GG(entry_table) => {
+        MapEntry::Grid(entry_table) => {
             let mut sub_coords = vec![];
-            let mut rows = 0;
-            let mut cols = 0;
+            let mut num_rows = 0;
+            let mut num_cols = 0;
             for (row_i, entry_row) in entry_table.iter().enumerate() {
-                rows = row_i;
+                num_rows = row_i + 1;
                 for (col_i, entry) in entry_row.iter().enumerate() {
-                    if col_i > cols {
-                        cols = col_i
+                    if col_i > num_cols {
+                        num_cols = col_i + 1
                     }
                     let new_coord = Coordinate::child_of(
                         &root_coord,
@@ -53,8 +56,8 @@ pub fn build_grammar_map(map: &mut HashMap<C, G>, root_coord: Coordinate, entry:
                     name: String::new(),
                     style: {
                         let mut s = Style::default();
-                        s.width = 90.0 * (cols as f64);
-                        s.height = 30.0 * (cols as f64);
+                        s.width = 90.0 * (num_cols as f64);
+                        s.height = 30.0 * (num_rows as f64);
                         s
                     },
                     kind: Kind::Grid(sub_coords),
@@ -72,9 +75,9 @@ macro_rules! g {
 }
 
 #[macro_export]
-macro_rules! gg {
+macro_rules! grid {
     [ $( [ $( $d:expr ),* ] ),* ] => {
-        MapEntry::GG(vec![
+        MapEntry::Grid(vec![
             $(
                 vec![$(Box::new($d)),*],
             )*
