@@ -134,18 +134,15 @@ impl Dimension {
     }
 }
 
-mod tests {
-    // Note this useful idiom: importing names from outer (for mod tests) scope.
-    use super::*;
-
-    #[test]
-    fn test_style_to_string() {
-        assert_eq!(
-            Style::default().to_string(),
-            "/* border: 1px; NOTE: ignoring Style::border_* for now */
-    border-collapse: inherit;
-    font-weight: 400;
-    color: black;\n"
-        );
-    }
-}
+// mod tests {
+//     // Note this useful idiom: importing names from outer (for mod tests) scope.
+//     use super::*;
+//     #[test]
+//     fn test_style_to_string() {
+//         assert_eq!(Style::default().to_string(),
+//             "/* border: 1px; NOTE: ignoring Style::border_* for now */
+//     border-collapse: inherit;
+//     font-weight: 400;
+//     color: black;\n" )
+//     }
+// }

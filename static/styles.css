@@ -124,30 +124,6 @@ body {
   display: block;
 }
 
-.menu {
-  width: 120px;
-  box-shadow: 0 4px 5px 3px rgba(0, 0, 0, 0.2);
-  position: relative;
-  display: none;
-}
-
-.menu-options {
-  list-style: none;
-  padding: 10px 0;
-}
-
-.menu-options .menu-option {
-  font-weight: 500;
-  font-size: 14px;
-  padding: 10px 40px 10px 20px;
-  cursor: pointer;
-}
-
-
-.menu-options .menu-option:hover {
-  background: rgba(0, 0, 0, 0.2);
-}
-
 .sidenav {
   height: 100%; /* Full-height: remove this if you want "auto" height */
   width: 80px; /* Set the width of the sidebar */
@@ -209,13 +185,41 @@ body {
   width: 100%
 }
 
+.active-cell-indicator {
+  border: 1px solid grey;
+}
+
+.context-menu {
+  width: 120px;
+  box-shadow: 0 4px 5px 3px rgba(0, 0, 0, 0.2);
+  position: absolute;
+  display: none;
+  font-size: 11px;
+}
+
+.context-menu-options {
+  list-style: none;
+  padding: 0;
+}
+
+.context-menu-option {
+  background-color: var(--bg-light-grey);
+  padding: 5px;
+  cursor: pointer;
+  border-top: 1px solid grey;
+}
+
+.content-menu-option:hover {
+  background-color: var(--bghover-light-grey);
+}
+
+.context-menu-option:active {
+  background: grey;
+}
+
 .menu-bar {
   top: 0px;
   height: 30px;
-}
-
-.active-cell-indicator {
-  border: 1px solid grey;
 }
 
 .menu-bar-button {
