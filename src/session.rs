@@ -142,20 +142,6 @@ impl Serialize for Coordinate {
     where
         S: Serializer,
     {
-        /*
-        let mut seq = serializer.serialize_seq(Some(self.row_cols.len()))?;
-        for e in self.row_cols.clone() {
-            let (a, b) = e;
-            let s = format!("{}-{}",&a,&b);
-            seq.serialize_element(&s)?;
-        }
-        seq.end()
-        */
-        let s = "";
-        for e in self.row_cols.clone() {
-            let (a, b) = e;
-            let _s = format!("{}-{}-{}", s, &a, &b);
-        }
-        serializer.serialize_str(s)
+        serializer.serialize_str(self.to_string());
     }
 }
