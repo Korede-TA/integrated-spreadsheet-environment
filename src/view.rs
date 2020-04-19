@@ -692,6 +692,7 @@ pub fn view_input_grammar(
         }
     };
     let last_col_prev_row = /* TODO: get the correct value of this */ current_coord.neighbor_above();
+
     let keydownhandler = m.link.callback(move |e: KeyDownEvent| {
         info! {"suggestion len {}", suggestions_len}
         if e.code() == "Tab" {
@@ -706,6 +707,9 @@ pub fn view_input_grammar(
             };
             info! {"next_active_cell {}", next_active_cell.clone().unwrap().to_string()};
             return next_active_cell.map_or(Action::Noop, |c| Action::SetActiveCell(c));
+        } 
+        if is_selected && (e.code() == "Backspace" || e.code() == "Delete") {       
+            return Action::RangeDelete();
         }
         Action::Noop
     });
@@ -720,7 +724,8 @@ pub fn view_input_grammar(
                 onkeypress=m.link.callback(move |e : KeyPressEvent| {
                     if e.code() == "Space" && has_lookup_prefix {
                         Action::ToggleLookup(current_coord.clone())
-                    } else { Action::Noop }
+                    } 
+                    else { Action::Noop }
                 })
                 oninput=m.link.callback(move |e : InputData| {
                     Action::ChangeInput(coord.clone(), e.value)
