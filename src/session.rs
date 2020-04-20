@@ -151,11 +151,11 @@ impl Serialize for Coordinate {
         }
         seq.end()
         */
-        let s = "";
-        for e in self.row_cols.clone() {
-            let (a, b) = e;
-            let _s = format!("{}-{}-{}", s, &a, &b);
-        }
-        serializer.serialize_str(s)
+        // let s = "";
+        // for e in self.row_cols.clone() {
+        //     let (a, b) = e;
+        //     let _s = format!("{}-{}-{}", s, &a, &b);
+        // }
+        serializer.serialize_str(&self.to_string())
     }
 }

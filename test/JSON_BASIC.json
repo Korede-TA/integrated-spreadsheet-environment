@@ -1,0 +1,518 @@
+{
+    "title": "my session",
+    "root": {
+        "name": "root",
+        "style": {
+            "width": 90.0,
+            "height": 30.0,
+            "border_color": "grey",
+            "border_collapse": false,
+            "font_weight": 400,
+            "font_color": "black"
+        },
+        "kind": [
+            [1, 1],
+            [2, 1],
+            [3, 1],
+            [1, 2],
+            [2, 2],
+            [3, 2]
+        ]
+    },
+    "meta": {
+        "name": "meta",
+        "style": {
+            "width": 90.0,
+            "height": 30.0,
+            "border_color": "grey",
+            "border_collapse": false,
+            "font_weight": 400,
+            "font_color": "black"
+        },
+        "kind": [
+            [1, 1],
+            [2, 1],
+            [3, 1],
+            [4, 1],
+            [5, 1],
+            [6, 1]
+        ]
+    },
+    "grammars": {
+        "meta-A6": {
+            "name": "meta-A6",
+            "style": {
+                "width": 180.0,
+                "height": 60.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": [
+                [1, 1],
+                [1, 2],
+                [2, 1]
+            ]
+        },
+        "root-B1": {
+            "name": "B1",
+            "style": {
+                "width": 90.0,
+                "height": 30.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": {
+                "Input": {
+                    "input": "B1"
+                }
+            }
+        },
+        "root-A3": {
+            "name": "A3",
+            "style": {
+                "width": 90.0,
+                "height": 30.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": {
+                "Input": {
+                    "input": "A3"
+                }
+            }
+        },
+        "root-A2": {
+            "name": "A2",
+            "style": {
+                "width": 90.0,
+                "height": 30.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": {
+                "Input": {
+                    "input": "A2"
+                }
+            }
+        },
+        "root-C2": {
+            "name": "C2",
+            "style": {
+                "width": 90.0,
+                "height": 30.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": {
+                "Input": {
+                    "input": "C2"
+                }
+            }
+        },
+        "root-C3-B2": {
+            "name": "C3-B2",
+            "style": {
+                "width": 90.0,
+                "height": 30.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": {
+                "Input": {
+                    "input": "C3-B2"
+                }
+            }
+        },
+        "meta-A2": {
+            "name": "A2",
+            "style": {
+                "width": 90.0,
+                "height": 30.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": {
+                "Input": {
+                    "input": "A2"
+                }
+            }
+        },
+        "root": {
+            "name": "root",
+            "style": {
+                "width": 180.0,
+                "height": 90.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": [
+                [1, 1],
+                [1, 2],
+                [1, 3],
+                [2, 1],
+                [2, 2],
+                [2, 3],
+                [3, 1],
+                [3, 2],
+                [3, 3]
+            ]
+        },
+        "root-C1": {
+            "name": "C1",
+            "style": {
+                "width": 90.0,
+                "height": 30.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": {
+                "Input": {
+                    "input": "C1"
+                }
+            }
+        },
+        "meta-A6-A2-A1": {
+            "name": "",
+            "style": {
+                "width": 90.0,
+                "height": 30.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": {
+                "Input": {
+                    "input": ""
+                }
+            }
+        },
+        "root-C3": {
+            "name": "root-C3",
+            "style": {
+                "width": 180.0,
+                "height": 60.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": [
+                [1, 1],
+                [1, 2],
+                [2, 1],
+                [2, 2]
+            ]
+        },
+        "root-B3": {
+            "name": "B3",
+            "style": {
+                "width": 90.0,
+                "height": 30.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": {
+                "Input": {
+                    "input": "B3"
+                }
+            }
+        },
+        "meta": {
+            "name": "meta",
+            "style": {
+                "width": 0.0,
+                "height": 150.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": [
+                [1, 1],
+                [2, 1],
+                [3, 1],
+                [4, 1],
+                [5, 1]
+            ]
+        },
+        "root-C3-A2": {
+            "name": "C3-A2",
+            "style": {
+                "width": 90.0,
+                "height": 30.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": {
+                "Input": {
+                    "input": "C3-A2"
+                }
+            }
+        },
+        "meta-A4": {
+            "name": "slider",
+            "style": {
+                "width": 90.0,
+                "height": 30.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": {
+                "Interactive": {
+                    "name": "",
+                    "interactive": {
+                        "Slider": {
+                            "slider_value": 0.0,
+                            "slider_min": 0.0,
+                            "slider_max": 100.0
+                        }
+                    }
+                }
+            }
+        },
+        "meta-A6-A1": {
+            "name": "defn_label",
+            "style": {
+                "width": 90.0,
+                "height": 30.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 600,
+                "font_color": "black"
+            },
+            "kind": {
+                "Text": {
+                    "text": "Define Grammar"
+                }
+            }
+        },
+        "meta-A6-A2-A2": {
+            "name": "",
+            "style": {
+                "width": 90.0,
+                "height": 30.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": {
+                "Input": {
+                    "input": ""
+                }
+            }
+        },
+        "meta-A6-A2-B2": {
+            "name": "",
+            "style": {
+                "width": 90.0,
+                "height": 30.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": {
+                "Input": {
+                    "input": ""
+                }
+            }
+        },
+        "root-B2": {
+            "name": "B2",
+            "style": {
+                "width": 90.0,
+                "height": 30.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": {
+                "Input": {
+                    "input": "B2"
+                }
+            }
+        },
+        "root-C3-A1": {
+            "name": "C3-A1",
+            "style": {
+                "width": 90.0,
+                "height": 30.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": {
+                "Input": {
+                    "input": "C3-A1"
+                }
+            }
+        },
+        "root-C3-B1": {
+            "name": "C3-B1",
+            "style": {
+                "width": 90.0,
+                "height": 30.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": {
+                "Input": {
+                    "input": "C3-B1"
+                }
+            }
+        },
+        "meta-A1": {
+            "name": "A1",
+            "style": {
+                "width": 90.0,
+                "height": 30.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": {
+                "Input": {
+                    "input": "A1"
+                }
+            }
+        },
+        "meta-A3": {
+            "name": "button",
+            "style": {
+                "width": 90.0,
+                "height": 30.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": {
+                "Interactive": {
+                    "name": "",
+                    "interactive": {
+                        "Button": {
+                            "button": null
+                        }
+                    }
+                }
+            }
+        },
+        "meta-A5": {
+            "name": "toggle",
+            "style": {
+                "width": 90.0,
+                "height": 30.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": {
+                "Interactive": {
+                    "name": "",
+                    "interactive": {
+                        "Toggle": {
+                            "toggle_state": false
+                        }
+                    }
+                }
+            }
+        },
+        "meta-A6-B1": {
+            "name": "defn_name",
+            "style": {
+                "width": 90.0,
+                "height": 30.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": {
+                "Input": {
+                    "input": ""
+                }
+            }
+        },
+        "meta-A6-A2-B1": {
+            "name": "",
+            "style": {
+                "width": 90.0,
+                "height": 30.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": {
+                "Input": {
+                    "input": ""
+                }
+            }
+        },
+        "root-A1": {
+            "name": "A1",
+            "style": {
+                "width": 90.0,
+                "height": 30.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": {
+                "Input": {
+                    "input": "A1"
+                }
+            }
+        },
+        "meta-A6-A2": {
+            "name": "meta-A6-A2",
+            "style": {
+                "width": 180.0,
+                "height": 60.0,
+                "border_color": "grey",
+                "border_collapse": false,
+                "font_weight": 400,
+                "font_color": "black"
+            },
+            "kind": [
+                [1, 1],
+                [1, 2],
+                [2, 1],
+                [2, 2]
+            ]
+        }
+    }
+}

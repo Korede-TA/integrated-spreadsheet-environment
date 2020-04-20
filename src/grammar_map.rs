@@ -9,6 +9,8 @@ use crate::grammar::{Grammar, Kind};
 use crate::style::Style;
 use crate::util::non_zero_u32_tuple;
 
+
+
 #[derive(Parser)]
 #[grammar = "coordinate.pest"]
 pub struct CoordinateParser;
@@ -50,10 +52,11 @@ pub fn build_grammar_map(
                     sub_coords.push(non_zero_u32_tuple(((row_i + 1) as u32, (col_i + 1) as u32)));
                 }
             }
+            let ame = root_coord.clone().to_string();
             map.insert(
                 root_coord,
                 Grammar {
-                    name: String::new(),
+                    name: ame,
                     style: {
                         let mut s = Style::default();
                         s.width = 90.0 * (num_cols as f64);
