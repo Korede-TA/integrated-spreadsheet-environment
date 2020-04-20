@@ -143,12 +143,11 @@ impl Grammar {
     where
         S: Into<String>,
     {
-        let f = value.into();
-        info!("The name {:?}", f.clone());
+
         Grammar {
-            name: f.clone(),
+            name: name.into(),
             style: Style::default(),
-            kind: Kind::Input(f),
+            kind: Kind::Input(value.into()),
         }
     }
 
@@ -185,7 +184,7 @@ impl Grammar {
         }
 
         Grammar {
-            name: "GridList".to_string(),
+            name: "".to_string(),
             style: Style::default(),
             kind: Kind::Grid(grid),
         }
