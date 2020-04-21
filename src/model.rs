@@ -577,16 +577,37 @@ impl Component for Model {
                 let col_range = first_col.get()..=last_col.get(); 
 
                 let parent_check = self.last_select_cell.clone().unwrap().parent();
+                let depth_check = self.last_select_cell.clone().unwrap().row_cols.len();
+                info!("Depth_check = {}", depth_check);  
                               
-                let mut ref_grammas = self.get_session_mut().grammars.clone();
-                for (coord, grammar) in ref_grammas.iter_mut() {              
+                let mut ref_grammars = self.get_session_mut().grammars.clone();
+                for (coord, grammar) in ref_grammars.clone().iter_mut() {              
                         if row_range.contains(&coord.row().get()) && col_range.contains(&coord.col().get()) && coord.parent() == parent_check                    
-                        {  
-                                                                                            
-                            grammar.kind =  Kind::Input("".to_string());                                 
-                            self.get_session_mut()
-                                .grammars
-                                .insert(coord.clone(), grammar.clone());
+                        {              
+                                          
+                            // info!("{:?}", grammar.kind);
+                            let get_kind = grammar.kind.clone();
+                            match get_kind {
+                                Kind::Input(value) => {
+                                    grammar.kind =  Kind::Input("".to_string());                                 
+                                    self.get_session_mut()
+                                    .grammars
+                                    .insert(coord.clone(), grammar.clone());
+                                }
+                                Kind::Grid(sub_coords) => {                              
+                                    for (c, g) in ref_grammars.clone().iter_mut() {
+                                        if c.parent().is_some() && c.parent().unwrap() == coord.clone() {                          
+                                            info!("coord {:?}", c);
+                                            g.kind =  Kind::Input("".to_string());                                 
+                                            self.get_session_mut()
+                                            .grammars
+                                            .insert(c.clone(), g.clone());
+                                        }
+                                    }
+                                }
+                                _=> continue,
+                            }                                                                                                      
+                            
                         }
                                          
                 }
