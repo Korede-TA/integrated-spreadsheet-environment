@@ -410,7 +410,8 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                     <div
                         class=format!{"cell interactive row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
                         id=format!{"cell-{}", coord.to_string()}
-                        style={ get_style(&m, &coord) }>
+                        // style={ get_style(&m, &coord) }>
+                        style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
                         <button>
                             { name }
                         </button>
@@ -422,7 +423,8 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                     <div
                         class=format!{"cell interactive row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
                         id=format!{"cell-{}", coord.to_string()}
-                        style={ get_style(&m, &coord) }>
+                        // style={ get_style(&m, &coord) }>
+                        style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
                         <input type="range" min={min} max={max} value={value}>
                             { name }
                         </input>
@@ -434,7 +436,8 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                     <div
                         class=format!{"cell interactive row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
                         id=format!{"cell-{}", coord.to_string()}
-                        style={ get_style(&m, &coord) }>
+                        // style={ get_style(&m, &coord) }>
+                        style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
                         <input type="checkbox" checked={checked}>
                             { name }
                         </input>
@@ -500,7 +503,8 @@ pub fn view_defn_grammar(
         <div
             class=format!{"cell grid row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
-            style={ get_style(&m, &coord) }>
+            // style={ get_style(&m, &coord) }>
+            style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
             <input
                 class="cell"
                 value={name}>
@@ -526,7 +530,8 @@ pub fn view_defn_variant_grammar(
         <div
             class=format!{"cell variant row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
-            style={ get_style(&m, &coord) }>
+            // style={ get_style(&m, &coord) }>
+            style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
             { nodes }
             <button onclick=m.link.callback(|_| Action::InsertCol)>
                 {"+"}
@@ -570,7 +575,8 @@ pub fn view_lookup_grammar(
         <div
             class=format!{"cell suggestion lookup row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
-            style={ get_style(&m, &coord) }>
+            // style={ get_style(&m, &coord) }>
+            style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
             <b style=format!{"font-size: 20px; color: {};", random_color()}>{ "$" }</b>
             <div contenteditable=true
                 class=format!{
@@ -713,7 +719,8 @@ pub fn view_input_grammar(
         <div
             class=cell_classes
             id=format!{"cell-{}", coord.to_string()}
-            style={ get_style(&m, &coord) }>
+            // style={ get_style(&m, &coord) }>
+            style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
             <div contenteditable=true
                 class=cell_data_classes
                 onkeydown=keydownhandler
@@ -788,7 +795,8 @@ pub fn view_text_grammar(m: &Model, coord: &Coordinate, value: String, is_active
         <div
             class=format!{"cell suggestion row-{} col-{}", coord.row_to_string(), coord.col_to_string(),}
             id=format!{"cell-{}", coord.to_string()}
-            style={ get_style(&m, &coord) }>
+            // style={ get_style(&m, &coord) }>
+            style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
             <div
                 class={
                     format!{
@@ -817,7 +825,8 @@ pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordina
         <div
             class=format!{"\ncell grid row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
-            style={ get_style(&m, &coord) }>
+            // style={ get_style(&m, &coord) }>
+            style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
             { nodes }
         </div>
     }

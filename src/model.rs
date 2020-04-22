@@ -901,8 +901,8 @@ impl Component for Model {
                     let current_width = current_grammar.style.width;
                     let current_height = current_grammar.style.height;
 
-                    // let current_width = *self.col_widths.get(&coord.full_col()).unwrap_or(&90.0);
-                    // let current_height = *self.row_heights.get(&coord.full_row()).unwrap_or(&30.0);
+                    // let current_width = *&self.col_widths.get(&coord.full_col()).unwrap_or(&90.0);
+                    // let current_height = *&self.row_heights.get(&coord.full_row()).unwrap_or(&30.0);
 
                     // check if active cell row height and width is greater than default value
                     if current_width > tmp_width {
@@ -926,13 +926,13 @@ impl Component for Model {
                             && current_grammar.style.row_span.0 == 0
                         {
                             // initialize row & col heights as well
-                            if !self.row_heights.contains_key(&new_coord.clone().full_row()) {
-                                self.row_heights
+                            if !&self.row_heights.contains_key(&new_coord.clone().full_row()) {
+                                &self.row_heights
                                     .insert(new_coord.clone().full_row(), tmp_heigth);
                                 //30.0);
                             }
-                            if !self.col_widths.contains_key(&new_coord.clone().full_col()) {
-                                self.col_widths
+                            if !&self.col_widths.contains_key(&new_coord.clone().full_col()) {
+                                &self.col_widths
                                     .insert(new_coord.clone().full_col(), tmp_width);
                                 //90.0);
                             }
@@ -962,7 +962,6 @@ impl Component for Model {
                     (rows as f64) * (/* default row height */tmp_heigth),
                     (cols as f64) * (/* default col width */tmp_width),
                 );
-
                 true
             }
 
@@ -1378,6 +1377,7 @@ impl Component for Model {
                 }
                 let defn_coord = Coordinate::child_of(&(coord!("meta")), defn_meta_sub_coord);
                 info! {"Adding Definition: {} to {}", coord.to_string(), defn_coord.to_string()};
+                
                 move_grammar(self, coord, defn_coord.clone());
                 // give moved grammar name {defn_name} as specified in "Add Definition" button
                 if let Some(g) = self.get_session_mut().grammars.get_mut(&defn_coord) {

@@ -1,10 +1,23 @@
+use pest::Parser;
 use serde::Deserialize;
-use std::ops::Deref;
+use std::collections::HashMap;
+use std::num::NonZeroU32;
 use std::option::Option;
+use std::string::String;
+use std::vec::Vec;
 
-use crate::coordinate::Coordinate;
-use crate::grammar::Kind;
+use crate::coordinate;
+use crate::coordinate::*;
+use crate::grammar;
+use crate::grammar::{Grammar, Interactive, Kind, Lookup};
 use crate::model::Model;
+use crate::util::non_zero_u32_tuple;
+use crate::{coord, coord_col, coord_row, row_col_vec};
+use yew::html::Component;
+
+#[derive(Parser)]
+#[grammar = "coordinate.pest"]
+pub struct CoordinateParser;
 
 // Style contains the relevant CSS properties for styling
 // a grammar Cell or Grid
@@ -53,24 +66,20 @@ color: {};
     }
 }
 
-pub fn get_style(model: &Model, coord: &Coordinate) -> String {
-    let grammar = model
-        .get_session()
-        .grammars
-        .get(coord)
-        .expect("no grammar with this coordinate");
+pub fn get_style(
+    model_grammar: &Grammar,
+    model_col_widths: &HashMap<coordinate::Col, f64>,
+    model_row_heights: &HashMap<coordinate::Row, f64>,
+    coord: &Coordinate,
+) -> String {
+    let grammar = model_grammar;
     // ignore root or meta
 
     if coord.row_cols.len() == 1 {
         return grammar.style(coord);
     }
     let (col_span, row_span, mut col_width, mut row_height) = {
-        let s = &model
-            .get_session()
-            .grammars
-            .get(&coord)
-            .expect(format! {"grammar map should have coord {}", coord.to_string()}.deref())
-            .style;
+        let s = &model_grammar.style;
         (s.col_span, s.row_span, s.width, s.height)
     };
     let mut s_col_span = String::new();
@@ -106,8 +115,8 @@ pub fn get_style(model: &Model, coord: &Coordinate) -> String {
             grammar.style(coord),
         };
     }
-    let col_width = model.col_widths.get(&coord.full_col()).unwrap_or(&90.0);
-    let row_height = model.row_heights.get(&coord.full_row()).unwrap_or(&30.0);
+    let col_width = model_col_widths.get(&coord.full_col()).unwrap_or(&90.0);
+    let row_height = model_row_heights.get(&coord.full_row()).unwrap_or(&30.0);
     format! {
         "{}\nwidth: {}px;\nheight: {}px;\n",
         grammar.style(coord), col_width, row_height,
@@ -140,12 +149,41 @@ mod tests {
 
     #[test]
     fn test_style_to_string() {
-        assert_eq!(
-            Style::default().to_string(),
-            "/* border: 1px; NOTE: ignoring Style::border_* for now */
-    border-collapse: inherit;
-    font-weight: 400;
-    color: black;\n"
-        );
+        assert_eq!(Style::default().to_string(),  String::from("/* border: 1px; NOTE: ignoring Style::border_* for now */\nborder-collapse: inherit;\nfont-weight: 400;\ncolor: black;\n\n"));
+        // assert_ne!(Style::default().to_string(),  String::from("/* border: 1px; NOTE: ignoring Style::border_* for now */\n    border-collapse: inherit;\n    font-weight: 400;\n    color: black;\n" ));
+    }
+
+    #[test]
+    fn test_get_style() {
+        //Test type Grid
+        assert_eq!(get_style(&grammar::Grammar {name: "root".to_string(), style: Style::default(), kind: Kind::Grid(row_col_vec![(1, 1), (2, 1), (3, 1), (1, 2), (2, 2), (3, 2)]),}, &hashmap! { coord_col!("root","A") => 90.0, coord_col!("root","B") => 90.0, coord_col!("meta","A") => 180.0, coord_col!("meta-A3","A") => 90.0, coord_col!("meta-A3","B") => 180.0,}, &hashmap! {coord_row!("root","1") => 30.0, coord_row!("root","2") => 30.0, coord_row!("root","3") => 30.0,coord_row!("meta","1") => 180.0,}, &coord!("root-A1") ),
+        String::from("display: grid;\ngrid-area: cell-root-A1;\nheight: fit-content;\nwidth: fit-content !important;\ngrid-template-areas: \n\"cell-root-A1-A1 cell-root-A1-B1\"\n\"cell-root-A1-A2 cell-root-A1-B2\"\n\"cell-root-A1-A3 cell-root-A1-B3\";\n\nwidth: fit-content;\nheight: fit-content;\n"));
+        assert_ne!(get_style(&grammar::Grammar {name: "root".to_string(), style: Style::default(), kind: Kind::Grid(row_col_vec![(1, 1), (2, 1), (3, 1), (1, 2), (2, 2), (3, 2)]),}, &hashmap! { coord_col!("root","A") => 90.0, coord_col!("root","B") => 90.0, coord_col!("meta","A") => 180.0, coord_col!("meta-A3","A") => 90.0, coord_col!("meta-A3","B") => 180.0,}, &hashmap! {coord_row!("root","1") => 30.0, coord_row!("root","2") => 30.0, coord_row!("root","3") => 30.0,coord_row!("meta","1") => 180.0,}, &coord!("root-A1") ),
+        String::from("display: grid;\ngrid-area: cell-root-B1;\nheight: fit-content;\nwidth: fit-content !important;\ngrid-template-areas: \n\"cell-root-A1-A1 cell-root-A1-C1\"\n\"cell-root-A1-A2 cell-root-A1-B2\"\n\"cell-root-A1-A3 cell-root-A1-B3\";\n\nwidth: fit-content;\nheight: fit-content;\n"));
+
+        //Test Row_cols length == 1
+        assert_eq!(get_style(&grammar::Grammar {name: "root".to_string(), style: Style::default(), kind: Kind::Grid(row_col_vec![(1, 1), (2, 1), (3, 1), (1, 2), (2, 2), (3, 2)]),}, &hashmap! { coord_col!("root","A") => 90.0, coord_col!("root","B") => 90.0, coord_col!("meta","A") => 180.0, coord_col!("meta-A3","A") => 90.0, coord_col!("meta-A3","B") => 180.0,}, &hashmap! {coord_row!("root","1") => 30.0, coord_row!("root","2") => 30.0, coord_row!("root","3") => 30.0,coord_row!("meta","1") => 180.0,}, &coord!("root") ),
+        String::from("display: grid;\ngrid-area: cell-root;\nheight: fit-content;\nwidth: fit-content !important;\ngrid-template-areas: \n\"cell-root-A1 cell-root-B1\"\n\"cell-root-A2 cell-root-B2\"\n\"cell-root-A3 cell-root-B3\";\n"));
+
+        //Test Kind input
+        assert_eq!(get_style(&grammar::Grammar {name: "root".to_string(), style: Style::default(), kind: Kind::Input(String::default())}, &hashmap! { coord_col!("root","A") => 90.0, coord_col!("root","B") => 90.0, coord_col!("meta","A") => 180.0, coord_col!("meta-A3","A") => 90.0, coord_col!("meta-A3","B") => 180.0,}, &hashmap! {coord_row!("root","1") => 30.0, coord_row!("root","2") => 30.0, coord_row!("root","3") => 30.0,coord_row!("meta","1") => 180.0,}, &coord!("root") ),
+        String::from("/* border: 1px; NOTE: ignoring Style::border_* for now */\nborder-collapse: inherit;\nfont-weight: 400;\ncolor: black;\n\ngrid-area: cell-root;\n"));
+
+        //Test Type interractive =>  Button as exemple
+        assert_eq!(get_style(&grammar::Grammar {name: "root".to_string(), style: Style::default(), kind: Kind::Interactive(String::from("Test"), Interactive::Button())}, &hashmap! { coord_col!("root","A") => 90.0, coord_col!("root","B") => 90.0, coord_col!("meta","A") => 180.0, coord_col!("meta-A3","A") => 90.0, coord_col!("meta-A3","B") => 180.0,}, &hashmap! {coord_row!("root","1") => 30.0, coord_row!("root","2") => 30.0, coord_row!("root","3") => 30.0,coord_row!("meta","1") => 180.0,}, &coord!("root") ),
+        String::from("/* border: 1px; NOTE: ignoring Style::border_* for now */\nborder-collapse: inherit;\nfont-weight: 400;\ncolor: black;\n\ngrid-area: cell-root;\n"));
+
+        // Test Type Lookup // Have to figureout the arguments
+        assert_eq!(get_style(&grammar::Grammar {name: "root".to_string(), style: Style::default(), kind: Kind::Lookup(String::default(), std::option::Option::default())}, &hashmap! { coord_col!("root","A") => 90.0, coord_col!("root","B") => 90.0, coord_col!("meta","A") => 180.0, coord_col!("meta-A3","A") => 90.0, coord_col!("meta-A3","B") => 180.0,}, &hashmap! {coord_row!("root","1") => 30.0, coord_row!("root","2") => 30.0, coord_row!("root","3") => 30.0,coord_row!("meta","1") => 180.0,}, &coord!("root") ),
+        String::from("/* border: 1px; NOTE: ignoring Style::border_* for now */\nborder-collapse: inherit;\nfont-weight: 400;\ncolor: black;\n\ndisplay: inline-flex; grid-area: cell-root; background: white;\n"));
+    }
+
+    #[test]
+    fn test_dimensio_to_string() {
+        assert_eq!(Dimension::FitContent.to_string(), "fit-content".to_string());
+        assert_eq!(Dimension::MaxContent.to_string(), "max-content".to_string());
+        assert_eq!(Dimension::MinContent.to_string(), "min-content".to_string());
+        assert_eq!(Dimension::Percentage(2.0).to_string(), "2%".to_string());
+        assert_eq!(Dimension::Px(2.0).to_string(), "2px".to_string());
     }
 }
