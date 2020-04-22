@@ -180,7 +180,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dimensio_to_string() {
+    fn test_dimension_to_string() {
         assert_eq!(Dimension::FitContent.to_string(), "fit-content".to_string());
         assert_eq!(Dimension::MaxContent.to_string(), "max-content".to_string());
         assert_eq!(Dimension::MinContent.to_string(), "min-content".to_string());
