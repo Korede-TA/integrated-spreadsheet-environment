@@ -141,10 +141,10 @@ impl Coordinate {
     }
 
     // if a cell is the parent, grandparent,..., (great xN)-grandparent of another
-    // Optinoally returns: Some(N) if true (including N=0 if sibling),
+    // Optionally returns: Some(N) if true (including N=0 if sibling),
     // or None if false
-    // Korede Check this
-    fn is_n_parent(&self, other: &Self) -> Option<i32> {
+    // TODO: Korede Check this
+    pub fn is_n_parent(&self, other: &Self) -> Option<i32> {
         if self.row_cols.len() > other.row_cols.len() {
             return None;
         }
