@@ -1,3 +1,4 @@
+#![recursion_limit="1024"]
 use electron_sys::ipc_renderer;
 use pest::Parser;
 use std::collections::{HashMap, HashSet};
@@ -201,6 +202,8 @@ pub enum Action {
 
     // Alerts and stuff
     Alert(String),
+
+    LoadCSVFile(yew::services::reader::FileData, Coordinate),
 }
 
 impl Model {
@@ -257,6 +260,9 @@ impl Model {
             })
             .collect()
     }
+
+    // Gotta move
+    
 
     fn query_row(&self, coord_row: Row) -> Vec<Coordinate> {
         self.get_session()
@@ -526,6 +532,11 @@ impl Component for Model {
                     }
                 };
                 true
+            }
+
+            Action::LoadCSVFile(file_data, coordinate) => {
+                info!{"{:?}", std::str::from_utf8(&file_data.content)};
+                false
             }
 
             Action::Select(SelectMsg::Start(coord)) => {

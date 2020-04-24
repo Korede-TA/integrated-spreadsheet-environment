@@ -1,3 +1,4 @@
+#![recursion_limit="1024"]
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use stdweb::traits::IEvent;
@@ -5,6 +6,7 @@ use stdweb::unstable::TryFrom;
 use stdweb::unstable::TryInto;
 use stdweb::web::{html_element::InputElement, HtmlElement, IHtmlElement};
 use yew::events::{ClickEvent, IKeyboardEvent, IMouseEvent, KeyPressEvent};
+use stdweb::web::event::IDragEvent;
 use yew::prelude::*;
 use yew::virtual_dom::vlist::VList;
 use yew::services::reader::File;
@@ -15,6 +17,7 @@ use crate::grammar::{Grammar, Interactive, Kind, Lookup};
 use crate::model::{Action, CursorType, Model, ResizeMsg, SelectMsg, SideMenu};
 use crate::style::get_style;
 use crate::util::non_zero_u32_tuple;
+
 
 pub fn view_side_nav(m: &Model) -> Html {
     let mut side_menu_nodes = VList::new();
@@ -503,7 +506,6 @@ pub fn view_defn_grammar(
         <div
             class=format!{"cell grid row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
-            // style={ get_style(&m, &coord) }>
             style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
             <input
                 class="cell"
@@ -575,7 +577,6 @@ pub fn view_lookup_grammar(
         <div
             class=format!{"cell suggestion lookup row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
-            // style={ get_style(&m, &coord) }>
             style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
             <b style=format!{"font-size: 20px; color: {};", random_color()}>{ "$" }</b>
             <div contenteditable=true
@@ -665,6 +666,7 @@ pub fn view_input_grammar(
     let tab_coord = coord.clone();
     let focus_coord = coord.clone();
     let drag_coord = coord.clone();
+    let is_hovered_on = coord.clone();
     let shift_key_pressed = m.shift_key_pressed;
     let new_selected_cell = coord.clone();
     let cell_classes =
@@ -719,7 +721,6 @@ pub fn view_input_grammar(
         <div
             class=cell_classes
             id=format!{"cell-{}", coord.to_string()}
-            // style={ get_style(&m, &coord) }>
             style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
             <div contenteditable=true
                 class=cell_data_classes
@@ -781,6 +782,16 @@ pub fn view_input_grammar(
                     } else {
                         Action::Noop
                     }
+                })
+                ondrop=m.link.callback(move |e: DragDropEvent|{
+                    e.prevent_default();
+                    let file = e.data_transfer().unwrap().files().iter().next().unwrap();
+                
+                    let upload_callback = m.link.callback(|file_data| Action::LoadCSVFile(file_data, coordinate));
+                    let task = m.reader::new().read_file(file, upload_callback.clone());
+                   
+                    m.tasks.push(task);
+                    Action::Noop
                 })>
                 { value }
             </div>
@@ -825,7 +836,6 @@ pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordina
         <div
             class=format!{"\ncell grid row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
-            // style={ get_style(&m, &coord) }>
             style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
             { nodes }
         </div>
