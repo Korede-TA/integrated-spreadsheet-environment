@@ -250,12 +250,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_move_grammar() {
-        // move_grammar(map: &mut HashMap<Coordinate, Grammar>, source: Coordinate, dest: Coordinate)
-        unimplemented!();
-    }
-
-    #[test]
     fn test_non_zero_u32_tuple() {
         assert_eq!(
             non_zero_u32_tuple((1, 2)),
@@ -265,20 +259,17 @@ mod tests {
             non_zero_u32_tuple((1, 2)),
             (NonZeroU32::new(2).unwrap(), NonZeroU32::new(2).unwrap())
         );
-        // unimplemented!();
     }
 
     #[test]
     fn test_row_col_to_string() {
         assert_eq!(row_col_to_string((2, 2)), "B2");
         assert_ne!(row_col_to_string((2, 2)), "A2");
-        // unimplemented!();
     }
 
     #[test]
     fn test_coord_show() {
         assert_eq!(coord_show(vec![(1, 1), (1, 1)]).unwrap(), "root-A1");
         assert_ne!(coord_show(vec![(1, 1), (1, 1)]).unwrap(), "root")
-        // unimplemented!();
     }
 }
