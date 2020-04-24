@@ -784,13 +784,22 @@ pub fn view_input_grammar(
                     }
                 })
                 ondrop=m.link.callback(move |e: DragDropEvent|{
-                    e.prevent_default();
                     let file = e.data_transfer().unwrap().files().iter().next().unwrap();
-                
-                    let upload_callback = m.link.callback(|file_data| Action::LoadCSVFile(file_data, coordinate));
-                    let task = m.reader::new().read_file(file, upload_callback.clone());
-                   
+
+                    let task = {
+                        let upload_callback = m.link.callback(|file_data| Action::LoadCSVFile(file_data, is_hovered_on.clone()));
+                        m.reader.read_file(file, upload_callback.clone())
+                    };
                     m.tasks.push(task);
+
+                    ////////////////////
+                    // e.prevent_default();
+                    // let file = e.data_transfer().unwrap().files().iter().next().unwrap();
+                
+                    // let upload_callback = m.link.callback(|file_data| Action::LoadCSVFile(file_data, is_hovered_on.clone()));
+                    // // let task = m.reader.read_file(file, upload_callback.clone());
+                   
+                    // m.tasks.push(task);
                     Action::Noop
                 })>
                 { value }

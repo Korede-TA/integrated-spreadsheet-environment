@@ -103,10 +103,10 @@ pub struct Model {
     // - `console` and `reader` are used to access native browser APIs for the
     //    dev console and FileReader respectively
     console: ConsoleService,
-    reader: ReaderService,
+    pub reader: ReaderService,
 
     // - `tasks` are used to store asynchronous requests to read/load files
-    tasks: Vec<ReaderTask>,
+    pub tasks: Vec<ReaderTask>,
 }
 
 #[derive(Debug)]
