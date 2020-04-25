@@ -864,8 +864,10 @@ fn cell_is_selected(
             } else {
                 (first_col.get()..=last_col.get())
             };
+            let parent_cell = current_cell.parent();
+            let parent_check = first_select_cell.clone().unwrap().parent();
             row_range.contains(&current_cell.row().get())
-                && col_range.contains(&current_cell.col().get())
+                && col_range.contains(&current_cell.col().get()) && parent_cell == parent_check
         }
         _ => false,
     }
