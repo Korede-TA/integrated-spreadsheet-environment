@@ -1,4 +1,4 @@
-#![recursion_limit="1024"]
+#![recursion_limit = "1024"]
 use electron_sys::ipc_renderer;
 use pest::Parser;
 use std::collections::{HashMap, HashSet};
@@ -23,7 +23,6 @@ use crate::style::Style;
 use crate::util::{move_grammar, non_zero_u32_tuple, resize, resize_diff};
 use crate::view::{view_context_menu, view_grammar, view_menu_bar, view_side_nav, view_tab_bar};
 use crate::{coord, coord_col, coord_row, g, grid, row_col_vec};
-
 
 #[derive(Parser)]
 #[grammar = "coordinate.pest"]
@@ -209,7 +208,9 @@ pub enum Action {
 
     ShowContextMenu((f64, f64)),
     HideContextMenu,
-    LoadCSVFile(yew::services::reader::FileData, Coordinate),
+
+    ReadCSVFile(File, Coordinate),
+    LoadCSVFile(FileData, Coordinate),
 }
 
 impl Model {
@@ -268,7 +269,6 @@ impl Model {
     }
 
     // Gotta move
-    
 
     fn query_row(&self, coord_row: Row) -> Vec<Coordinate> {
         self.get_session()
@@ -542,8 +542,17 @@ impl Component for Model {
                 true
             }
 
+            Action::ReadCSVFile(file, coord) => {
+                let upload_callback = self.link.callback(move |file_data: FileData| {
+                    Action::LoadCSVFile(file_data.clone(), coord.clone())
+                });
+                let task = self.reader.read_file(file, upload_callback.clone());
+                self.tasks.push(task);
+                false
+            }
+
             Action::LoadCSVFile(file_data, coordinate) => {
-                info!{"{:?}", std::str::from_utf8(&file_data.content)};
+                info! {"{:?}", std::str::from_utf8(&file_data.content)};
                 false
             }
 
@@ -946,12 +955,14 @@ impl Component for Model {
                         {
                             // initialize row & col heights as well
                             if !&self.row_heights.contains_key(&new_coord.clone().full_row()) {
-                                &self.row_heights
+                                &self
+                                    .row_heights
                                     .insert(new_coord.clone().full_row(), tmp_heigth);
                                 //30.0);
                             }
                             if !&self.col_widths.contains_key(&new_coord.clone().full_col()) {
-                                &self.col_widths
+                                &self
+                                    .col_widths
                                     .insert(new_coord.clone().full_col(), tmp_width);
                                 //90.0);
                             }
@@ -1347,7 +1358,9 @@ impl Component for Model {
             Action::ToggleLookup(coord) => {
                 match self.get_session_mut().grammars.get_mut(&coord) {
                     Some(
-                        g @ Grammar {
+                        g
+                        @
+                        Grammar {
                             kind: Kind::Input(_),
                             ..
                         },
@@ -1355,7 +1368,9 @@ impl Component for Model {
                         g.kind = Kind::Lookup("".to_string(), None);
                     }
                     Some(
-                        g @ Grammar {
+                        g
+                        @
+                        Grammar {
                             kind: Kind::Lookup(_, _),
                             ..
                         },
@@ -1396,7 +1411,7 @@ impl Component for Model {
                 }
                 let defn_coord = Coordinate::child_of(&(coord!("meta")), defn_meta_sub_coord);
                 info! {"Adding Definition: {} to {}", coord.to_string(), defn_coord.to_string()};
-                
+
                 move_grammar(self, coord, defn_coord.clone());
                 // give moved grammar name {defn_name} as specified in "Add Definition" button
                 if let Some(g) = self.get_session_mut().grammars.get_mut(&defn_coord) {

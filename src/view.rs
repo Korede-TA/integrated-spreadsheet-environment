@@ -1,15 +1,15 @@
-#![recursion_limit="1024"]
+#![recursion_limit = "1024"]
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use stdweb::traits::IEvent;
 use stdweb::unstable::TryFrom;
 use stdweb::unstable::TryInto;
+use stdweb::web::event::IDragEvent;
 use stdweb::web::{html_element::InputElement, HtmlElement, IHtmlElement};
 use yew::events::{ClickEvent, IKeyboardEvent, IMouseEvent, KeyPressEvent};
-use stdweb::web::event::IDragEvent;
 use yew::prelude::*;
-use yew::virtual_dom::vlist::VList;
 use yew::services::reader::File;
+use yew::virtual_dom::vlist::VList;
 use yew::{html, ChangeData, Html, InputData};
 
 use crate::coordinate::Coordinate;
@@ -17,7 +17,6 @@ use crate::grammar::{Grammar, Interactive, Kind, Lookup};
 use crate::model::{Action, CursorType, Model, ResizeMsg, SelectMsg, SideMenu};
 use crate::style::get_style;
 use crate::util::non_zero_u32_tuple;
-
 
 pub fn view_side_nav(m: &Model) -> Html {
     let mut side_menu_nodes = VList::new();
@@ -209,55 +208,53 @@ pub fn view_menu_bar(m: &Model) -> Html {
             // - the last selected cell is the last (bottom-rightmost) child of the parent
             // cell, which should be a Kind::Grid grammar
             (Some(first), Some(last)) if first.parent() == last.parent() => {
-                if let Some((Kind::Grid(sub_coords))) = 
-                        /* get the coordinate of the parent, lookup the grammar, then get the grammar.kind */
-                        first
+                if let Some((Kind::Grid(sub_coords))) = /* get the coordinate of the parent, lookup the grammar, then get the grammar.kind */
+                    first
                         .parent()
                         .and_then(|c| m.get_session().grammars.get(&c))
                         .map(|g| (g.kind.clone()))
-                    {
-                        use std::cmp::Ordering;
-                        let mut sc = sub_coords.clone();
-                        sc.sort_by(|(a_row, a_col), (b_row, b_col)| {
-                            if a_row > b_row {
+                {
+                    use std::cmp::Ordering;
+                    let mut sc = sub_coords.clone();
+                    sc.sort_by(|(a_row, a_col), (b_row, b_col)| {
+                        if a_row > b_row {
+                            Ordering::Greater
+                        } else if a_row < b_row {
+                            Ordering::Less
+                        } else {
+                            if a_col > b_col {
                                 Ordering::Greater
-                            } else if a_row < b_row {
+                            } else if a_col < b_col {
                                 Ordering::Less
                             } else {
-                                if a_col > b_col {
-                                    Ordering::Greater
-                                } else if a_col < b_col {
-                                    Ordering::Less
-                                } else {
-                                    Ordering::Equal
-                                }
+                                Ordering::Equal
                             }
-                        });
-                        let first_sc = sc.first().expect(
-                            "add_definition_button: expect selection parent sub_coords.len > 1",
-                        );
-                        let last_sc = sc.last().expect(
-                            "add_definition_button: expect selection parent sub_coords.len > 1",
-                        );
-                        let defn_name = if m.default_definition_name == "" {
-                            first.parent().unwrap().to_string().replace("-", "_")
-                        } else {
-                            m.default_definition_name.clone()
-                        };
-                        (
-                            // can add definition?
-                            *first_sc == first.row_col() &&
-                            *last_sc == last.row_col(),
-                            // definition name
-                            defn_name.clone(),
-                            // callback
-                            m.link.callback(move |_| {
-                                Action::AddDefinition(first.parent().unwrap(), defn_name.clone())
-                            }),
-                        )
+                        }
+                    });
+                    let first_sc = sc.first().expect(
+                        "add_definition_button: expect selection parent sub_coords.len > 1",
+                    );
+                    let last_sc = sc.last().expect(
+                        "add_definition_button: expect selection parent sub_coords.len > 1",
+                    );
+                    let defn_name = if m.default_definition_name == "" {
+                        first.parent().unwrap().to_string().replace("-", "_")
                     } else {
-                        (false, "".to_string(), m.link.callback(|_| Action::Noop))
-                    }
+                        m.default_definition_name.clone()
+                    };
+                    (
+                        // can add definition?
+                        *first_sc == first.row_col() && *last_sc == last.row_col(),
+                        // definition name
+                        defn_name.clone(),
+                        // callback
+                        m.link.callback(move |_| {
+                            Action::AddDefinition(first.parent().unwrap(), defn_name.clone())
+                        }),
+                    )
+                } else {
+                    (false, "".to_string(), m.link.callback(|_| Action::Noop))
+                }
             }
             _ => (false, "".to_string(), m.link.callback(|_| Action::Noop)),
         };
@@ -727,6 +724,10 @@ pub fn view_input_grammar(
         }
         Action::Noop
     });
+    let drophandler = m.link.callback(move |e: DragDropEvent| {
+        let file = e.data_transfer().unwrap().files().iter().next().unwrap();
+        Action::ReadCSVFile(file, is_hovered_on.clone())
+    });
     html! {
         <div
             onclick=m.link.callback(|_| Action::HideContextMenu)
@@ -794,25 +795,7 @@ pub fn view_input_grammar(
                         Action::Noop
                     }
                 })
-                ondrop=m.link.callback(move |e: DragDropEvent|{
-                    let file = e.data_transfer().unwrap().files().iter().next().unwrap();
-
-                    let task = {
-                        let upload_callback = m.link.callback(|file_data| Action::LoadCSVFile(file_data, is_hovered_on.clone()));
-                        m.reader.read_file(file, upload_callback.clone())
-                    };
-                    m.tasks.push(task);
-
-                    ////////////////////
-                    // e.prevent_default();
-                    // let file = e.data_transfer().unwrap().files().iter().next().unwrap();
-                
-                    // let upload_callback = m.link.callback(|file_data| Action::LoadCSVFile(file_data, is_hovered_on.clone()));
-                    // // let task = m.reader.read_file(file, upload_callback.clone());
-                   
-                    // m.tasks.push(task);
-                    Action::Noop
-                })>
+                ondrop=drophandler >
                 { value }
             </div>
             { suggestions }
@@ -866,23 +849,58 @@ pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordina
 
 pub fn view_context_menu(m: &Model) -> Html {
     let default_options = vec![
-        ("Insert Row", m.link.callback(|_| Action::InsertRow), true, 1),
-        ("Insert Col", m.link.callback(|_| Action::InsertCol), true, 1),
-        ("Delete Row", m.link.callback(|_| Action::DeleteRow), true, 1),
-        ("Delete Col", m.link.callback(|_| Action::DeleteCol), true, 1),
-
-        ("----------",  m.link.callback(|_| Action::HideContextMenu), true, 0),
-
+        (
+            "Insert Row",
+            m.link.callback(|_| Action::InsertRow),
+            true,
+            1,
+        ),
+        (
+            "Insert Col",
+            m.link.callback(|_| Action::InsertCol),
+            true,
+            1,
+        ),
+        (
+            "Delete Row",
+            m.link.callback(|_| Action::DeleteRow),
+            true,
+            1,
+        ),
+        (
+            "Delete Col",
+            m.link.callback(|_| Action::DeleteCol),
+            true,
+            1,
+        ),
+        (
+            "----------",
+            m.link.callback(|_| Action::HideContextMenu),
+            true,
+            0,
+        ),
         ("Zoom In (+)", m.link.callback(|_| Action::ZoomIn), true, 2),
-        ("Zoom Reset", m.link.callback(|_| Action::ZoomReset), true, 2),
-        ("Zoom Out (-)", m.link.callback(|_| Action::ZoomOut), true, 2),
-
-        ("----------",  m.link.callback(|_| Action::HideContextMenu), true, 0),
-
+        (
+            "Zoom Reset",
+            m.link.callback(|_| Action::ZoomReset),
+            true,
+            2,
+        ),
+        (
+            "Zoom Out (-)",
+            m.link.callback(|_| Action::ZoomOut),
+            true,
+            2,
+        ),
+        (
+            "----------",
+            m.link.callback(|_| Action::HideContextMenu),
+            true,
+            0,
+        ),
         ("Save", m.link.callback(|_| Action::SaveSession()), true, 3),
         ("Reset", m.link.callback(|_| Action::Recreate), true, 3),
         ("Merge", m.link.callback(|_| Action::MergeCells()), false, 3),
-
     ];
     /*option Name and action are what their name means
     option_param represents the default or conditionnal render of an option
@@ -891,7 +909,7 @@ pub fn view_context_menu(m: &Model) -> Html {
     */
     let option_nodes = {
         let mut v = VList::new();
-        
+
         for (option_name, option_action, option_param, option_layer) in default_options {
             let mut should_render = true;
 
