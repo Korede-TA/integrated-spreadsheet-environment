@@ -1,3 +1,4 @@
+#![recursion_limit="1024"]
 use electron_sys::ipc_renderer;
 use pest::Parser;
 use std::collections::{HashMap, HashSet};
@@ -106,10 +107,10 @@ pub struct Model {
     // - `console` and `reader` are used to access native browser APIs for the
     //    dev console and FileReader respectively
     console: ConsoleService,
-    reader: ReaderService,
+    pub reader: ReaderService,
 
     // - `tasks` are used to store asynchronous requests to read/load files
-    tasks: Vec<ReaderTask>,
+    pub tasks: Vec<ReaderTask>,
 }
 
 #[derive(Debug)]
@@ -208,6 +209,7 @@ pub enum Action {
 
     ShowContextMenu((f64, f64)),
     HideContextMenu,
+    LoadCSVFile(yew::services::reader::FileData, Coordinate),
 }
 
 impl Model {
@@ -264,6 +266,9 @@ impl Model {
             })
             .collect()
     }
+
+    // Gotta move
+    
 
     fn query_row(&self, coord_row: Row) -> Vec<Coordinate> {
         self.get_session()
@@ -535,6 +540,11 @@ impl Component for Model {
                     }
                 };
                 true
+            }
+
+            Action::LoadCSVFile(file_data, coordinate) => {
+                info!{"{:?}", std::str::from_utf8(&file_data.content)};
+                false
             }
 
             Action::Select(SelectMsg::Start(coord)) => {
