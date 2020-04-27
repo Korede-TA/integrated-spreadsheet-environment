@@ -2,6 +2,8 @@
 use electron_sys::ipc_renderer;
 use pest::Parser;
 use std::collections::{HashMap, HashSet};
+extern crate csv;
+use csv::Error;
 
 use std::num::NonZeroU32;
 use std::ops::Deref;
@@ -550,10 +552,33 @@ impl Component for Model {
                 self.tasks.push(task);
                 false
             }
-
+            
             Action::LoadCSVFile(file_data, coordinate) => {
-                info! {"{:?}", std::str::from_utf8(&file_data.content)};
-                false
+                // info! {"{:?}", std::str::from_utf8(&file_data.content)};
+                // info! {"{:?}", std::str::from_utf8(&file_data.content).unwrap()};
+                let csv = std::str::from_utf8(&file_data.content).unwrap().to_string();
+                let mut reader = csv::Reader::from_reader(csv.as_bytes());
+
+                for (index, record) in reader.records().enumerate() {
+                    let record = record.unwrap();
+                    let lenght_rec = &record.len();
+
+                    if index == 0 {
+                        Action::AddNestedGrid(coordinate.clone(), (2 as u32,2 as u32));
+                        info!{"This is coord val {:?}", coordinate.clone()};
+                    };
+                    info! {
+                        "In {}, {} built the {} model. It is a {}. length is {} index is {}",
+                        &record[0],
+                        &record[1],
+                        &record[2],
+                        &record[3],
+                        &lenght_rec,
+                        &index
+                    };
+                }
+                // info! {"{:?}", (&file_data.name.to_string())};
+                true
             }
 
             Action::Select(SelectMsg::Start(coord)) => {

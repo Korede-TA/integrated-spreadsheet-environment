@@ -726,6 +726,7 @@ pub fn view_input_grammar(
     });
     let drophandler = m.link.callback(move |e: DragDropEvent| {
         let file = e.data_transfer().unwrap().files().iter().next().unwrap();
+        // info!{"this is csv {:?}", file}
         Action::ReadCSVFile(file, is_hovered_on.clone())
     });
     html! {
