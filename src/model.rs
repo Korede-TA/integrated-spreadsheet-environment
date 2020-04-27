@@ -1,4 +1,4 @@
-#![recursion_limit="1024"]
+#![recursion_limit = "1024"]
 use electron_sys::ipc_renderer;
 use pest::Parser;
 use std::collections::{HashMap, HashSet};
@@ -21,7 +21,7 @@ use crate::grammar_map::*;
 use crate::session::Session;
 use crate::style::Style;
 use crate::util::{move_grammar, non_zero_u32_tuple, resize, resize_diff};
-use crate::view::{view_grammar, view_menu_bar, view_side_nav, view_tab_bar};
+use crate::view::{view_context_menu, view_grammar, view_menu_bar, view_side_nav, view_tab_bar};
 use crate::{coord, coord_col, coord_row, g, grid, row_col_vec};
 
 #[derive(Parser)]
@@ -50,7 +50,7 @@ pub struct Model {
     pub min_select_cell: Option<Coordinate>,
     pub max_select_cell: Option<Coordinate>,
 
-    // - `shift_key_pressed` is a simple indicator for when shift key is toggled
+    // - `shift_key_pressed` is a simple indicator for when shift key is togridled
     pub shift_key_pressed: bool,
 
     // - `zoom` is the value that corresponds to how "zoomed" the sheet is
@@ -95,6 +95,9 @@ pub struct Model {
     // - `default_definition_name` shows the default name of the grammar created
     //   by Ctrl+G the "Add Definition" button
     pub default_nested_row_cols: (NonZeroU32, NonZeroU32),
+
+    pub context_menu_position: Option<(f64, f64)>,
+
     pub default_definition_name: String,
 
     // - `mouse_cursor` corresponds to the appearance of the mouse cursor
@@ -138,7 +141,7 @@ pub enum SelectMsg {
 }
 
 // ACTIONS
-// Triggered in the view, sent to update function
+// Trigridered in the view, sent to update function
 pub enum Action {
     // Do nothing
     Noop,
@@ -198,12 +201,16 @@ pub enum Action {
 
     AddDefinition(Coordinate, /* name */ String),
 
-    ToggleShiftKey(bool),
+    TogridleShiftKey(bool),
 
     // Alerts and stuff
     Alert(String),
 
-    LoadCSVFile(yew::services::reader::FileData, Coordinate),
+    ShowContextMenu((f64, f64)),
+    HideContextMenu,
+
+    ReadCSVFile(File, Coordinate),
+    LoadCSVFile(FileData, Coordinate),
 }
 
 impl Model {
@@ -262,7 +269,6 @@ impl Model {
     }
 
     // Gotta move
-    
 
     fn query_row(&self, coord_row: Row) -> Vec<Coordinate> {
         self.get_session()
@@ -452,6 +458,8 @@ impl Component for Model {
 
             default_nested_row_cols: non_zero_u32_tuple((3, 3)),
 
+            context_menu_position: None,
+
             default_definition_name: "".to_string(),
 
             mouse_cursor: CursorType::Default,
@@ -534,8 +542,17 @@ impl Component for Model {
                 true
             }
 
+            Action::ReadCSVFile(file, coord) => {
+                let upload_callback = self.link.callback(move |file_data: FileData| {
+                    Action::LoadCSVFile(file_data.clone(), coord.clone())
+                });
+                let task = self.reader.read_file(file, upload_callback.clone());
+                self.tasks.push(task);
+                false
+            }
+
             Action::LoadCSVFile(file_data, coordinate) => {
-                info!{"{:?}", std::str::from_utf8(&file_data.content)};
+                info! {"{:?}", std::str::from_utf8(&file_data.content)};
                 false
             }
 
@@ -938,12 +955,14 @@ impl Component for Model {
                         {
                             // initialize row & col heights as well
                             if !&self.row_heights.contains_key(&new_coord.clone().full_row()) {
-                                &self.row_heights
+                                &self
+                                    .row_heights
                                     .insert(new_coord.clone().full_row(), tmp_heigth);
                                 //30.0);
                             }
                             if !&self.col_widths.contains_key(&new_coord.clone().full_col()) {
-                                &self.col_widths
+                                &self
+                                    .col_widths
                                     .insert(new_coord.clone().full_col(), tmp_width);
                                 //90.0);
                             }
@@ -1339,7 +1358,9 @@ impl Component for Model {
             Action::ToggleLookup(coord) => {
                 match self.get_session_mut().grammars.get_mut(&coord) {
                     Some(
-                        g @ Grammar {
+                        g
+                        @
+                        Grammar {
                             kind: Kind::Input(_),
                             ..
                         },
@@ -1347,7 +1368,9 @@ impl Component for Model {
                         g.kind = Kind::Lookup("".to_string(), None);
                     }
                     Some(
-                        g @ Grammar {
+                        g
+                        @
+                        Grammar {
                             kind: Kind::Lookup(_, _),
                             ..
                         },
@@ -1355,7 +1378,7 @@ impl Component for Model {
                         g.kind = Kind::Input("".to_string());
                     }
                     _ => {
-                        info! { "[Action::ToggleLookup] cannot toggle non-Input/Lookup kind of grammar" }
+                        info! { "[Action::ToggleLookup] cannot togridle non-Input/Lookup kind of grammar" }
                     }
                 };
                 true
@@ -1388,7 +1411,7 @@ impl Component for Model {
                 }
                 let defn_coord = Coordinate::child_of(&(coord!("meta")), defn_meta_sub_coord);
                 info! {"Adding Definition: {} to {}", coord.to_string(), defn_coord.to_string()};
-                
+
                 move_grammar(self, coord, defn_coord.clone());
                 // give moved grammar name {defn_name} as specified in "Add Definition" button
                 if let Some(g) = self.get_session_mut().grammars.get_mut(&defn_coord) {
@@ -1397,14 +1420,25 @@ impl Component for Model {
                 true
             }
 
-            Action::ToggleShiftKey(toggle) => {
-                self.shift_key_pressed = toggle;
+            Action::TogridleShiftKey(togridle) => {
+                self.shift_key_pressed = togridle;
                 false
             }
 
             Action::ChangeDefaultNestedGrid(row_col) => {
                 self.default_nested_row_cols = row_col;
                 false
+            }
+
+            Action::ShowContextMenu(pos) => {
+                info! {"context menu"}
+                self.context_menu_position = Some(pos);
+                true
+            }
+
+            Action::HideContextMenu => {
+                self.context_menu_position = None;
+                true
             }
 
             Action::SetCurrentDefinitionName(name) => {
@@ -1449,7 +1483,10 @@ impl Component for Model {
         };
         let active_cell = self.active_cell.clone().expect("active_cell should be set");
         html! {
-            <div>
+            <div
+            onclick=self.link.callback(move |e: ClickEvent| {
+                Action::HideContextMenu
+            })>
 
                 { view_side_nav(&self) }
 
@@ -1459,8 +1496,9 @@ impl Component for Model {
                 <input id="integration-test-model-dump" hidden=true >{serialized_model}</input>
 
                 <div class="main">
-                    <div id="grammars" class="grid-wrapper" style={zoom+&cursor}
-                        // Global Key-mappings
+
+                    <div id="grammars" class="grid-wrapper" style={zoom}
+                        // Global Keyboard shortcuts
                         onkeypress=self.link.callback(move |e : KeyPressEvent| {
                             let keys = key_combination(&e);
                             info! {"global keypress: {}", keys.clone()};
@@ -1472,39 +1510,36 @@ impl Component for Model {
                                 _ => Action::Noop
                             }
                         })
-                        // Global Key toggles
-                        onkeydown=self.link.callback(move |e : KeyDownEvent| {
-                            let keys = key_combination(&e);
-                            match keys.deref() {
-                                // Tab is intercepted in onkeydown instead of onkeypress
-                                // to allow us prevent default tabbing behavior
-                                // "Tab" => {
-                                //     e.prevent_default();
-                                //     if let Some(c) = neighbor_right.clone().or(first_col_next_row.clone()) {
-                                //         return Action::SetActiveCell(c)
-                                //     }
-                                //     Action::Noop
-                                // }
-                                "Shift" => Action::ToggleShiftKey(true),
-                                _ => Action::Noop
+                        // context menu
+                        oncontextmenu=self.link.callback(move |e: ContextMenuEvent| {
+                            e.prevent_default();
+                            Action::ShowContextMenu((e.client_x() as f64, e.client_y() as f64))
+                        })
+                        // Global Key togridles
+                        onkeydown=self.link.callback(move |e: KeyDownEvent| {
+                            if e.key() == "Shift" {
+                                Action::TogridleShiftKey(true)
+                            } else {
+                                Action::Noop
+
                             }
                         })
-                        onkeyup=self.link.callback(move |e : KeyUpEvent| {
+                        onkeyup=self.link.callback(move |e: KeyUpEvent| {
                             if e.key() == "Shift" {
-                                Action::ToggleShiftKey(false)
+                                Action::TogridleShiftKey(false)
                             } else {
                                 Action::Noop
                             }
                         })
-                        // Global Mouse event/toggles
-                        onmouseup=self.link.callback(move |e : MouseUpEvent| {
+                        // Global Mouse event/togridles
+                        onmouseup=self.link.callback(move |e: MouseUpEvent| {
                             if is_resizing.clone() {
                                 Action::Resize(ResizeMsg::End)
                             } else {
                                 Action::Noop
                             }
                         })
-                        onmousemove=self.link.callback(move |e : MouseMoveEvent| {
+                        onmousemove=self.link.callback(move |e: MouseMoveEvent| {
                             if is_resizing.clone() {
                                 if e.movement_x().abs() > e.movement_y().abs() {
                                     Action::Resize(ResizeMsg::X(e.movement_x() as f64))
@@ -1514,10 +1549,15 @@ impl Component for Model {
                             } else {
                                 Action::Noop
                             }
-                        })>
+                        })
+                        /*onclick=self.link.callback(move |e: ClickEvent| {
+                            Action::HideContextMenu
+                        })*/>
                         { view_grammar(&self, coord!{"root"}) }
+                        { view_context_menu(&self) }
                     </div>
                 </div>
+
             </div>
         }
     }

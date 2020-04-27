@@ -1,15 +1,15 @@
-#![recursion_limit="1024"]
+#![recursion_limit = "1024"]
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use stdweb::traits::IEvent;
 use stdweb::unstable::TryFrom;
 use stdweb::unstable::TryInto;
+use stdweb::web::event::IDragEvent;
 use stdweb::web::{html_element::InputElement, HtmlElement, IHtmlElement};
 use yew::events::{ClickEvent, IKeyboardEvent, IMouseEvent, KeyPressEvent};
-use stdweb::web::event::IDragEvent;
 use yew::prelude::*;
-use yew::virtual_dom::vlist::VList;
 use yew::services::reader::File;
+use yew::virtual_dom::vlist::VList;
 use yew::{html, ChangeData, Html, InputData};
 
 use crate::coordinate::Coordinate;
@@ -17,7 +17,6 @@ use crate::grammar::{Grammar, Interactive, Kind, Lookup};
 use crate::model::{Action, CursorType, Model, ResizeMsg, SelectMsg, SideMenu};
 use crate::style::get_style;
 use crate::util::non_zero_u32_tuple;
-
 
 pub fn view_side_nav(m: &Model) -> Html {
     let mut side_menu_nodes = VList::new();
@@ -209,55 +208,53 @@ pub fn view_menu_bar(m: &Model) -> Html {
             // - the last selected cell is the last (bottom-rightmost) child of the parent
             // cell, which should be a Kind::Grid grammar
             (Some(first), Some(last)) if first.parent() == last.parent() => {
-                if let Some((Kind::Grid(sub_coords))) = 
-                        /* get the coordinate of the parent, lookup the grammar, then get the grammar.kind */
-                        first
+                if let Some((Kind::Grid(sub_coords))) = /* get the coordinate of the parent, lookup the grammar, then get the grammar.kind */
+                    first
                         .parent()
                         .and_then(|c| m.get_session().grammars.get(&c))
                         .map(|g| (g.kind.clone()))
-                    {
-                        use std::cmp::Ordering;
-                        let mut sc = sub_coords.clone();
-                        sc.sort_by(|(a_row, a_col), (b_row, b_col)| {
-                            if a_row > b_row {
+                {
+                    use std::cmp::Ordering;
+                    let mut sc = sub_coords.clone();
+                    sc.sort_by(|(a_row, a_col), (b_row, b_col)| {
+                        if a_row > b_row {
+                            Ordering::Greater
+                        } else if a_row < b_row {
+                            Ordering::Less
+                        } else {
+                            if a_col > b_col {
                                 Ordering::Greater
-                            } else if a_row < b_row {
+                            } else if a_col < b_col {
                                 Ordering::Less
                             } else {
-                                if a_col > b_col {
-                                    Ordering::Greater
-                                } else if a_col < b_col {
-                                    Ordering::Less
-                                } else {
-                                    Ordering::Equal
-                                }
+                                Ordering::Equal
                             }
-                        });
-                        let first_sc = sc.first().expect(
-                            "add_definition_button: expect selection parent sub_coords.len > 1",
-                        );
-                        let last_sc = sc.last().expect(
-                            "add_definition_button: expect selection parent sub_coords.len > 1",
-                        );
-                        let defn_name = if m.default_definition_name == "" {
-                            first.parent().unwrap().to_string().replace("-", "_")
-                        } else {
-                            m.default_definition_name.clone()
-                        };
-                        (
-                            // can add definition?
-                            *first_sc == first.row_col() &&
-                            *last_sc == last.row_col(),
-                            // definition name
-                            defn_name.clone(),
-                            // callback
-                            m.link.callback(move |_| {
-                                Action::AddDefinition(first.parent().unwrap(), defn_name.clone())
-                            }),
-                        )
+                        }
+                    });
+                    let first_sc = sc.first().expect(
+                        "add_definition_button: expect selection parent sub_coords.len > 1",
+                    );
+                    let last_sc = sc.last().expect(
+                        "add_definition_button: expect selection parent sub_coords.len > 1",
+                    );
+                    let defn_name = if m.default_definition_name == "" {
+                        first.parent().unwrap().to_string().replace("-", "_")
                     } else {
-                        (false, "".to_string(), m.link.callback(|_| Action::Noop))
-                    }
+                        m.default_definition_name.clone()
+                    };
+                    (
+                        // can add definition?
+                        *first_sc == first.row_col() && *last_sc == last.row_col(),
+                        // definition name
+                        defn_name.clone(),
+                        // callback
+                        m.link.callback(move |_| {
+                            Action::AddDefinition(first.parent().unwrap(), defn_name.clone())
+                        }),
+                    )
+                } else {
+                    (false, "".to_string(), m.link.callback(|_| Action::Noop))
+                }
             }
             _ => (false, "".to_string(), m.link.callback(|_| Action::Noop)),
         };
@@ -413,7 +410,6 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                     <div
                         class=format!{"cell interactive row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
                         id=format!{"cell-{}", coord.to_string()}
-                        // style={ get_style(&m, &coord) }>
                         style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
                         <button>
                             { name }
@@ -424,6 +420,7 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
             Kind::Interactive(name, Interactive::Slider(value, min, max)) => {
                 html! {
                     <div
+                        onclick=m.link.callback(|_| Action::HideContextMenu)
                         class=format!{"cell interactive row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
                         id=format!{"cell-{}", coord.to_string()}
                         // style={ get_style(&m, &coord) }>
@@ -437,6 +434,7 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
             Kind::Interactive(name, Interactive::Toggle(checked)) => {
                 html! {
                     <div
+                        onclick=m.link.callback(|_| Action::HideContextMenu)
                         class=format!{"cell interactive row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
                         id=format!{"cell-{}", coord.to_string()}
                         // style={ get_style(&m, &coord) }>
@@ -504,6 +502,7 @@ pub fn view_defn_grammar(
     let c = coord.clone();
     html! {
         <div
+            onclick=m.link.callback(|_| Action::HideContextMenu)
             class=format!{"cell grid row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
@@ -530,6 +529,7 @@ pub fn view_defn_variant_grammar(
     }
     html! {
         <div
+            onclick=m.link.callback(|_| Action::HideContextMenu)
             class=format!{"cell variant row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
             // style={ get_style(&m, &coord) }>
@@ -563,7 +563,9 @@ pub fn view_lookup_grammar(
             })
         }
         html! {
-            <div class="suggestion-content">
+            <div
+                onclick=m.link.callback(|_| Action::HideContextMenu)
+                class="suggestion-content">
                 { suggestions_nodes }
             </div>
         }
@@ -575,6 +577,7 @@ pub fn view_lookup_grammar(
     let can_toggle: bool = value.clone().deref() == "";
     html! {
         <div
+            onclick=m.link.callback(|_| Action::HideContextMenu)
             class=format!{"cell suggestion lookup row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
@@ -591,6 +594,7 @@ pub fn view_lookup_grammar(
                     } else { NodeRef::default() }
                 }
                 onkeydown=m.link.callback(move |e : KeyDownEvent| {
+                    Action::HideContextMenu;
                     if e.code() == "Backspace" && can_toggle {
                         Action::ToggleLookup(to_toggle.clone())
                     } else { Action::Noop }
@@ -634,6 +638,7 @@ pub fn view_input_grammar(
                         id=format!{"cell-{}-suggestion-{}", c.to_string(), suggestion_index}
                         tabindex=2
                         onkeydown=m.link.callback(move |e : KeyDownEvent| {
+                            Action::HideContextMenu;
                             if e.code() == "Tab" {
                                 e.prevent_default();
                                 return Action::NextSuggestion(c.clone(), if e.shift_key() { suggestion_index-1 } else { suggestion_index+1 });
@@ -649,7 +654,9 @@ pub fn view_input_grammar(
             suggestion_index += 1;
         }
         html! {
-            <div class="suggestion-content">
+            <div
+            onclick=m.link.callback(|_| Action::HideContextMenu)
+            class="suggestion-content">
                 { suggestion_nodes }
             </div>
         }
@@ -717,8 +724,13 @@ pub fn view_input_grammar(
         }
         Action::Noop
     });
+    let drophandler = m.link.callback(move |e: DragDropEvent| {
+        let file = e.data_transfer().unwrap().files().iter().next().unwrap();
+        Action::ReadCSVFile(file, is_hovered_on.clone())
+    });
     html! {
         <div
+            onclick=m.link.callback(|_| Action::HideContextMenu)
             class=cell_classes
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
@@ -783,25 +795,7 @@ pub fn view_input_grammar(
                         Action::Noop
                     }
                 })
-                ondrop=m.link.callback(move |e: DragDropEvent|{
-                    let file = e.data_transfer().unwrap().files().iter().next().unwrap();
-
-                    let task = {
-                        let upload_callback = m.link.callback(|file_data| Action::LoadCSVFile(file_data, is_hovered_on.clone()));
-                        m.reader.read_file(file, upload_callback.clone())
-                    };
-                    m.tasks.push(task);
-
-                    ////////////////////
-                    // e.prevent_default();
-                    // let file = e.data_transfer().unwrap().files().iter().next().unwrap();
-                
-                    // let upload_callback = m.link.callback(|file_data| Action::LoadCSVFile(file_data, is_hovered_on.clone()));
-                    // // let task = m.reader.read_file(file, upload_callback.clone());
-                   
-                    // m.tasks.push(task);
-                    Action::Noop
-                })>
+                ondrop=drophandler >
                 { value }
             </div>
             { suggestions }
@@ -813,6 +807,7 @@ pub fn view_text_grammar(m: &Model, coord: &Coordinate, value: String, is_active
     let is_selected = cell_is_selected(coord, &m.first_select_cell, &m.last_select_cell);
     html! {
         <div
+            onclick=m.link.callback(|_| Action::HideContextMenu)
             class=format!{"cell suggestion row-{} col-{}", coord.row_to_string(), coord.col_to_string(),}
             id=format!{"cell-{}", coord.to_string()}
             // style={ get_style(&m, &coord) }>
@@ -843,6 +838,7 @@ pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordina
     }
     html! {
         <div
+            onclick=m.link.callback(|_| Action::HideContextMenu)
             class=format!{"\ncell grid row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
             style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
@@ -851,6 +847,113 @@ pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordina
     }
 }
 
+pub fn view_context_menu(m: &Model) -> Html {
+    let default_options = vec![
+        (
+            "Insert Row",
+            m.link.callback(|_| Action::InsertRow),
+            true,
+            1,
+        ),
+        (
+            "Insert Col",
+            m.link.callback(|_| Action::InsertCol),
+            true,
+            1,
+        ),
+        (
+            "Delete Row",
+            m.link.callback(|_| Action::DeleteRow),
+            true,
+            1,
+        ),
+        (
+            "Delete Col",
+            m.link.callback(|_| Action::DeleteCol),
+            true,
+            1,
+        ),
+        (
+            "----------",
+            m.link.callback(|_| Action::HideContextMenu),
+            true,
+            0,
+        ),
+        ("Zoom In (+)", m.link.callback(|_| Action::ZoomIn), true, 2),
+        (
+            "Zoom Reset",
+            m.link.callback(|_| Action::ZoomReset),
+            true,
+            2,
+        ),
+        (
+            "Zoom Out (-)",
+            m.link.callback(|_| Action::ZoomOut),
+            true,
+            2,
+        ),
+        (
+            "----------",
+            m.link.callback(|_| Action::HideContextMenu),
+            true,
+            0,
+        ),
+        ("Save", m.link.callback(|_| Action::SaveSession()), true, 3),
+        ("Reset", m.link.callback(|_| Action::Recreate), true, 3),
+        ("Merge", m.link.callback(|_| Action::MergeCells()), false, 3),
+    ];
+    /*option Name and action are what their name means
+    option_param represents the default or conditionnal render of an option
+    option_layer represents the visual layer of the option on the context menu that for now only helps the break
+        But will evolve in the future
+    */
+    let option_nodes = {
+        let mut v = VList::new();
+
+        for (option_name, option_action, option_param, option_layer) in default_options {
+            let mut should_render = true;
+
+            //Conditional for the options that should only show under certain circumstances
+            if !option_param {
+                should_render = false;
+                //Conditions Manager on the conditional context-menu Option
+                match option_name.clone() {
+                    "Merge" => {
+                        if m.last_select_cell != None {
+                            should_render = true;
+                        }
+                    }
+                    _ => info!("Parameter not managed {:?}", option_name),
+                }
+            }
+            //Option render
+            if should_render {
+                v.add_child(html! {
+                    <li class="context-menu-option" onclick=option_action>
+                        { option_name }
+                    </li>
+                });
+            }
+        }
+        v
+    };
+
+    let position_style = if let Some((left, top)) = m.context_menu_position {
+        format! {"display: block; top: {}px; left: {}px", top, left}
+    } else {
+        format! {"display: none;"}
+    };
+
+    html! {
+        <div
+            onclick=m.link.callback(|_| Action::HideContextMenu)
+            class="context-menu" style=position_style>
+            <ul class="context-menu-options">
+                {option_nodes}
+            </ul>
+        </div>
+    }
+}
 // util function for determining if one cell's coordinate is within the range of selected cells.
 fn cell_is_selected(
     coord: &Coordinate,
