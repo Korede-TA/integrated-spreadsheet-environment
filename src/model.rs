@@ -713,21 +713,21 @@ impl Component for Model {
                 true
             }
             Action::SaveSession() => {
-                /* TODO: uncomment when this is working
+                // TODO: uncomment when this is working
                 use node_sys::fs as node_fs;
                 use node_sys::Buffer;
                 use js_sys::{
                     JsString,
                     Function
                 };
-                let session = self.to_session();
-                let j = serde_json::to_string(&session.clone());
-                let filename = session.title.to_string();
+                let current_session = self.to_session();
+                let j = serde_json::to_string(&current_session.clone());
+                let filename = current_session.title.to_string();
                 let jsfilename = JsString::from(filename);
                 let jsbuffer = Buffer::from_string(&JsString::from(j.unwrap()), None);
                 let jscallback = Function::new_no_args("{}");
                 node_fs::append_file(&jsfilename, &jsbuffer, None, &jscallback);
-                */
+                
                 false
             }
 
