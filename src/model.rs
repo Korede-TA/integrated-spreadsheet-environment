@@ -561,14 +561,17 @@ impl Component for Model {
 
                 for (index, record) in reader.records().enumerate() {
                     let record = record.unwrap();
-                    let lenght_rec = &record.len();
+                    let lenght_rec = record.len();
 
                     if index == 0 {
-                        self.update(Action::AddNestedGrid(coordinate.clone(), (2 as u32,2 as u32)));
-                        // Action::AddNestedGrid(coordinate.clone(), (2 as u32,2 as u32));
-                        
+                        info!{"This is length rec !! {}", lenght_rec};
+                        self.update(Action::AddNestedGrid(coordinate.clone(), (1 as u32, lenght_rec as u32)));
+                        if self.get_session_mut().grammars.contains_key(&coord!("root-B1-E1")){
+                            info!{"This is muttttt {:?}", self.get_session_mut().grammars[&coord!("root-B1-E1")]};
+                        };
                         info!{"This is coord val {:?}", coordinate.clone()};
                     };
+                    self.update(Action::InsertRow);
                     info! {
                         "In {}, {} built the {} model. It is a {}. length is {} index is {}",
                         &record[0],
@@ -1304,44 +1307,120 @@ impl Component for Model {
                 true
             }
 
+            // Action::Recreate => {
+            //     self.get_session_mut().grammars = hashmap! {
+            //         coord!("root")    => self.get_session_mut().root.clone(),
+            //         coord!("root-A1") => Grammar::default(),
+            //         coord!("root-A2") => Grammar::default(),
+            //         coord!("root-A3") => Grammar::default(),
+            //         coord!("root-B1") => Grammar::default(),
+            //         coord!("root-B2") => Grammar::default(),
+            //         coord!("root-B3") => Grammar::default(),
+            //         coord!("meta")    => self.get_session_mut().meta.clone(),
+            //         coord!("meta-A1") => Grammar::text("js grammar".to_string(), "This is js".to_string()),
+            //         coord!("meta-A2") => Grammar::text("java grammar".to_string(), "This is java".to_string()),
+            //         coord!("meta-A3") => Grammar {
+            //             name: "defn".to_string(),
+            //             style: Style::default(),
+            //             kind: Kind::Defn(
+            //                 "".to_string(),
+            //                 coord!("meta-A3"),
+            //                 vec![
+            //                     ("".to_string(), coord!("meta-A3-B1")),
+            //                 ],
+            //             ),
+            //         },
+            //         coord!("meta-A4") => Grammar::default_button(),
+            //         coord!("meta-A5") => Grammar::default_slider(),
+            //         coord!("meta-A6") => Grammar::default_toggle(),
+            //         coord!("meta-A3-A1")    => Grammar::default(),
+            //         coord!("meta-A3-B1")    => Grammar {
+            //             name: "root".to_string(),
+            //             style: Style::default(),
+            //             kind: Kind::Grid(row_col_vec![ (1,1), (2,1), (1,2), (2,2) ]),
+            //         },
+            //         coord!("meta-A3-B1-A1") => Grammar::input("".to_string(), "sub-grammar name".to_string()),
+            //         coord!("meta-A3-B1-B1") => Grammar::text("".to_string(), "+".to_string()),
+            //         coord!("meta-A3-B1-C1") => Grammar::default(),
+            //     };
+            //     true
+            // }
+
             Action::Recreate => {
-                self.get_session_mut().grammars = hashmap! {
-                    coord!("root")    => self.get_session_mut().root.clone(),
-                    coord!("root-A1") => Grammar::default(),
-                    coord!("root-A2") => Grammar::default(),
-                    coord!("root-A3") => Grammar::default(),
-                    coord!("root-B1") => Grammar::default(),
-                    coord!("root-B2") => Grammar::default(),
-                    coord!("root-B3") => Grammar::default(),
-                    coord!("meta")    => self.get_session_mut().meta.clone(),
-                    coord!("meta-A1") => Grammar::text("js grammar".to_string(), "This is js".to_string()),
-                    coord!("meta-A2") => Grammar::text("java grammar".to_string(), "This is java".to_string()),
-                    coord!("meta-A3") => Grammar {
-                        name: "defn".to_string(),
-                        style: Style::default(),
-                        kind: Kind::Defn(
-                            "".to_string(),
-                            coord!("meta-A3"),
-                            vec![
-                                ("".to_string(), coord!("meta-A3-B1")),
+                self.get_session_mut().grammars = {
+                    info!{"~rec is being fired"}
+                    let mut map = HashMap::new();
+                    build_grammar_map(
+                        &mut map,
+                        coord!("root"),
+                        grid![
+                            [
+                                g!(Grammar::input("", "A1")),
+                                g!(Grammar::input("", "B1")),
+                                g!(Grammar::input("", "C1"))
                             ],
-                        ),
-                    },
-                    coord!("meta-A4") => Grammar::default_button(),
-                    coord!("meta-A5") => Grammar::default_slider(),
-                    coord!("meta-A6") => Grammar::default_toggle(),
-                    coord!("meta-A3-A1")    => Grammar::default(),
-                    coord!("meta-A3-B1")    => Grammar {
-                        name: "root".to_string(),
-                        style: Style::default(),
-                        kind: Kind::Grid(row_col_vec![ (1,1), (2,1), (1,2), (2,2) ]),
-                    },
-                    coord!("meta-A3-B1-A1") => Grammar::input("".to_string(), "sub-grammar name".to_string()),
-                    coord!("meta-A3-B1-B1") => Grammar::text("".to_string(), "+".to_string()),
-                    coord!("meta-A3-B1-C1") => Grammar::default(),
+                            [
+                                g!(Grammar::input("", "A2")),
+                                g!(Grammar::input("", "B2")),
+                                g!(Grammar::input("", "C2"))
+                            ],
+                            [
+                                g!(Grammar::input("", "A3")),
+                                g!(Grammar::input("", "B3")),
+                                g!(Grammar::input("", "C3"))
+                            ]
+                        ],
+                    );
+                    build_grammar_map(
+                        &mut map,
+                        coord!("meta"),
+                        grid![
+                            [g!(Grammar::input("", "A1"))],
+                            [g!(Grammar::input("", "A2"))],
+                            [g!(Grammar::default_button())],
+                            [g!(Grammar::default_slider())],
+                            [g!(Grammar::default_toggle())]
+                        ],
+                    );
+                    build_grammar_map(
+                        &mut map,
+                        coord!("meta-A6"),
+                        grid![
+                            [
+                                g!(Grammar {
+                                    name: "defn_label".to_string(),
+                                    style: {
+                                        let mut s = Style::default();
+                                        s.font_weight = 600;
+                                        s
+                                    },
+                                    kind: Kind::Text("Define Grammar".to_string()),
+                                }),
+                                g!(Grammar {
+                                    name: "defn_name".to_string(),
+                                    style: Style::default(),
+                                    kind: Kind::Input(String::new()),
+                                })
+                            ],
+                            [grid![
+                                [
+                                    g!(Grammar::input("rule_name", "")),
+                                    g!(Grammar::input("rule_grammar", ""))
+                                ],
+                                [
+                                    g!(Grammar::input("rule_name", "")),
+                                    g!(Grammar::input("rule_grammar", ""))
+                                ]
+                            ]]
+                        ],
+                    );
+                    assert!(map.contains_key(&(coord!("root"))));
+                    map
                 };
                 true
             }
+            
+            
 
             Action::Resize(msg) => {
                 match msg {
