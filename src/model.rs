@@ -564,7 +564,9 @@ impl Component for Model {
                     let lenght_rec = &record.len();
 
                     if index == 0 {
-                        Action::AddNestedGrid(coordinate.clone(), (2 as u32,2 as u32));
+                        self.update(Action::AddNestedGrid(coordinate.clone(), (2 as u32,2 as u32)));
+                        // Action::AddNestedGrid(coordinate.clone(), (2 as u32,2 as u32));
+                        
                         info!{"This is coord val {:?}", coordinate.clone()};
                     };
                     info! {
