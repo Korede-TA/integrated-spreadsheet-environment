@@ -376,9 +376,7 @@ impl Component for Model {
                             [
                                 g!(Grammar::input("", "")),
                                 g!(Grammar::input("", "")),
-                                g!(Grammar::input("", ""))
-                            ],
-                            [
+                                g!(Grammar::input("", "")),
                                 g!(Grammar::input("", "")),
                                 g!(Grammar::input("", "")),
                                 g!(Grammar::input("", ""))
@@ -386,19 +384,122 @@ impl Component for Model {
                             [
                                 g!(Grammar::input("", "")),
                                 g!(Grammar::input("", "")),
-                                grid![
-                                    [
-                                        g!(Grammar::text("", "LAMBDA")),
-                                        g!(Grammar::input("", "flags"))
-                                    ],
-                                    [
-                                        g!(Grammar::input("", "input")),
-                                        g!(Grammar::input("", "output"))
-                                    ]
-                                ]
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", ""))
+                            ],
+                            [
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", ""))
+                            ],
+                            [
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", ""))
+                            ],
+                            [
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", ""))
+                            ],
+                            [
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", ""))
                             ]
                         ],
                     );
+                    build_grammar_map(
+                        &mut map,
+                        coord!("meta"),
+                        grid![
+                            [g!(Grammar::input("", "A1"))],
+                            [g!(Grammar::input("", "A2"))],
+                            [g!(Grammar::default_button())],
+                            [g!(Grammar::default_slider())],
+                            [g!(Grammar::default_toggle())],
+                            [g!(Grammar::input("js", ""))],
+                            [grid!(
+                                "js::var".to_string(),
+                                [[
+                                    g!(Grammar::text("", "var")),
+                                    g!(Grammar::input("", "")),
+                                    g!(Grammar::text("", "=")),
+                                    g!(Grammar::input("", ""))
+                                ]]
+                            )],
+                            [grid!(
+                                "js::assn".to_string(),
+                                [[
+                                    g!(Grammar::input("", "")),
+                                    g!(Grammar::text("", "=")),
+                                    g!(Grammar::input("", ""))
+                                ]]
+                            )],
+                            [grid!(
+                                "js::function".to_string(),
+                                [
+                                    [
+                                        g!(Grammar::text("function", "")),
+                                        g!(Grammar::text("", "(")),
+                                        g!(Grammar::input("", "")),
+                                        g!(Grammar::text("", ")")),
+                                        g!(Grammar::text("", "{"))
+                                    ],
+                                    [g!(Grammar::input("", ""))],
+                                    [g!(Grammar::text("", "}"))]
+                                ]
+                            )]
+                        ],
+                    );
+                    build_grammar_map(
+                        &mut map,
+                        coord!("meta-A6"),
+                        grid![
+                            [
+                                g!(Grammar {
+                                    name: "defn_label".to_string(),
+                                    style: {
+                                        let mut s = Style::default();
+                                        s.font_weight = 600;
+                                        s
+                                    },
+                                    kind: Kind::Text("Define Grammar".to_string()),
+                                }),
+                                g!(Grammar {
+                                    name: "defn_name".to_string(),
+                                    style: Style::default(),
+                                    kind: Kind::Input(String::new()),
+                                })
+                            ],
+                            [grid![
+                                [
+                                    g!(Grammar::input("rule_name", "")),
+                                    g!(Grammar::input("rule_grammar", ""))
+                                ],
+                                [
+                                    g!(Grammar::input("rule_name", "")),
+                                    g!(Grammar::input("rule_grammar", ""))
+                                ]
+                            ]]
+                        ],
+                    );
+                    assert!(map.contains_key(&(coord!("root"))));
+                    assert!(map.contains_key(&(coord!("meta-A6-A1"))));
                     map
                 },
             }],
@@ -581,7 +682,7 @@ impl Component for Model {
                 let num_cols = grid[0].len();
 
                 self.update(Action::AddNestedGrid(coordinate.clone(), (num_rows as u32, num_cols as u32)));
-                
+
                 let parent = coordinate.parent().unwrap();
                 if let Some(Grammar {
                     kind: Kind::Grid(sub_coords),
@@ -841,20 +942,19 @@ impl Component for Model {
                 true
             }
             Action::SaveSession() => {
-                /* TODO: uncomment when this is working
-                use node_sys::fs as node_fs;
-                use node_sys::Buffer;
-                use js_sys::{
-                    JsString,
-                    Function
-                };
+                /* TODO: new approach to saving session, should work better but there's still some
+                 * compile errors to be handled later
                 let session = self.to_session();
-                let j = serde_json::to_string(&session.clone());
-                let filename = session.title.to_string();
-                let jsfilename = JsString::from(filename);
-                let jsbuffer = Buffer::from_string(&JsString::from(j.unwrap()), None);
-                let jscallback = Function::new_no_args("{}");
-                node_fs::append_file(&jsfilename, &jsbuffer, None, &jscallback);
+                let json = serde_json::to_string(&session.clone());
+                let filename = format! {"{}.json", session.title.to_string()};
+                let _ = js! {
+                    let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(@{&json}));
+                    let dlAnchorElem = document.getElementById("downloadAnchorElem");
+                    dlAnchorElem.setAttribute("href", dataStr);
+                    dlAnchorElem.setAttribute("download", @{&filename});
+                    dlAnchorElem.click();
+                    return 0;
+                };
                 */
                 false
             }
@@ -1634,7 +1734,7 @@ impl Component for Model {
                 }
                 // copy definition from the coordinate it's being staged from, to the cell
                 let defn_coord = Coordinate::child_of(&(coord!("meta")), defn_meta_sub_coord);
-                info! {"Adding Definition: {} to {}", coord.to_string(), defn_coord.to_string()};
+                info! {"staging definition: {} to {}", coord.to_string(), defn_coord.to_string()};
                 move_grammar(self, coord.clone(), defn_coord.clone());
                 // rename the definition grammar to the definition name in the menu bar
                 if let Some(g) = self.get_session_mut().grammars.get_mut(&defn_coord) {
@@ -1693,6 +1793,7 @@ impl Component for Model {
                     }
                     // copy definition from the coordinate it's being staged from, to the cell
                     let defn_coord = Coordinate::child_of(&(coord!("meta")), defn_meta_sub_coord);
+                    info! {"binding {} to defn {}", binding_coord.to_string(), defn_coord.to_string()};
                     move_grammar(self, binding_coord.clone(), defn_coord.clone());
                     true
                 } else {
@@ -1762,8 +1863,7 @@ impl Component for Model {
                 .collect(),
         );
 
-            
-            
+        info! {"all suggestions: {:?}", self.suggestions};
 
         should_render
     }
@@ -1879,6 +1979,8 @@ impl Component for Model {
                     </div>
                 </div>
                 <input id="integration-test-model-dump" style="width: 0;height: 0;">{serialized_model}</input>
+
+                <a id="downloadAnchorElem" style="display:none"></a>
 
             </div>
         }
