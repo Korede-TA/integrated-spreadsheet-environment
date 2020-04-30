@@ -5,9 +5,15 @@ use std::rc::Rc;
 use stdweb::traits::IEvent;
 use stdweb::unstable::TryFrom;
 use stdweb::unstable::TryInto;
+<<<<<<< HEAD
 use stdweb::web::event::IDragEvent;
+=======
+use stdweb::web::event::{
+    ClickEvent, IKeyboardEvent, IMouseEvent, KeyDownEvent, KeyPressEvent, MouseDownEvent,
+    MouseOverEvent,
+};
+>>>>>>> upgrade to Yew 0.15, with keyed attributes
 use stdweb::web::{html_element::InputElement, HtmlElement, IHtmlElement};
-use yew::events::{ClickEvent, IKeyboardEvent, IMouseEvent, KeyPressEvent};
 use yew::prelude::*;
 use yew::services::reader::File;
 use yew::virtual_dom::vlist::VList;
@@ -246,7 +252,8 @@ pub fn view_menu_bar(m: &Model) -> Html {
                         defn_name.clone(),
                         // callback
                         m.link.callback(move |_| {
-                            Action::AddDefinition(first.parent().unwrap(), defn_name.clone())
+                            // Action::AddDefinition(first.parent().unwrap(), defn_name.clone(), true)
+                            Action::StageDefinition(first.parent().unwrap(), defn_name.clone())
                         }),
                     )
                 } else {

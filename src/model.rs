@@ -10,9 +10,11 @@ use std::ops::Deref;
 use std::option::Option;
 use stdweb::traits::IEvent;
 use stdweb::unstable::TryInto;
+use stdweb::web::event::{
+    ContextMenuEvent, IKeyboardEvent, KeyDownEvent, KeyPressEvent, KeyUpEvent,
+};
 use stdweb::web::{document, IElement, INode, IParentNode};
 use wasm_bindgen::JsValue;
-use yew::events::{KeyDownEvent, KeyPressEvent, KeyUpEvent};
 use yew::prelude::*;
 use yew::services::reader::{File, FileData, ReaderService, ReaderTask};
 use yew::services::ConsoleService;
@@ -930,8 +932,9 @@ impl Component for Model {
 
             Action::ReadSession(file) => {
                 let callback = self.link.callback(Action::LoadSession);
-                let task = self.reader.read_file(file, callback);
-                self.tasks.push(task);
+                if let Ok(task) = self.reader.read_file(file, callback) {
+                    self.tasks.push(task);
+                }
                 false
             }
 
@@ -1076,16 +1079,19 @@ impl Component for Model {
                     .link
                     .callback(|file_data| Action::UploadDriverMiscFile(file_data));
                 for file in misc_files {
-                    let task = self.reader.read_file(file, upload_callback.clone());
-                    self.tasks.push(task);
+                    if let Ok(task) = self.reader.read_file(file, upload_callback.clone()) {
+                        self.tasks.push(task);
+                    }
                 }
 
                 // Load main driver file. After this task has been scheduled and executed, the
                 // driver is ready for use.
-                self.tasks.push(
-                    self.reader
-                        .read_file(main_file, self.link.callback(Action::LoadDriverMainFile)),
-                );
+                if let Ok(task) = self
+                    .reader
+                    .read_file(main_file, self.link.callback(Action::LoadDriverMainFile))
+                {
+                    self.tasks.push(task);
+                }
 
                 false
             }
@@ -1098,10 +1104,9 @@ impl Component for Model {
                 //   https://www.tutorialspoint.com/electron/electron_inter_process_communication.htm
                 // And here, for the documentation for the electon_sys Rust bindings for electron.ipcRenderer:
                 //   https://docs.rs/electron-sys/0.4.0/electron_sys/struct.IpcRenderer.html
-
                 let args: [JsValue; 2] = [
                     JsValue::from_str(file_data.name.deref()),
-                    JsValue::from_str(std::str::from_utf8(&file_data.content).unwrap()),
+                    JsValue::from_str(std::str::from_utf8(&file_data.content).unwrap_or("")),
                 ];
                 ipc_renderer.send_sync("upload-driver-misc-file", Box::new(args));
                 false
@@ -1822,7 +1827,6 @@ impl Component for Model {
             }
 
             Action::SetCurrentDefinitionName(name) => {
-                info! {"current defn name: {}", name};
                 self.default_definition_name = name;
                 false
             }

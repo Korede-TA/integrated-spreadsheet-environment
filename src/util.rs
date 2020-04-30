@@ -35,15 +35,6 @@ pub fn move_grammar(m: &mut Model, source: Coordinate, dest: Coordinate) {
         m.get_session_mut()
             .grammars
             .insert(dest.clone(), source_grammar.clone());
-        // if a grammar is being moved from root to the meta, clear the original value
-        // this might not be the behaviour moving forward so we can take that out
-        if coord!("root").is_n_parent(&source.clone()).is_some()
-            && coord!("meta").is_n_parent(&dest.clone()).is_some()
-        {
-            m.get_session_mut()
-                .grammars
-                .insert(source.clone(), Grammar::default());
-        }
         // resizes new grammar
         let row_height = m.row_heights.get(&source.full_row()).unwrap_or(&30.0);
         let col_width = m.col_widths.get(&source.full_col()).unwrap_or(&90.0);
