@@ -155,7 +155,7 @@ pub fn view_menu_bar(m: &Model) -> Html {
         /* the "Nest Grid" button is special because
          * it contains fields for the variable size of the button
          */
-        <button class="menu-bar-button" onclick=m.link.callback(move |_| {
+        <button class="menu-bar-button" id="nest" onclick=m.link.callback(move |_| {
             if let Some(current) = &active_cell {
                 Action::AddNestedGrid(current.clone(), (default_row, default_col))
             } else { Action::Noop }

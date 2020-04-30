@@ -1458,8 +1458,6 @@ impl Component for Model {
                 { view_menu_bar(&self) }
 
                 { view_tab_bar(&self) }
-                <input id="integration-test-model-dump" hidden=true >{serialized_model}</input>
-
                 <div class="main">
 
                     <div id="grammars" class="grid-wrapper" style={zoom}
@@ -1522,6 +1520,7 @@ impl Component for Model {
                         { view_context_menu(&self) }
                     </div>
                 </div>
+                <input id="integration-test-model-dump" style="width: 0;height: 0;">{serialized_model}</input>
 
             </div>
         }
