@@ -1,12 +1,24 @@
+use pest::Parser;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::default::Default;
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::option::Option;
+use std::string::String;
+use std::vec::Vec;
 
+use crate::coordinate::*;
 use crate::coordinate::{Col, Coordinate, Row};
+use crate::grammar;
 use crate::style::Style;
+use crate::util::non_zero_u32_tuple;
+use crate::{coord, coord_col, coord_row, row_col_vec};
+
+#[derive(Parser)]
+#[grammar = "coordinate.pest"]
+pub struct CoordinateParser;
 
 // Grammar is the main data-type representing
 // the contents of a cell
@@ -143,6 +155,7 @@ impl Grammar {
     where
         S: Into<String>,
     {
+
         Grammar {
             name: name.into(),
             style: Style::default(),
@@ -213,4 +226,140 @@ macro_rules! grammar_table {
         grammar_table!(@step 0usize, $($n,)*);
     }
     */
+}
+
+#[cfg(test)]
+mod tests {
+    // Note this useful idiom: importing names from outer (for mod tests) scope.
+    use super::*;
+
+    #[test]
+    fn test_default_grammar() {
+        assert_eq!(Grammar::default().kind, Kind::Input("".to_string()));
+        assert_ne!(Grammar::default().kind, Kind::Text("".to_string()));
+        assert_eq!(Grammar::default().name, "".to_string());
+        assert_ne!(Grammar::default().name, " ");
+        assert_eq!(
+            Grammar::default().style.to_string(),
+            Style::default().to_string()
+        );
+    }
+
+    #[test]
+    fn test_grammar_style() {
+        assert_eq!(
+            Grammar::default().style(&coord!("root-A1")),
+            format! {"/* border: 1px; NOTE: ignoring Style::border_* for now */\nborder-collapse: inherit;\nfont-weight: 400;\ncolor: black;\n\ngrid-area: cell-root-A1;\n"}
+        );
+        assert_ne!(
+            Grammar::default().style(&coord!("root-A1")),
+            format! {"display: grid;\ngrid-area: cell-root-A1;\nheight: fit-content;\nwidth: fit-content !important;\ngrid-template-areas: \n\"cell-root-A1-A1 cell-root-A1-B1\";\n"}
+        );
+        // Type Grid
+        assert_eq!(
+            Grammar::as_grid(NonZeroU32::new(1).unwrap(), NonZeroU32::new(2).unwrap())
+                .style(&coord!("root-A1")),
+            format! {"display: grid;\ngrid-area: cell-root-A1;\nheight: fit-content;\nwidth: fit-content !important;\ngrid-template-areas: \n\"cell-root-A1-A1 cell-root-A1-B1\";\n"}
+        );
+        assert_ne!(
+            Grammar::as_grid(NonZeroU32::new(1).unwrap(), NonZeroU32::new(2).unwrap())
+                .style(&coord!("root-A1")),
+            format! {"/* border: 1px; NOTE: ignoring Style::border_* for now */\nborder-collapse: inherit;\nfont-weight: 400;\ncolor: black;\n\ngrid-area: cell-root-A1;\n"}
+        );
+    }
+
+    #[test]
+    fn test_grammar_text() {
+        assert_eq!(
+            Grammar::text("testing", "testing").name,
+            "testing".to_string(),
+        );
+
+        assert_eq!(
+            Grammar::text("testing", "testing").style.to_string(),
+            Style::default().to_string()
+        );
+    }
+
+    #[test]
+    fn test_grammar_input() {
+        assert_eq!(
+            Grammar::input("testing", "testing").name,
+            "testing".to_string(),
+        );
+
+        assert_eq!(
+            Grammar::input("testing", "testing").style.to_string(),
+            Style::default().to_string()
+        );
+        assert_ne!(
+            Grammar::input("testing", "testing").kind,
+            Kind::Input("testing ".to_string())
+        );
+    }
+
+    #[test]
+    fn test_default_button() {
+        assert_eq!(Grammar::default_button().name, "button".to_string());
+
+        assert_eq!(
+            Grammar::default_button().style.to_string(),
+            Style::default().to_string()
+        );
+
+        assert_ne!(
+            Grammar::default_button().kind,
+            Kind::Interactive(" ".to_string(), Interactive::Button())
+        );
+    }
+
+    #[test]
+    fn test_default_slider() {
+        assert_eq!(Grammar::default_slider().name, "slider".to_string());
+
+        assert_eq!(
+            Grammar::default_slider().style.to_string(),
+            Style::default().to_string()
+        );
+
+        assert_ne!(
+            Grammar::default_slider().kind,
+            Kind::Interactive(" ".to_string(), Interactive::Slider(0.0, 0.0, 100.0))
+        );
+    }
+
+    #[test]
+    fn test_default_toggle() {
+        assert_eq!(Grammar::default_toggle().name, "toggle".to_string());
+
+        assert_eq!(
+            Grammar::default_toggle().style.to_string(),
+            Style::default().to_string()
+        );
+
+        assert_ne!(
+            Grammar::default_toggle().kind,
+            Kind::Interactive(" ".to_string(), Interactive::Toggle(false))
+        );
+    }
+
+    #[test]
+    fn test_as_grid() {
+        assert_eq!(
+            Grammar::as_grid(NonZeroU32::new(1).unwrap(), NonZeroU32::new(2).unwrap()).name,
+            "".to_string()
+        );
+
+        assert_eq!(
+            Grammar::as_grid(NonZeroU32::new(1).unwrap(), NonZeroU32::new(2).unwrap())
+                .style
+                .to_string(),
+            Style::default().to_string()
+        );
+
+        assert_eq!(
+            Grammar::as_grid(NonZeroU32::new(1).unwrap(), NonZeroU32::new(2).unwrap()).kind,
+            Kind::Grid(vec![non_zero_u32_tuple((1, 1)), non_zero_u32_tuple((1, 2))])
+        );
+    }
 }
