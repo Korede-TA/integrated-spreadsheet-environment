@@ -554,32 +554,34 @@ impl Component for Model {
             }
 
             Action::LoadCSVFile(file_data, coordinate) => {
-                // info! {"{:?}", std::str::from_utf8(&file_data.content)};
-                // info! {"{:?}", std::str::from_utf8(&file_data.content).unwrap()};
                 let csv = std::str::from_utf8(&file_data.content).unwrap().to_string();
                 let mut reader = csv::Reader::from_reader(csv.as_bytes());
-
                 let mut grid : Vec<Vec<String>> = Vec::new();
+                let headers_csv = reader.headers().unwrap();
+                let mut header_row: Vec<String> = Vec::new();
+                let len_header = headers_csv.len() as i32;
+
+                for header in 0..len_header {
+                    let header_usize = header as usize;
+                    header_row.push(headers_csv.get(header_usize).unwrap().to_string());
+                }
+                grid.push(header_row);
+
                 for row in reader.records() {
                     let mut grid_row = Vec::new();
                     let row = row.unwrap();
                     let lenght_r = row.len() as i32;
                     for cell in 0..lenght_r {
-                        let cell_ = cell as usize;
-                        // info!{"** {:?}", row.get(cell_)};
-                        grid_row.push(row.get(cell_).unwrap().to_string());
+                        let cell_usize = cell as usize;
+                        grid_row.push(row.get(cell_usize).unwrap().to_string());
                     }
                     grid.push(grid_row);
                 }
                 let num_rows = grid.len();
                 let num_cols = grid[0].len();
-                info!{"## num_rows {:?}", num_rows}
-                info!{"## num_cols {:?}", num_cols}
-                info!{"## grid {:?}", grid[0]}
 
                 self.update(Action::AddNestedGrid(coordinate.clone(), (num_rows as u32, num_cols as u32)));
                 
-                info!{"$$ {:?}", coordinate.row_col()};
                 let parent = coordinate.parent().unwrap();
                 if let Some(Grammar {
                     kind: Kind::Grid(sub_coords),
@@ -587,22 +589,15 @@ impl Component for Model {
                     style,
                 }) = self.get_session().grammars.get(&parent)
                 {
-                    info!("reached function");
                     let mut grammar = self.get_session().grammars.clone();
-                    info!("{:?}", sub_coords);
                     for coord_ in sub_coords {
                         let row_ = coord_.0.get() as usize;
                         let col_ = coord_.1.get() as usize;
-                        let mut fragments: Vec<(NonZeroU32, NonZeroU32)> = Vec::new();
-                        fragments.push(coord_.clone());
-                        let c = Coordinate {
-                                row_cols: fragments,
-                                };
+                        let c = Coordinate::child_of(&coordinate, *coord_);
                         let grid_: &str = &grid[row_ - 1][col_ - 1];
                         grammar.remove(&c);
                         grammar.insert(c, Grammar::input("", grid_));
                      };
-                     info!("OUT");
                      self.get_session_mut().grammars = grammar;
                  }
                  
