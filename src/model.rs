@@ -1,6 +1,9 @@
+#![recursion_limit = "1024"]
 use electron_sys::ipc_renderer;
 use pest::Parser;
 use std::collections::{HashMap, HashSet};
+extern crate csv;
+use csv::Error;
 
 use std::num::NonZeroU32;
 use std::ops::Deref;
@@ -105,10 +108,10 @@ pub struct Model {
     // - `console` and `reader` are used to access native browser APIs for the
     //    dev console and FileReader respectively
     console: ConsoleService,
-    reader: ReaderService,
+    pub reader: ReaderService,
 
     // - `tasks` are used to store asynchronous requests to read/load files
-    tasks: Vec<ReaderTask>,
+    pub tasks: Vec<ReaderTask>,
 }
 
 #[derive(Debug)]
@@ -208,6 +211,9 @@ pub enum Action {
 
     ShowContextMenu((f64, f64)),
     HideContextMenu,
+
+    ReadCSVFile(File, Coordinate),
+    LoadCSVFile(FileData, Coordinate),
 }
 
 impl Model {
@@ -264,6 +270,8 @@ impl Model {
             })
             .collect()
     }
+
+    // Gotta move
 
     fn query_row(&self, coord_row: Row) -> Vec<Coordinate> {
         self.get_session()
@@ -482,6 +490,66 @@ impl Component for Model {
                         console.log("cannot focus on next suggestion");
                     }
                 };
+                true
+            }
+
+            Action::ReadCSVFile(file, coord) => {
+                let upload_callback = self.link.callback(move |file_data: FileData| {
+                    Action::LoadCSVFile(file_data.clone(), coord.clone())
+                });
+                let task = self.reader.read_file(file, upload_callback.clone());
+                self.tasks.push(task);
+                false
+            }
+
+            Action::LoadCSVFile(file_data, coordinate) => {
+                let csv = std::str::from_utf8(&file_data.content).unwrap().to_string();
+                let mut reader = csv::Reader::from_reader(csv.as_bytes());
+                let mut grid : Vec<Vec<String>> = Vec::new();
+                let headers_csv = reader.headers().unwrap();
+                let mut header_row: Vec<String> = Vec::new();
+                let len_header = headers_csv.len() as i32;
+
+                for header in 0..len_header {
+                    let header_usize = header as usize;
+                    header_row.push(headers_csv.get(header_usize).unwrap().to_string());
+                }
+                grid.push(header_row);
+
+                for row in reader.records() {
+                    let mut grid_row = Vec::new();
+                    let row = row.unwrap();
+                    let lenght_r = row.len() as i32;
+                    for cell in 0..lenght_r {
+                        let cell_usize = cell as usize;
+                        grid_row.push(row.get(cell_usize).unwrap().to_string());
+                    }
+                    grid.push(grid_row);
+                }
+                let num_rows = grid.len();
+                let num_cols = grid[0].len();
+
+                self.update(Action::AddNestedGrid(coordinate.clone(), (num_rows as u32, num_cols as u32)));
+                
+                let parent = coordinate.parent().unwrap();
+                if let Some(Grammar {
+                    kind: Kind::Grid(sub_coords),
+                    name,
+                    style,
+                }) = self.get_session().grammars.get(&parent)
+                {
+                    let mut grammar = self.get_session().grammars.clone();
+                    for coord_ in sub_coords {
+                        let row_ = coord_.0.get() as usize;
+                        let col_ = coord_.1.get() as usize;
+                        let c = Coordinate::child_of(&coordinate, *coord_);
+                        let grid_: &str = &grid[row_ - 1][col_ - 1];
+                        grammar.remove(&c);
+                        grammar.insert(c, Grammar::input("", grid_));
+                     };
+                     self.get_session_mut().grammars = grammar;
+                 }
+                 
                 true
             }
 
@@ -1240,45 +1308,121 @@ impl Component for Model {
                 }
                 true
             }
+            
+            // Action::Recreate => {
+            //     self.get_session_mut().grammars = hashmap! {
+            //         coord!("root")    => self.get_session_mut().root.clone(),
+            //         coord!("root-A1") => Grammar::default(),
+            //         coord!("root-A2") => Grammar::default(),
+            //         coord!("root-A3") => Grammar::default(),
+            //         coord!("root-B1") => Grammar::default(),
+            //         coord!("root-B2") => Grammar::default(),
+            //         coord!("root-B3") => Grammar::default(),
+            //         coord!("meta")    => self.get_session_mut().meta.clone(),
+            //         coord!("meta-A1") => Grammar::text("js grammar".to_string(), "This is js".to_string()),
+            //         coord!("meta-A2") => Grammar::text("java grammar".to_string(), "This is java".to_string()),
+            //         coord!("meta-A3") => Grammar {
+            //             name: "defn".to_string(),
+            //             style: Style::default(),
+            //             kind: Kind::Defn(
+            //                 "".to_string(),
+            //                 coord!("meta-A3"),
+            //                 vec![
+            //                     ("".to_string(), coord!("meta-A3-B1")),
+            //                 ],
+            //             ),
+            //         },
+            //         coord!("meta-A4") => Grammar::default_button(),
+            //         coord!("meta-A5") => Grammar::default_slider(),
+            //         coord!("meta-A6") => Grammar::default_toggle(),
+            //         coord!("meta-A3-A1")    => Grammar::default(),
+            //         coord!("meta-A3-B1")    => Grammar {
+            //             name: "root".to_string(),
+            //             style: Style::default(),
+            //             kind: Kind::Grid(row_col_vec![ (1,1), (2,1), (1,2), (2,2) ]),
+            //         },
+            //         coord!("meta-A3-B1-A1") => Grammar::input("".to_string(), "sub-grammar name".to_string()),
+            //         coord!("meta-A3-B1-B1") => Grammar::text("".to_string(), "+".to_string()),
+            //         coord!("meta-A3-B1-C1") => Grammar::default(),
+            //     };
+            //     true
+            // }
 
             Action::Recreate => {
-                self.get_session_mut().grammars = hashmap! {
-                    coord!("root")    => self.get_session_mut().root.clone(),
-                    coord!("root-A1") => Grammar::default(),
-                    coord!("root-A2") => Grammar::default(),
-                    coord!("root-A3") => Grammar::default(),
-                    coord!("root-B1") => Grammar::default(),
-                    coord!("root-B2") => Grammar::default(),
-                    coord!("root-B3") => Grammar::default(),
-                    coord!("meta")    => self.get_session_mut().meta.clone(),
-                    coord!("meta-A1") => Grammar::text("js grammar".to_string(), "This is js".to_string()),
-                    coord!("meta-A2") => Grammar::text("java grammar".to_string(), "This is java".to_string()),
-                    coord!("meta-A3") => Grammar {
-                        name: "defn".to_string(),
-                        style: Style::default(),
-                        kind: Kind::Defn(
-                            "".to_string(),
-                            coord!("meta-A3"),
-                            vec![
-                                ("".to_string(), coord!("meta-A3-B1")),
+                self.get_session_mut().grammars = {
+                    info!{"~rec is being fired"}
+                    let mut map = HashMap::new();
+                    build_grammar_map(
+                        &mut map,
+                        coord!("root"),
+                        grid![
+                            [
+                                g!(Grammar::input("", "A1")),
+                                g!(Grammar::input("", "B1")),
+                                g!(Grammar::input("", "C1"))
                             ],
-                        ),
-                    },
-                    coord!("meta-A4") => Grammar::default_button(),
-                    coord!("meta-A5") => Grammar::default_slider(),
-                    coord!("meta-A6") => Grammar::default_toggle(),
-                    coord!("meta-A3-A1")    => Grammar::default(),
-                    coord!("meta-A3-B1")    => Grammar {
-                        name: "root".to_string(),
-                        style: Style::default(),
-                        kind: Kind::Grid(row_col_vec![ (1,1), (2,1), (1,2), (2,2) ]),
-                    },
-                    coord!("meta-A3-B1-A1") => Grammar::input("".to_string(), "sub-grammar name".to_string()),
-                    coord!("meta-A3-B1-B1") => Grammar::text("".to_string(), "+".to_string()),
-                    coord!("meta-A3-B1-C1") => Grammar::default(),
+                            [
+                                g!(Grammar::input("", "A2")),
+                                g!(Grammar::input("", "B2")),
+                                g!(Grammar::input("", "C2"))
+                            ],
+                            [
+                                g!(Grammar::input("", "A3")),
+                                g!(Grammar::input("", "B3")),
+                                g!(Grammar::input("", "C3"))
+                            ]
+                        ],
+                    );
+                    build_grammar_map(
+                        &mut map,
+                        coord!("meta"),
+                        grid![
+                            [g!(Grammar::input("", "A1"))],
+                            [g!(Grammar::input("", "A2"))],
+                            [g!(Grammar::default_button())],
+                            [g!(Grammar::default_slider())],
+                            [g!(Grammar::default_toggle())]
+                        ],
+                    );
+                    build_grammar_map(
+                        &mut map,
+                        coord!("meta-A6"),
+                        grid![
+                            [
+                                g!(Grammar {
+                                    name: "defn_label".to_string(),
+                                    style: {
+                                        let mut s = Style::default();
+                                        s.font_weight = 600;
+                                        s
+                                    },
+                                    kind: Kind::Text("Define Grammar".to_string()),
+                                }),
+                                g!(Grammar {
+                                    name: "defn_name".to_string(),
+                                    style: Style::default(),
+                                    kind: Kind::Input(String::new()),
+                                })
+                            ],
+                            [grid![
+                                [
+                                    g!(Grammar::input("rule_name", "")),
+                                    g!(Grammar::input("rule_grammar", ""))
+                                ],
+                                [
+                                    g!(Grammar::input("rule_name", "")),
+                                    g!(Grammar::input("rule_grammar", ""))
+                                ]
+                            ]]
+                        ],
+                    );
+                    assert!(map.contains_key(&(coord!("root"))));
+                    map
                 };
                 true
             }
+            
+            
 
             Action::Resize(msg) => {
                 match msg {

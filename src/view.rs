@@ -1,8 +1,10 @@
+#![recursion_limit = "1024"]
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use stdweb::traits::IEvent;
 use stdweb::unstable::TryFrom;
 use stdweb::unstable::TryInto;
+use stdweb::web::event::IDragEvent;
 use stdweb::web::{html_element::InputElement, HtmlElement, IHtmlElement};
 use yew::events::{ClickEvent, IKeyboardEvent, IMouseEvent, KeyPressEvent};
 use yew::prelude::*;
@@ -206,55 +208,53 @@ pub fn view_menu_bar(m: &Model) -> Html {
             // - the last selected cell is the last (bottom-rightmost) child of the parent
             // cell, which should be a Kind::Grid grammar
             (Some(first), Some(last)) if first.parent() == last.parent() => {
-                if let Some((Kind::Grid(sub_coords))) = 
-                        /* get the coordinate of the parent, lookup the grammar, then get the grammar.kind */
-                        first
+                if let Some((Kind::Grid(sub_coords))) = /* get the coordinate of the parent, lookup the grammar, then get the grammar.kind */
+                    first
                         .parent()
                         .and_then(|c| m.get_session().grammars.get(&c))
                         .map(|g| (g.kind.clone()))
-                    {
-                        use std::cmp::Ordering;
-                        let mut sc = sub_coords.clone();
-                        sc.sort_by(|(a_row, a_col), (b_row, b_col)| {
-                            if a_row > b_row {
+                {
+                    use std::cmp::Ordering;
+                    let mut sc = sub_coords.clone();
+                    sc.sort_by(|(a_row, a_col), (b_row, b_col)| {
+                        if a_row > b_row {
+                            Ordering::Greater
+                        } else if a_row < b_row {
+                            Ordering::Less
+                        } else {
+                            if a_col > b_col {
                                 Ordering::Greater
-                            } else if a_row < b_row {
+                            } else if a_col < b_col {
                                 Ordering::Less
                             } else {
-                                if a_col > b_col {
-                                    Ordering::Greater
-                                } else if a_col < b_col {
-                                    Ordering::Less
-                                } else {
-                                    Ordering::Equal
-                                }
+                                Ordering::Equal
                             }
-                        });
-                        let first_sc = sc.first().expect(
-                            "add_definition_button: expect selection parent sub_coords.len > 1",
-                        );
-                        let last_sc = sc.last().expect(
-                            "add_definition_button: expect selection parent sub_coords.len > 1",
-                        );
-                        let defn_name = if m.default_definition_name == "" {
-                            first.parent().unwrap().to_string().replace("-", "_")
-                        } else {
-                            m.default_definition_name.clone()
-                        };
-                        (
-                            // can add definition?
-                            *first_sc == first.row_col() &&
-                            *last_sc == last.row_col(),
-                            // definition name
-                            defn_name.clone(),
-                            // callback
-                            m.link.callback(move |_| {
-                                Action::AddDefinition(first.parent().unwrap(), defn_name.clone())
-                            }),
-                        )
+                        }
+                    });
+                    let first_sc = sc.first().expect(
+                        "add_definition_button: expect selection parent sub_coords.len > 1",
+                    );
+                    let last_sc = sc.last().expect(
+                        "add_definition_button: expect selection parent sub_coords.len > 1",
+                    );
+                    let defn_name = if m.default_definition_name == "" {
+                        first.parent().unwrap().to_string().replace("-", "_")
                     } else {
-                        (false, "".to_string(), m.link.callback(|_| Action::Noop))
-                    }
+                        m.default_definition_name.clone()
+                    };
+                    (
+                        // can add definition?
+                        *first_sc == first.row_col() && *last_sc == last.row_col(),
+                        // definition name
+                        defn_name.clone(),
+                        // callback
+                        m.link.callback(move |_| {
+                            Action::AddDefinition(first.parent().unwrap(), defn_name.clone())
+                        }),
+                    )
+                } else {
+                    (false, "".to_string(), m.link.callback(|_| Action::Noop))
+                }
             }
             _ => (false, "".to_string(), m.link.callback(|_| Action::Noop)),
         };
@@ -505,7 +505,6 @@ pub fn view_defn_grammar(
             onclick=m.link.callback(|_| Action::HideContextMenu)
             class=format!{"cell grid row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
-            // style={ get_style(&m, &coord) }>
             style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
             <input
                 class="cell"
@@ -581,7 +580,6 @@ pub fn view_lookup_grammar(
             onclick=m.link.callback(|_| Action::HideContextMenu)
             class=format!{"cell suggestion lookup row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
-            // style={ get_style(&m, &coord) }>
             style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
             <b style=format!{"font-size: 20px; color: {};", random_color()}>{ "$" }</b>
             <div contenteditable=true
@@ -676,6 +674,7 @@ pub fn view_input_grammar(
     let tab_coord = coord.clone();
     let focus_coord = coord.clone();
     let drag_coord = coord.clone();
+    let is_hovered_on = coord.clone();
     let shift_key_pressed = m.shift_key_pressed;
     let new_selected_cell = coord.clone();
     let cell_classes =
@@ -757,12 +756,16 @@ pub fn view_input_grammar(
         }
         Action::Noop
     });
+    let drophandler = m.link.callback(move |e: DragDropEvent| {
+        let file = e.data_transfer().unwrap().files().iter().next().unwrap();
+        // info!{"this is csv {:?}", file}
+        Action::ReadCSVFile(file, is_hovered_on.clone())
+    });
     html! {
         <div
             onclick=m.link.callback(|_| Action::HideContextMenu)
             class=cell_classes
             id=format!{"cell-{}", coord.to_string()}
-            // style={ get_style(&m, &coord) }>
             style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
             <div contenteditable=true
                 class=cell_data_classes
@@ -825,7 +828,8 @@ pub fn view_input_grammar(
                     } else {
                         Action::Noop
                     }
-                })>
+                })
+                ondrop=drophandler >
                 { value }
             </div>
             { suggestions }
@@ -871,7 +875,6 @@ pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordina
             onclick=m.link.callback(|_| Action::HideContextMenu)
             class=format!{"\ncell grid row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
-            // style={ get_style(&m, &coord) }>
             style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
             { nodes }
         </div>
@@ -880,23 +883,58 @@ pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordina
 
 pub fn view_context_menu(m: &Model) -> Html {
     let default_options = vec![
-        ("Insert Row", m.link.callback(|_| Action::InsertRow), true, 1),
-        ("Insert Col", m.link.callback(|_| Action::InsertCol), true, 1),
-        ("Delete Row", m.link.callback(|_| Action::DeleteRow), true, 1),
-        ("Delete Col", m.link.callback(|_| Action::DeleteCol), true, 1),
-
-        ("----------",  m.link.callback(|_| Action::HideContextMenu), true, 0),
-
+        (
+            "Insert Row",
+            m.link.callback(|_| Action::InsertRow),
+            true,
+            1,
+        ),
+        (
+            "Insert Col",
+            m.link.callback(|_| Action::InsertCol),
+            true,
+            1,
+        ),
+        (
+            "Delete Row",
+            m.link.callback(|_| Action::DeleteRow),
+            true,
+            1,
+        ),
+        (
+            "Delete Col",
+            m.link.callback(|_| Action::DeleteCol),
+            true,
+            1,
+        ),
+        (
+            "----------",
+            m.link.callback(|_| Action::HideContextMenu),
+            true,
+            0,
+        ),
         ("Zoom In (+)", m.link.callback(|_| Action::ZoomIn), true, 2),
-        ("Zoom Reset", m.link.callback(|_| Action::ZoomReset), true, 2),
-        ("Zoom Out (-)", m.link.callback(|_| Action::ZoomOut), true, 2),
-
-        ("----------",  m.link.callback(|_| Action::HideContextMenu), true, 0),
-
+        (
+            "Zoom Reset",
+            m.link.callback(|_| Action::ZoomReset),
+            true,
+            2,
+        ),
+        (
+            "Zoom Out (-)",
+            m.link.callback(|_| Action::ZoomOut),
+            true,
+            2,
+        ),
+        (
+            "----------",
+            m.link.callback(|_| Action::HideContextMenu),
+            true,
+            0,
+        ),
         ("Save", m.link.callback(|_| Action::SaveSession()), true, 3),
         ("Reset", m.link.callback(|_| Action::Recreate), true, 3),
         ("Merge", m.link.callback(|_| Action::MergeCells()), false, 3),
-
     ];
     /*option Name and action are what their name means
     option_param represents the default or conditionnal render of an option
@@ -905,7 +943,7 @@ pub fn view_context_menu(m: &Model) -> Html {
     */
     let option_nodes = {
         let mut v = VList::new();
-        
+
         for (option_name, option_action, option_param, option_layer) in default_options {
             let mut should_render = true;
 
