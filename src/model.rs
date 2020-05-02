@@ -577,15 +577,12 @@ impl Component for Model {
                 let col_range = first_col.get()..=last_col.get(); 
 
                 let parent_check = self.last_select_cell.clone().unwrap().parent();
-                let depth_check = self.last_select_cell.clone().unwrap().row_cols.len();
-                info!("Depth_check = {}", depth_check);  
+                let depth_check = self.last_select_cell.clone().unwrap().row_cols.len();  
                               
                 let mut ref_grammars = self.get_session_mut().grammars.clone();
                 for (coord, grammar) in ref_grammars.clone().iter_mut() {              
                         if row_range.contains(&coord.row().get()) && col_range.contains(&coord.col().get()) && coord.parent() == parent_check                    
-                        {              
-                                          
-                            // info!("{:?}", grammar.kind);
+                        {                                                       
                             let get_kind = grammar.kind.clone();
                             match get_kind {
                                 Kind::Input(value) => {
@@ -597,7 +594,6 @@ impl Component for Model {
                                 Kind::Grid(sub_coords) => {                              
                                     for (c, g) in ref_grammars.clone().iter_mut() {
                                         if c.parent().is_some() && c.parent().unwrap() == coord.clone() {                          
-                                            info!("coord {:?}", c);
                                             g.kind =  Kind::Input("".to_string());                                 
                                             self.get_session_mut()
                                             .grammars
@@ -940,9 +936,6 @@ impl Component for Model {
                                 }
                             }
                         }
-                    
-                    // info!("tmp_width-{},tmp_heigth-{}", tmp_width.clone(), tmp_heigth.clone());
-                    // info!("current_width-{}, current_height-{}", current_width.clone(), current_height.clone());
                 }
                
                 if let Some(parent) = Coordinate::parent(&coord)
@@ -1143,8 +1136,6 @@ impl Component for Model {
                                 break;
                             }
                         } else {
-                            // info!("XD {:?}", row_coords1);
-                            // info!("Temp {:?}", temp);
                             for c in (0..row_coords1.len()).rev() {
                                 grammars.insert(row_coords1[c].clone(), temp[u].clone());
                                 u += 1;

@@ -588,7 +588,8 @@ pub fn view_lookup_grammar(
                         Action::ToggleLookup(to_toggle.clone())
                     } else { Action::Noop }
                 })
-                oninput=m.link.callback(move |e : InputData| Action::ChangeInput(c.clone(), e.value))>
+                oninput=m.link.callback(move |e : InputData| Action::ChangeInput(c.clone(), e.value))
+                >
             </div>
             { value }
             { suggestions_div }
