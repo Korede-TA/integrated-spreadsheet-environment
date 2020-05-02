@@ -552,37 +552,60 @@ impl Component for Model {
                 self.tasks.push(task);
                 false
             }
-            
+
             Action::LoadCSVFile(file_data, coordinate) => {
                 // info! {"{:?}", std::str::from_utf8(&file_data.content)};
                 // info! {"{:?}", std::str::from_utf8(&file_data.content).unwrap()};
                 let csv = std::str::from_utf8(&file_data.content).unwrap().to_string();
                 let mut reader = csv::Reader::from_reader(csv.as_bytes());
 
-                for (index, record) in reader.records().enumerate() {
-                    let record = record.unwrap();
-                    let lenght_rec = record.len();
-
-                    if index == 0 {
-                        info!{"This is length rec !! {}", lenght_rec};
-                        self.update(Action::AddNestedGrid(coordinate.clone(), (1 as u32, lenght_rec as u32)));
-                        if self.get_session_mut().grammars.contains_key(&coord!("root-B1-E1")){
-                            info!{"This is muttttt {:?}", self.get_session_mut().grammars[&coord!("root-B1-E1")]};
-                        };
-                        info!{"This is coord val {:?}", coordinate.clone()};
-                    };
-                    self.update(Action::InsertRow);
-                    info! {
-                        "In {}, {} built the {} model. It is a {}. length is {} index is {}",
-                        &record[0],
-                        &record[1],
-                        &record[2],
-                        &record[3],
-                        &lenght_rec,
-                        &index
-                    };
+                let mut grid : Vec<Vec<String>> = Vec::new();
+                for row in reader.records() {
+                    let mut grid_row = Vec::new();
+                    let row = row.unwrap();
+                    let lenght_r = row.len() as i32;
+                    for cell in 0..lenght_r {
+                        let cell_ = cell as usize;
+                        // info!{"** {:?}", row.get(cell_)};
+                        grid_row.push(row.get(cell_).unwrap().to_string());
+                    }
+                    grid.push(grid_row);
                 }
-                // info! {"{:?}", (&file_data.name.to_string())};
+                let num_rows = grid.len();
+                let num_cols = grid[0].len();
+                info!{"## num_rows {:?}", num_rows}
+                info!{"## num_cols {:?}", num_cols}
+                info!{"## grid {:?}", grid[0]}
+
+                self.update(Action::AddNestedGrid(coordinate.clone(), (num_rows as u32, num_cols as u32)));
+                
+                info!{"$$ {:?}", coordinate.row_col()};
+                let parent = coordinate.parent().unwrap();
+                if let Some(Grammar {
+                    kind: Kind::Grid(sub_coords),
+                    name,
+                    style,
+                }) = self.get_session().grammars.get(&parent)
+                {
+                    info!("reached function");
+                    let mut grammar = self.get_session().grammars.clone();
+                    info!("{:?}", sub_coords);
+                    for coord_ in sub_coords {
+                        let row_ = coord_.0.get() as usize;
+                        let col_ = coord_.1.get() as usize;
+                        let mut fragments: Vec<(NonZeroU32, NonZeroU32)> = Vec::new();
+                        fragments.push(coord_.clone());
+                        let c = Coordinate {
+                                row_cols: fragments,
+                                };
+                        let grid_: &str = &grid[row_ - 1][col_ - 1];
+                        grammar.remove(&c);
+                        grammar.insert(c, Grammar::input("", grid_));
+                     };
+                     info!("OUT");
+                     self.get_session_mut().grammars = grammar;
+                 }
+                 
                 true
             }
 
@@ -1306,7 +1329,7 @@ impl Component for Model {
                 }
                 true
             }
-
+            
             // Action::Recreate => {
             //     self.get_session_mut().grammars = hashmap! {
             //         coord!("root")    => self.get_session_mut().root.clone(),
