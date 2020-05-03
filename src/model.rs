@@ -184,6 +184,8 @@ pub enum Action {
     ZoomOut,
     ZoomReset,
 
+    NewEditor,
+
     Resize(ResizeMsg),
     SetCursorType(CursorType),
     Select(SelectMsg),
@@ -214,6 +216,11 @@ pub enum Action {
 
     ReadCSVFile(File, Coordinate),
     LoadCSVFile(FileData, Coordinate),
+
+    RunPython(
+        String, /* TODO: pass in sheet as well */
+        /* output_coord */ Coordinate,
+    ),
 }
 
 impl Model {
@@ -1553,6 +1560,39 @@ impl Component for Model {
                 self.default_definition_name = name;
                 false
             }
+
+            Action::NewEditor => {
+                match self
+                    .active_cell
+                    .clone()
+                    .and_then(|c| self.get_session_mut().grammars.get_mut(&c))
+                {
+                    Some(
+                        g
+                        @
+                        Grammar {
+                            kind: Kind::Input(_),
+                            ..
+                        },
+                    ) => {
+                        g.kind = Kind::Editor("".to_string());
+                    }
+                    _ => {
+                        info! { "[Action::NewEditor] cannot create editor from non-Input kind of grammar" }
+                    }
+                };
+                true
+            }
+
+            Action::RunPython(code, output_coord) => {
+                // TODO: find a way to return data after execution by Pyodide
+                js! {
+                    languagePluginLoader.then(() => {
+                        console.log(pyodide.runPython(@{code}));
+                    });
+                };
+                false
+            }
         };
 
         self.meta_suggestions = self
@@ -1610,7 +1650,6 @@ impl Component for Model {
                         // Global Keyboard shortcuts
                         onkeypress=self.link.callback(move |e : KeyPressEvent| {
                             let keys = key_combination(&e);
-                            info! {"global keypress: {}", keys.clone()};
                             match keys.deref() {
                                 // Tab (navigation) is handled in onkeydown
                                 "Ctrl-g" => {
