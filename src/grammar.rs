@@ -121,11 +121,13 @@ impl Grammar {
                         grid_area_str += "\"\n\"";
                     }
                     let sub_coord = Coordinate::child_of(coord, (row.clone(), col.clone()));
+                    // info!("sub_coord {:?}", sub_coord.clone());
                     grid_area_str += format! {"cell-{} ", sub_coord.to_string()}.deref();
                     prev_row = row.get();
                 }
                 grid_area_str.pop();
                 grid_area_str += "\"";
+                // info!("grid_area_str {:?}", grid_area_str.clone());
                 format! {
                     "display: grid;\ngrid-area: cell-{};\nheight: fit-content;\nwidth: fit-content !important;\ngrid-template-areas: \n{};\n",
                     coord.to_string(),
@@ -155,7 +157,6 @@ impl Grammar {
     where
         S: Into<String>,
     {
-
         Grammar {
             name: name.into(),
             style: Style::default(),

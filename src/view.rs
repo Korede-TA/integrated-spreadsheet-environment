@@ -732,7 +732,7 @@ pub fn view_input_grammar(
     let last_col_prev_row = /* TODO: get the correct value of this */ current_coord.neighbor_above();
 
     let keydownhandler = m.link.callback(move |e: KeyDownEvent| {
-        info! {"suggestion len {}", suggestions_len}
+        // info! {"suggestion len {}", suggestions_len}
         if e.code() == "Tab" {
             e.prevent_default();
             if suggestions_len > 0 {
@@ -749,7 +749,7 @@ pub fn view_input_grammar(
                     .or(first_col_next_row.clone())
                     .or(tab_coord.parent().and_then(|c| c.neighbor_right()))
             };
-            info! {"next_active_cell {}", next_active_cell.clone().unwrap().to_string()};
+            // info! {"next_active_cell {}", next_active_cell.clone().unwrap().to_string()};
             return next_active_cell.map_or(Action::Noop, |c| Action::SetActiveCell(c));
         } 
         if is_selected && (e.code() == "Backspace" || e.code() == "Delete") {       
@@ -818,7 +818,7 @@ pub fn view_input_grammar(
                         let rect = target.get_bounding_client_rect();
                         (rect.get_width() - e.offset_x(), rect.get_height() - e.offset_y())
                     };
-                    info!{"offset: {} {}", offset_x, offset_y};
+                    // info!{"offset: {} {}", offset_x, offset_y};
                     let draggable_area = 4.0;
                     if offset_x < draggable_area  || offset_y < draggable_area {
                         Action::Resize(ResizeMsg::Start(drag_coord.clone()))
