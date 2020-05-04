@@ -6,8 +6,8 @@ use stdweb::unstable::TryInto;
 use stdweb::web::{html_element::InputElement, HtmlElement, IHtmlElement};
 use yew::events::{ClickEvent, IKeyboardEvent, IMouseEvent, KeyPressEvent};
 use yew::prelude::*;
-use yew::virtual_dom::vlist::VList;
 use yew::services::reader::File;
+use yew::virtual_dom::vlist::VList;
 use yew::{html, ChangeData, Html, InputData};
 
 use crate::coordinate::Coordinate;
@@ -840,23 +840,58 @@ pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordina
 
 pub fn view_context_menu(m: &Model) -> Html {
     let default_options = vec![
-        ("Insert Row", m.link.callback(|_| Action::InsertRow), true, 1),
-        ("Insert Col", m.link.callback(|_| Action::InsertCol), true, 1),
-        ("Delete Row", m.link.callback(|_| Action::DeleteRow), true, 1),
-        ("Delete Col", m.link.callback(|_| Action::DeleteCol), true, 1),
-
-        ("----------",  m.link.callback(|_| Action::HideContextMenu), true, 0),
-
+        (
+            "Insert Row",
+            m.link.callback(|_| Action::InsertRow),
+            true,
+            1,
+        ),
+        (
+            "Insert Col",
+            m.link.callback(|_| Action::InsertCol),
+            true,
+            1,
+        ),
+        (
+            "Delete Row",
+            m.link.callback(|_| Action::DeleteRow),
+            true,
+            1,
+        ),
+        (
+            "Delete Col",
+            m.link.callback(|_| Action::DeleteCol),
+            true,
+            1,
+        ),
+        (
+            "----------",
+            m.link.callback(|_| Action::HideContextMenu),
+            true,
+            0,
+        ),
         ("Zoom In (+)", m.link.callback(|_| Action::ZoomIn), true, 2),
-        ("Zoom Reset", m.link.callback(|_| Action::ZoomReset), true, 2),
-        ("Zoom Out (-)", m.link.callback(|_| Action::ZoomOut), true, 2),
-
-        ("----------",  m.link.callback(|_| Action::HideContextMenu), true, 0),
-
+        (
+            "Zoom Reset",
+            m.link.callback(|_| Action::ZoomReset),
+            true,
+            2,
+        ),
+        (
+            "Zoom Out (-)",
+            m.link.callback(|_| Action::ZoomOut),
+            true,
+            2,
+        ),
+        (
+            "----------",
+            m.link.callback(|_| Action::HideContextMenu),
+            true,
+            0,
+        ),
         ("Save", m.link.callback(|_| Action::SaveSession()), true, 3),
         ("Reset", m.link.callback(|_| Action::Recreate), true, 3),
         ("Merge", m.link.callback(|_| Action::MergeCells()), false, 3),
-
     ];
     /*option Name and action are what their name means
     option_param represents the default or conditionnal render of an option
@@ -865,7 +900,7 @@ pub fn view_context_menu(m: &Model) -> Html {
     */
     let option_nodes = {
         let mut v = VList::new();
-        
+
         for (option_name, option_action, option_param, option_layer) in default_options {
             let mut should_render = true;
 
