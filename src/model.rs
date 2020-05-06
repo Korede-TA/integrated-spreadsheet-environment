@@ -623,6 +623,7 @@ impl Component for Model {
                         }
                         _ => (),
                     }
+                }
                 // NOTE: setting this to false messes with
                 true
             }
@@ -651,8 +652,9 @@ impl Component for Model {
                 let upload_callback = self.link.callback(move |file_data: FileData| {
                     Action::LoadCSVFile(file_data.clone(), coord.clone())
                 });
-                let task = self.reader.read_file(file, upload_callback.clone());
-                self.tasks.push(task);
+                if let Ok(task) = self.reader.read_file(file, upload_callback.clone()) {
+                    self.tasks.push(task);
+                }
                 false
             }
 
@@ -669,7 +671,6 @@ impl Component for Model {
                     header_row.push(headers_csv.get(header_usize).unwrap().to_string());
                 }
                 grid.push(header_row);
-
                 for row in reader.records() {
                     let mut grid_row = Vec::new();
                     let row = row.unwrap();
@@ -680,11 +681,9 @@ impl Component for Model {
                     }
                     grid.push(grid_row);
                 }
-                let num_rows = grid.len();
-                let num_cols = grid[0].len();
-
-                self.update(Action::AddNestedGrid(coordinate.clone(), (num_rows as u32, num_cols as u32)));
-
+                let num_rows = grid.len() as u32;
+                let num_cols = grid[0].len() as u32;
+                self.update(Action::AddNestedGrid(coordinate.clone(), (num_rows, num_cols)));
                 let parent = coordinate.parent().unwrap();
                 if let Some(Grammar {
                     kind: Kind::Grid(sub_coords),
@@ -703,7 +702,6 @@ impl Component for Model {
                      };
                      self.get_session_mut().grammars = grammar;
                  }
-                 
                 true
             }
 
@@ -1876,6 +1874,8 @@ impl Component for Model {
         if let Some(coord) = self.active_cell.clone() {
             let pos = self.current_cursor_position;
             let active_cell_id = format! {"cell-{}", coord.to_string()};
+            // This is meant to help us maintain the position of the cursor in the input
+            // consider it a temporary fix
             js! {
                 let startNode = document.getElementById(@{active_cell_id.clone()});
                 let endNode = startNode;
