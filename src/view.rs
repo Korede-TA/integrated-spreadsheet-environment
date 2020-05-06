@@ -5,14 +5,10 @@ use std::rc::Rc;
 use stdweb::traits::IEvent;
 use stdweb::unstable::TryFrom;
 use stdweb::unstable::TryInto;
-<<<<<<< HEAD
-use stdweb::web::event::IDragEvent;
-=======
 use stdweb::web::event::{
     ClickEvent, IKeyboardEvent, IMouseEvent, KeyDownEvent, KeyPressEvent, MouseDownEvent,
-    MouseOverEvent,
+    MouseOverEvent, IDragEvent
 };
->>>>>>> upgrade to Yew 0.15, with keyed attributes
 use stdweb::web::{html_element::InputElement, HtmlElement, IHtmlElement};
 use yew::prelude::*;
 use yew::services::reader::File;
@@ -599,6 +595,105 @@ pub fn view_lookup_grammar(
     }
 }
 
+pub fn view_suggestions(m: &Model, coord: Coordinate, suggestions: Vec<SuggestionType>) -> Html {
+    let mut suggestion_nodes = VList::new();
+    let mut suggestion_index = 1;
+    for suggestion in suggestions {
+        let c = coord.clone();
+        let (text, text_color, keydown_callback, click_callback) = match suggestion {
+            SuggestionType::Completion(name, completion_source_coord) => {
+                let current_coord = coord.clone();
+                let action =
+                    Action::DoCompletion(completion_source_coord.clone(), coord.clone());
+                let keyboard_action = action.clone();
+                let click_action = action.clone();
+                (
+                    name.clone(),
+                    "",
+                    m.link.callback(move |e: KeyDownEvent| {
+                        if e.code() == "Tab" {
+                            e.prevent_default();
+                            return Action::NextSuggestion(
+                                current_coord.clone(),
+                                if e.shift_key() {
+                                    suggestion_index - 1
+                                } else {
+                                    suggestion_index + 1
+                                },
+                            );
+                        } else if e.code() == "Enter" || e.code() == "Space" {
+                            return keyboard_action.clone();
+                        }
+                        Action::Noop
+                    }),
+                    m.link.callback(move |_: ClickEvent| click_action.clone()),
+                )
+            }
+            SuggestionType::Binding(name, suggestion_coord) => {
+                let current_coord = coord.clone();
+                (
+                    format! {"+ {}", name.clone()},
+                    "blue",
+                    m.link.callback(move |e: KeyDownEvent| {
+                        if e.code() == "Tab" {
+                            e.prevent_default();
+                            return Action::NextSuggestion(
+                                current_coord.clone(),
+                                if e.shift_key() {
+                                    suggestion_index - 1
+                                } else {
+                                    suggestion_index + 1
+                                },
+                            );
+                        } else if e.code() == "Enter" || e.code() == "Space" {
+                            return Action::BindDefinition(
+                                current_coord.clone(),
+                                suggestion_coord.clone(),
+                                name.clone(),
+                            );
+                        }
+                        Action::Noop
+                    }),
+                    m.link.callback(|_: ClickEvent| Action::Noop),
+                )
+            }
+            SuggestionType::Command(name, action) => {
+                let keyboard_action = action.clone();
+                let click_action = action.clone();
+                (
+                    format! {"> {}", name.clone()},
+                    "purple",
+                    m.link.callback(move |e: KeyDownEvent| {
+                        if e.code() == "Enter" || e.code() == "Space" {
+                            return keyboard_action.clone();
+                        }
+                        Action::Noop
+                    }),
+                    m.link.callback(move |_: ClickEvent| click_action.clone()),
+                )
+            }
+        };
+        suggestion_nodes.add_child(html! {
+            <a
+                id=format!{"cell-{}-suggestion-{}", c.to_string(), suggestion_index}
+                tabindex=2
+                style=format!{"color: {};", text_color}
+                onkeydown=keydown_callback
+                onclick=click_callback>
+                { text }
+            </a>
+        });
+        suggestion_index += 1;
+    }
+    html! {
+        <div
+        onclick=m.link.callback(|_| Action::HideContextMenu)
+        class="suggestion-content">
+            { suggestion_nodes }
+        </div>
+    }
+}
+
 pub fn view_input_grammar(
     m: &Model,
     coord: Coordinate,
@@ -618,112 +713,13 @@ pub fn view_input_grammar(
     } else {
         0
     };
-    let suggestions = if value.clone() != "" && is_active {
-        let mut suggestion_nodes = VList::new();
-        let mut suggestion_index = 1;
-        for suggestion in suggestions {
-            let c = coord.clone();
-            let (text, text_color, keydown_callback, click_callback) = match suggestion {
-                SuggestionType::Completion(name, completion_source_coord) => {
-                    let current_coord = coord.clone();
-                    let action =
-                        Action::DoCompletion(completion_source_coord.clone(), coord.clone());
-                    let keyboard_action = action.clone();
-                    let click_action = action.clone();
-                    (
-                        name.clone(),
-                        "",
-                        m.link.callback(move |e: KeyDownEvent| {
-                            if e.code() == "Tab" {
-                                e.prevent_default();
-                                return Action::NextSuggestion(
-                                    current_coord.clone(),
-                                    if e.shift_key() {
-                                        suggestion_index - 1
-                                    } else {
-                                        suggestion_index + 1
-                                    },
-                                );
-                            } else if e.code() == "Enter" || e.code() == "Space" {
-                                return keyboard_action.clone();
-                            }
-                            Action::Noop
-                        }),
-                        m.link.callback(move |_: ClickEvent| click_action.clone()),
-                    )
-                }
-                SuggestionType::Binding(name, suggestion_coord) => {
-                    let current_coord = coord.clone();
-                    (
-                        format! {"+ {}", name.clone()},
-                        "blue",
-                        m.link.callback(move |e: KeyDownEvent| {
-                            if e.code() == "Tab" {
-                                e.prevent_default();
-                                return Action::NextSuggestion(
-                                    current_coord.clone(),
-                                    if e.shift_key() {
-                                        suggestion_index - 1
-                                    } else {
-                                        suggestion_index + 1
-                                    },
-                                );
-                            } else if e.code() == "Enter" || e.code() == "Space" {
-                                return Action::BindDefinition(
-                                    current_coord.clone(),
-                                    suggestion_coord.clone(),
-                                    name.clone(),
-                                );
-                            }
-                            Action::Noop
-                        }),
-                        m.link.callback(|_: ClickEvent| Action::Noop),
-                    )
-                }
-                SuggestionType::Command(name, action) => {
-                    let keyboard_action = action.clone();
-                    let click_action = action.clone();
-                    (
-                        format! {"> {}", name.clone()},
-                        "purple",
-                        m.link.callback(move |e: KeyDownEvent| {
-                            if e.code() == "Enter" || e.code() == "Space" {
-                                return keyboard_action.clone();
-                            }
-                            Action::Noop
-                        }),
-                        m.link.callback(move |_: ClickEvent| click_action.clone()),
-                    )
-                }
-            };
-            suggestion_nodes.add_child(html! {
-                <a
-                    id=format!{"cell-{}-suggestion-{}", c.to_string(), suggestion_index}
-                    tabindex=2
-                    style=format!{"color: {};", text_color}
-                    onkeydown=keydown_callback
-                    onclick=click_callback>
-                    { text }
-                </a>
-            });
-            suggestion_index += 1;
-        }
-        html! {
-            <div
-            onclick=m.link.callback(|_| Action::HideContextMenu)
-            class="suggestion-content">
-                { suggestion_nodes }
-            </div>
-        }
-    } else {
-        html! { <></> }
-    };
     /*
-     * Calculate if a specific cell should be selected based on the top-rightmost
+     * Calculate if a specific cell should be selected based on the top-rightmo georgiast
      * and bottom-leftmost cells
      */
     let is_selected = cell_is_selected(&coord, &m.first_select_cell, &m.last_select_cell);
     let has_lookup_prefix: bool = value.clone() == "$";
+    // TODO: find an alternative to doing all these clonings, like wrapping Coordinate in an Rc
     let current_coord = coord.clone();
     let tab_coord = coord.clone();
     let focus_coord = coord.clone();
@@ -731,13 +727,7 @@ pub fn view_input_grammar(
     let is_hovered_on = coord.clone();
     let shift_key_pressed = m.shift_key_pressed;
     let new_selected_cell = coord.clone();
-    let cell_classes =
-        format! {"cell suggestion row-{} col-{}", coord.row_to_string(), coord.col_to_string()};
-    let cell_data_classes = format! {
-        "cell-data {} {}",
-        if is_active { "cell-active" } else { "cell-inactive" },
-        if is_selected { "selection" } else { "" }
-    };
+    let suggestion_coord = coord.clone();
     // relevant coordinates for navigation purposes
     let neighbor_left = current_coord
         .neighbor_left()
@@ -783,7 +773,6 @@ pub fn view_input_grammar(
         }
     };
     let last_col_prev_row = /* TODO: get the correct value of this */ current_coord.neighbor_above();
-
     let keydownhandler = m.link.callback(move |e: KeyDownEvent| {
         if e.code() == "Tab" {
             e.prevent_default();
@@ -810,18 +799,21 @@ pub fn view_input_grammar(
     });
     let drophandler = m.link.callback(move |e: DragDropEvent| {
         let file = e.data_transfer().unwrap().files().iter().next().unwrap();
-        // info!{"this is csv {:?}", file}
         Action::ReadCSVFile(file, is_hovered_on.clone())
     });
     html! {
         <div
             onclick=m.link.callback(|_| Action::HideContextMenu)
-            class=cell_classes
+            class=format! {"cell suggestion row-{} col-{}", coord.row_to_string(), coord.col_to_string()}
             id=format!{"cell-{}", coord.to_string()}
             key=format!{"key-{}", coord.to_string()}
             style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
             <div contenteditable=true
-                class=cell_data_classes
+                class=format! {
+                    "cell-data {} {}",
+                    if is_active { "cell-active" } else { "cell-inactive" },
+                    if is_selected { "selection" } else { "" }
+                }
                 onkeydown=keydownhandler
                 onkeypress=m.link.callback(move |e : KeyPressEvent| {
                     if e.code() == "Space" && has_lookup_prefix {
@@ -882,9 +874,15 @@ pub fn view_input_grammar(
                     }
                 })
                 ondrop=drophandler >
-                { value }
+                { value.clone() }
             </div>
-            { suggestions }
+            { 
+              if value.clone() != "" && is_active {
+                  view_suggestions(m, suggestion_coord, suggestions)
+              } else {
+                  html! { <></> }
+              }
+            }
         </div>
     }
 }
