@@ -377,16 +377,19 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                     .iter()
                     .filter(|suggestion| match suggestion {
                         SuggestionType::Completion(name, _) => {
+                            // filter suggestions by query and scoping via namespace delimiter "::"
                             let mut path = name.split("::").collect::<Vec<&str>>();
                             // info! {"{:?}", path}
-                            let name = path.pop().unwrap_or("");
-                            path.join("::") == grammar.name && name.contains(value.deref())
+                            let slot_name = path.pop().unwrap_or("");
+                            path.join("::") /* parent grammar path */ == grammar.name
+                                && slot_name.contains(value.deref())
                         }
                         SuggestionType::Binding(name, _) => name.contains(value.deref()),
                         SuggestionType::Command(name, _) => name.contains(value.deref()),
                     })
                     .cloned()
                     .collect();
+                // info! {"filtered: {:?}", suggestions};
                 view_input_grammar(m, coord.clone(), suggestions, value, is_active)
             }
             Kind::Interactive(name, Interactive::Button()) => {
@@ -397,7 +400,7 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                         key=format!{"key-{}", coord.to_string()}
                         style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
                         <button
-                        onclick=m.link.callback(|_| Action::HideContextMenu)>
+                            onclick=m.link.callback(|_| Action::HideContextMenu)>
                             { name }
                         </button>
                     </div>
@@ -798,7 +801,6 @@ pub fn view_input_grammar(
                     .or(first_col_next_row.clone())
                     .or(tab_coord.parent().and_then(|c| c.neighbor_right()))
             };
-            info! {"next_active_cell {}", next_active_cell.clone().unwrap().to_string()};
             return next_active_cell.map_or(Action::Noop, |c| Action::SetActiveCell(c));
         } 
         if is_selected && (e.code() == "Backspace" || e.code() == "Delete") {       
@@ -872,7 +874,6 @@ pub fn view_input_grammar(
                         let rect = target.get_bounding_client_rect();
                         (rect.get_width() - e.offset_x(), rect.get_height() - e.offset_y())
                     };
-                    info!{"offset: {} {}", offset_x, offset_y};
                     let draggable_area = 4.0;
                     if offset_x < draggable_area  || offset_y < draggable_area {
                         Action::Resize(ResizeMsg::Start(drag_coord.clone()))

@@ -434,7 +434,7 @@ impl Component for Model {
                             [g!(Grammar::default_button())],
                             [g!(Grammar::default_slider())],
                             [g!(Grammar::default_toggle())],
-                            [g!(Grammar::input("js", ""))],
+                            [grid!("js".to_string(), [[g!(Grammar::input("", ""))]])],
                             [grid!(
                                 "js::var".to_string(),
                                 [[
