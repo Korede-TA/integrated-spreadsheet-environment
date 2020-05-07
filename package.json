@@ -5,7 +5,7 @@
   "main": "dist/main.js",
   "scripts": {
     "dev": "watch 'npm run start' src",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "cargo test",
     "start-cargo": "cargo watch -w src/ -s './scripts/build.sh && electron .'",
     "start": "webpack --config ./webpack.config.js && electron dist/main.js",
     "watch": "cargo watch -w src/ -w static/styles.css -s 'npm run start'",
@@ -28,7 +28,7 @@
     "@wasm-tool/wasm-pack-plugin": "^1.0.1",
     "copy-webpack-plugin": "^5.0.5",
     "html-webpack-plugin": "^3.2.0",
-    "mocha": "^7.1.0",
+    "mocha": "^7.1.2",
     "spectron": "^9.0.0",
     "watch": "^1.0.2",
     "webpack": "^4.41.5",

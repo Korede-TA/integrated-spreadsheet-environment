@@ -138,12 +138,22 @@ pub fn resize(m: &mut Model, coord: Coordinate, row_height: f64, col_width: f64)
         let mut new_col_width = 0.0;
         let mut new_grammar = Grammar::default();
         if let Some(old_row_height) = m.row_heights.get_mut(&coord.full_row()) {
-            new_row_height = row_height + /* horizontal border width */ 2.0;
+            if row_height != *old_row_height {
+                // In case for the addnested row is different with the old one
+                new_row_height = row_height + /* horizontal border width */ 2.0;
+            } else {
+                new_row_height = row_height;
+            }
             row_height_diff = new_row_height - *old_row_height;
             *old_row_height = new_row_height;
         }
         if let Some(old_col_width) = m.col_widths.get_mut(&coord.full_col()) {
-            new_col_width = col_width + /* vertiacl border height */ 2.0;
+            if col_width != *old_col_width {
+                // In case for the addnested col is different with the old one
+                new_col_width = col_width + /* vertiacl border height */ 2.0;
+            } else {
+                new_col_width = col_width + 0.0;
+            }
             col_width_diff = new_col_width - *old_col_width;
             *old_col_width = new_col_width;
         }

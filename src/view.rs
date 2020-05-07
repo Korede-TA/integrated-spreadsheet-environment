@@ -16,6 +16,8 @@ use crate::model::{Action, CursorType, Model, ResizeMsg, SelectMsg, SideMenu};
 use crate::style::get_style;
 use crate::util::non_zero_u32_tuple;
 
+static mut check: bool = true;
+
 pub fn view_side_nav(m: &Model) -> Html {
     let mut side_menu_nodes = VList::new();
     let mut side_menu_section = html! { <></> };
@@ -146,6 +148,7 @@ pub fn view_side_menu(m: &Model, side_menu: &SideMenu) -> Html {
 
 pub fn view_menu_bar(m: &Model) -> Html {
     let active_cell = m.active_cell.clone();
+    let nest_active_cell = m.active_cell.clone();
     let (default_row, default_col) = {
         let (r, c) = m.default_nested_row_cols.clone();
         (r.get(), c.get())
@@ -155,11 +158,18 @@ pub fn view_menu_bar(m: &Model) -> Html {
         /* the "Nest Grid" button is special because
          * it contains fields for the variable size of the button
          */
-        <button class="menu-bar-button" id="nest" onclick=m.link.callback(move |_| {
-            if let Some(current) = &active_cell {
-                Action::AddNestedGrid(current.clone(), (default_row, default_col))
-            } else { Action::Noop }
-        })>
+        <button class="menu-bar-button" id="nest" 
+            onmousedown=m.link.callback(move |e : MouseDownEvent| {
+                if let Some(current) = &active_cell {
+                    Action::AddNestedGrid(current.clone(), (default_row, default_col))            
+                } else { Action::Noop }
+            })
+            onmouseup=m.link.callback(move |e : MouseUpEvent| {
+                if let Some(current) = &nest_active_cell.clone() {
+                    Action::SetActiveCell(current.clone())            
+                } else { Action::Noop }
+            })     
+        >
             { "Nest Grid  " }
             <input
                 class="active-cell-indicator"
@@ -587,7 +597,7 @@ pub fn view_lookup_grammar(
             <div contenteditable=true
                 class=format!{
                         "cell-data {}",
-                        if is_active { "cell-active" } else { "cell-inactive" },
+                        if is_active { "cell-active " } else { "cell-inactive" },
                       }
                 placeholder="coordinate"
                 ref={
@@ -676,15 +686,17 @@ pub fn view_input_grammar(
     let tab_coord = coord.clone();
     let focus_coord = coord.clone();
     let drag_coord = coord.clone();
+    let onchange_coord = coord.clone();
     let shift_key_pressed = m.shift_key_pressed;
     let new_selected_cell = coord.clone();
     let cell_classes =
         format! {"cell suggestion row-{} col-{}", coord.row_to_string(), coord.col_to_string()};
     let cell_data_classes = format! {
         "cell-data {} {}",
-        if is_active { "cell-active" } else { "cell-inactive" },
+        if is_active { "cell-active " } else { "cell-inactive" },
         if is_selected { "selection" } else { "" }
     };
+
     // relevant coordinates for navigation purposes
     let neighbor_left = current_coord
         .neighbor_left()
@@ -757,13 +769,23 @@ pub fn view_input_grammar(
         }
         Action::Noop
     });
+
     html! {
         <div
             onclick=m.link.callback(|_| Action::HideContextMenu)
             class=cell_classes
             id=format!{"cell-{}", coord.to_string()}
             // style={ get_style(&m, &coord) }>
-            style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }>
+            style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }
+            onchange=m.link.callback(move |e : ChangeData| {
+                info!("change data");
+                if !shift_key_pressed {
+                    Action::SetActiveCell(onchange_coord.clone())
+                } else {
+                    Action::Noop
+                }
+            })
+            >
             <div contenteditable=true
                 class=cell_data_classes
                 onkeydown=keydownhandler
@@ -880,23 +902,58 @@ pub fn view_grid_grammar(m: &Model, coord: &Coordinate, sub_coords: Vec<Coordina
 
 pub fn view_context_menu(m: &Model) -> Html {
     let default_options = vec![
-        ("Insert Row", m.link.callback(|_| Action::InsertRow), true, 1),
-        ("Insert Col", m.link.callback(|_| Action::InsertCol), true, 1),
-        ("Delete Row", m.link.callback(|_| Action::DeleteRow), true, 1),
-        ("Delete Col", m.link.callback(|_| Action::DeleteCol), true, 1),
-
-        ("----------",  m.link.callback(|_| Action::HideContextMenu), true, 0),
-
+        (
+            "Insert Row",
+            m.link.callback(|_| Action::InsertRow),
+            true,
+            1,
+        ),
+        (
+            "Insert Col",
+            m.link.callback(|_| Action::InsertCol),
+            true,
+            1,
+        ),
+        (
+            "Delete Row",
+            m.link.callback(|_| Action::DeleteRow),
+            true,
+            1,
+        ),
+        (
+            "Delete Col",
+            m.link.callback(|_| Action::DeleteCol),
+            true,
+            1,
+        ),
+        (
+            "----------",
+            m.link.callback(|_| Action::HideContextMenu),
+            true,
+            0,
+        ),
         ("Zoom In (+)", m.link.callback(|_| Action::ZoomIn), true, 2),
-        ("Zoom Reset", m.link.callback(|_| Action::ZoomReset), true, 2),
-        ("Zoom Out (-)", m.link.callback(|_| Action::ZoomOut), true, 2),
-
-        ("----------",  m.link.callback(|_| Action::HideContextMenu), true, 0),
-
+        (
+            "Zoom Reset",
+            m.link.callback(|_| Action::ZoomReset),
+            true,
+            2,
+        ),
+        (
+            "Zoom Out (-)",
+            m.link.callback(|_| Action::ZoomOut),
+            true,
+            2,
+        ),
+        (
+            "----------",
+            m.link.callback(|_| Action::HideContextMenu),
+            true,
+            0,
+        ),
         ("Save", m.link.callback(|_| Action::SaveSession()), true, 3),
         ("Reset", m.link.callback(|_| Action::Recreate), true, 3),
         ("Merge", m.link.callback(|_| Action::MergeCells()), false, 3),
-
     ];
     /*option Name and action are what their name means
     option_param represents the default or conditionnal render of an option
@@ -905,7 +962,7 @@ pub fn view_context_menu(m: &Model) -> Html {
     */
     let option_nodes = {
         let mut v = VList::new();
-        
+
         for (option_name, option_action, option_param, option_layer) in default_options {
             let mut should_render = true;
 
@@ -1006,3 +1063,4 @@ fn random_color() -> String {
     .try_into()
     .unwrap()
 }
+

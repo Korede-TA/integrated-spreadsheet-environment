@@ -283,6 +283,44 @@ impl Model {
             })
             .collect()
     }
+    fn Reassign(&mut self, Coord: Coordinate, mut grammars: HashMap<Coordinate, Grammar>, i: i32) -> HashMap<Coordinate, Grammar> {
+
+        // let mut grammars = self.get_session_mut().grammars.clone();
+        let mut new_parent: Coordinate;
+        if let Some(Grammar {
+            kind: Kind::Grid(sub_coords),
+            name: _,
+            style: _,
+        }) = &mut grammars.get(&Coord.clone())
+        {   
+            match i{
+                0 => {new_parent = Coordinate::child_of(&Coord.parent().unwrap(), (NonZeroU32::new(Coord.row().get() - 1).unwrap(), Coord.col()))}
+                _ => {new_parent = Coordinate::child_of(&Coord.parent().unwrap(), (Coord.row(), (NonZeroU32::new(Coord.col().get() - 1).unwrap())))}
+            }
+            // take old parent coord to copy its grammar into the new_parent coordinate for each sub_coordinates
+            let mut grammar_copy = grammars.clone();
+            for child_ in sub_coords {
+                
+                let old_coord = Coordinate::child_of(&Coord, *child_);
+                info!("Old {:?}", old_coord);
+                let new_coord = Coordinate::child_of(&new_parent, *child_);
+                info!("New {:?}", new_coord);
+                grammar_copy.insert(new_coord.clone(), grammar_copy.get(&old_coord.clone()).clone().unwrap().clone());
+                grammar_copy.remove(&old_coord);
+                if let Some(Grammar {
+                    kind: Kind::Grid(sub_coords_temp),
+                    name: _,
+                    style: _,
+                }) = &mut grammars.get(&old_coord.clone())
+                { 
+                    grammar_copy = self.Reassign(old_coord.clone(), grammar_copy.clone(), i);
+                }
+            }
+            grammars = grammar_copy;
+        }
+        
+        grammars
+    }
 }
 
 impl Component for Model {
@@ -358,19 +396,53 @@ impl Component for Model {
                                 g!(Grammar::input("", "A3")),
                                 g!(Grammar::input("", "B3")),
                                 g!(Grammar::input("", "C3"))
-                                // grid![
-                                //     [
-                                //         g!(Grammar::input("", "C3-A1")),
-                                //         g!(Grammar::input("", "C3-B1"))
-                                //     ],
-                                //     [
-                                //         g!(Grammar::input("", "C3-A2")),
-                                //         g!(Grammar::input("", "C3-B2"))
-                                //     ]
-                                // ]
                             ]
                         ],
                     );
+                    build_grammar_map(
+                        &mut map,
+                        coord!("meta"),
+                        grid![
+                            [g!(Grammar::input("", "A1"))],
+                            [g!(Grammar::input("", "A2"))],
+                            [g!(Grammar::default_button())],
+                            [g!(Grammar::default_slider())],
+                            [g!(Grammar::default_toggle())]
+                        ],
+                    );
+                    build_grammar_map(
+                        &mut map,
+                        coord!("meta-A6"),
+                        grid![
+                            [
+                                g!(Grammar {
+                                    name: "defn_label".to_string(),
+                                    style: {
+                                        let mut s = Style::default();
+                                        s.font_weight = 600;
+                                        s
+                                    },
+                                    kind: Kind::Text("Define Grammar".to_string()),
+                                }),
+                                g!(Grammar {
+                                    name: "defn_name".to_string(),
+                                    style: Style::default(),
+                                    kind: Kind::Input(String::new()),
+                                })
+                            ],
+                            [grid![
+                                [
+                                    g!(Grammar::input("rule_name", "")),
+                                    g!(Grammar::input("rule_grammar", ""))
+                                ],
+                                [
+                                    g!(Grammar::input("rule_name", "")),
+                                    g!(Grammar::input("rule_grammar", ""))
+                                ]
+                            ]]
+                        ],
+                    );
+                    assert!(map.contains_key(&(coord!("root"))));
                     map
                 },
             }],
@@ -686,34 +758,38 @@ impl Component for Model {
             }
 
             Action::ReadSession(file) => {
-                let callback = self.link.callback(Action::LoadSession);
-                let task = self.reader.read_file(file, callback);
-                self.tasks.push(task);
+                info!("in here");
+                
+                self.tasks.push(self.reader.read_file(file, 
+                    self.link.callback(Action::LoadSession)));
+                info!("task");
                 false
             }
 
             Action::LoadSession(file_data) => {
+                info!("file data: {:?}", file_data);
                 let session: Session =
-                    serde_json::from_str(format! {"{:?}", file_data}.deref()).unwrap();
+                    serde_json::from_str(format! {"{:?}", file_data.content}.deref()).unwrap();
+                info!(" LOADSESSION");
                 self.load_session(session);
                 true
             }
             Action::SaveSession() => {
-                /* TODO: uncomment when this is working
+                // TODO: uncomment when this is working
                 use node_sys::fs as node_fs;
                 use node_sys::Buffer;
                 use js_sys::{
                     JsString,
                     Function
                 };
-                let session = self.to_session();
-                let j = serde_json::to_string(&session.clone());
-                let filename = session.title.to_string();
+                let current_session = self.to_session();
+                let j = serde_json::to_string(&current_session.clone());
+                let filename = current_session.title.to_string() + ".json";
                 let jsfilename = JsString::from(filename);
                 let jsbuffer = Buffer::from_string(&JsString::from(j.unwrap()), None);
                 let jscallback = Function::new_no_args("{}");
                 node_fs::append_file(&jsfilename, &jsbuffer, None, &jscallback);
-                */
+                
                 false
             }
 
@@ -825,6 +901,8 @@ impl Component for Model {
                     info!("Expect a cell is active");
                     return false;
                 }
+
+                let mut change_active = false;
                 // height and width initial value
                 let mut tmp_heigth = 30.0;
                 let mut tmp_width = 90.0;
@@ -842,23 +920,24 @@ impl Component for Model {
                                
                     let current_width = current_grammar.style.width;
                     let current_height = current_grammar.style.height;
+                    
 
                     // check if active cell row height and width is greater than default value
                     if current_width > tmp_width {
                         // set height argument to active cell height if greater
                         // TODO: use the actual number of columns instead of hard coded "3" .
-                        tmp_width = current_width / 3.0;
+                        tmp_width = current_width / (cols as f64);
+                        
                     }
                     if current_height > tmp_heigth {
                         // set width argument to active cell width if greater
                         // TODO: use the actual number of rows instead of hard coded "3" .
-                        tmp_heigth = current_height / 3.0;
+                        tmp_heigth = current_height / (rows as f64);
                     }
 
                     for sub_coord in sub_coords {
                         let new_coord = Coordinate::child_of(&coord, sub_coord);
                         
-
                         self.get_session_mut()
                             .grammars
                             .insert(new_coord.clone(), Grammar::default());
@@ -880,17 +959,11 @@ impl Component for Model {
                     }
 
                 }
-               
-                if let Some(parent) = Coordinate::parent(&coord)
-                    .and_then(|p| self.get_session_mut().grammars.get_mut(&p))
-                {
-                    parent.kind = grammar.clone().kind; // make sure the parent gets set to Kind::Grid
-                } 
-                 
                 if current_grammar.style.row_span.0 != 0 || current_grammar.style.col_span.0 != 0 {
                     grammar.style.row_span = current_grammar.style.row_span.clone();
                     grammar.style.col_span = current_grammar.style.col_span.clone();
                 }
+              
                 self.get_session_mut()
                     .grammars
                     .insert(coord.clone(), grammar.clone());           
@@ -901,7 +974,6 @@ impl Component for Model {
                     (cols as f64) * (/* default col width */tmp_width),
                 );
                 
-               
                 true
             }
 
@@ -1016,12 +1088,12 @@ impl Component for Model {
                     //Have to initialize many things for them to work in loop
                     let mut next_row = coord.clone();
                     let mut grammars = self.get_session_mut().grammars.clone();
-                    let mut row_coords1 = self.query_row(next_row.full_row());
+                    let mut cur_row_coord = self.query_row(next_row.full_row());
                     let _parent = coord.parent().unwrap();
 
                     let mut temp: Vec<Grammar> = vec![];
                     let mut u = 0;
-                    let mut row_coords2 = self.query_row(next_row.full_row());
+                    let mut next_row_coord = self.query_row(next_row.full_row());
                     let mut new_row_coords: std::vec::Vec<(
                         std::num::NonZeroU32,
                         std::num::NonZeroU32,
@@ -1030,22 +1102,30 @@ impl Component for Model {
                     //Changing each rowfrom the one being deleted
                     while let Some(below_coord) = next_row.neighbor_below() {
                         temp.clear();
-                        row_coords2 = self.query_row(below_coord.full_row());
-                        if row_coords2.len() != 0 {
+                        next_row_coord = self.query_row(below_coord.full_row());
+                        if next_row_coord.len() != 0 {
                             temp = std::vec::from_elem(
-                                grammars[&row_coords2[0]].clone(),
-                                row_coords2.len(),
+                                grammars[&next_row_coord[0]].clone(),
+                                next_row_coord.len(),
                             );
 
-                            //each grammar copied
-                            for i in row_coords2.clone() {
+                            // each grammar copied
+                            for i in next_row_coord.clone() {
                                 u = i.col().get() as usize;
                                 temp.insert(u, grammars[&i].clone());
                             }
                             u = 0;
                         }
-
-                        if temp.len() == 0 {
+                        // checking if last row
+                        if temp.len() != 0 {
+                            // for loop for reassignment
+                            for c in (0..cur_row_coord.len()).rev() {
+                                grammars = self.Reassign(cur_row_coord[c].clone(), grammars.clone(), 0);
+                                grammars.insert(cur_row_coord[c].clone(), temp[u].clone());                                
+                                u += 1;
+                            }
+                            u = 0;       
+                        } else {
                             let parent = next_row.parent().unwrap();
                             if let Some(Grammar {
                                 kind: Kind::Grid(sub_coords),
@@ -1055,7 +1135,7 @@ impl Component for Model {
                             {
                                 new_row_coords = sub_coords.clone();
 
-                                for c in row_coords1.clone() {
+                                for c in cur_row_coord.clone() {
                                     for i in (0..new_row_coords.len()).rev() {
                                         if new_row_coords[i] == (c.row(), c.col()) {
                                             new_row_coords.remove(i);
@@ -1068,6 +1148,9 @@ impl Component for Model {
                                 }
                                 grammars.remove(&parent);
                                 grammars.remove(&next_row);
+                                for i in next_row_coord.clone() {
+                                    grammars.remove(&i);
+                                }
                                 grammars.insert(
                                     parent,
                                     Grammar {
@@ -1078,15 +1161,9 @@ impl Component for Model {
                                 );
                                 break;
                             }
-                        } else {
-                            for c in (0..row_coords1.len()).rev() {
-                                grammars.insert(row_coords1[c].clone(), temp[u].clone());
-                                u += 1;
-                            }
-                            u = 0;
                         }
 
-                        row_coords1 = row_coords2.clone();
+                        cur_row_coord = next_row_coord.clone();
                         next_row = below_coord;
                     }
                     self.get_session_mut().grammars = grammars;
@@ -1099,12 +1176,12 @@ impl Component for Model {
                     //Have to initialize many things for them to work in loop
                     let mut next_col = coord.clone();
                     let mut grammars = self.get_session_mut().grammars.clone();
-                    let mut col_coords1 = self.query_col(next_col.full_col());
+                    let mut cur_col_coord = self.query_col(next_col.full_col());
                     let parent = coord.parent().unwrap();
 
                     let mut temp: Vec<Grammar> = vec![];
                     let mut u = 0;
-                    let mut col_coords2 = self.query_col(next_col.full_col());
+                    let mut next_col_coord = self.query_col(next_col.full_col());
                     let mut new_col_coords: std::vec::Vec<(
                         std::num::NonZeroU32,
                         std::num::NonZeroU32,
@@ -1121,22 +1198,29 @@ impl Component for Model {
                     //Changing each colfrom the one being deleted
                     while let Some(right_coord) = next_col.neighbor_right() {
                         temp.clear();
-                        col_coords2 = self.query_col(right_coord.full_col());
-                        if col_coords2.len() != 0 {
+                        next_col_coord = self.query_col(right_coord.full_col());
+                        if next_col_coord.len() != 0 {
                             temp = std::vec::from_elem(
-                                grammars[&col_coords2[0]].clone(),
-                                col_coords2.len(),
+                                grammars[&next_col_coord[0]].clone(),
+                                next_col_coord.len(),
                             );
 
                             //each grammar copied
-                            for i in col_coords2.clone() {
+                            for i in next_col_coord.clone() {
                                 u = i.col().get() as usize;
                                 temp.insert(u, grammars[&i].clone());
                             }
 
                             u = 0;
                         }
-                        if temp.len() == 0 {
+                        if temp.len() != 0 {
+                                for c in (0..cur_col_coord.len()).rev() {
+                                    grammars = self.Reassign(cur_col_coord[c].clone(), grammars.clone(), 1);
+                                    grammars.insert(cur_col_coord[c].clone(), temp[u].clone());
+                                    u += 1;
+                                }
+                                u = 0;
+                        }else{
                             let parent = next_col.parent().unwrap();
                             if let Some(Grammar {
                                 kind: Kind::Grid(sub_coords),
@@ -1146,7 +1230,7 @@ impl Component for Model {
                             {
                                 new_col_coords = sub_coords.clone();
 
-                                for c in col_coords1.clone() {
+                                for c in cur_col_coord.clone() {
                                     for i in (0..new_col_coords.len()).rev() {
                                         if new_col_coords[i] == (c.row(), c.col()) {
                                             new_col_coords.remove(i);
@@ -1159,6 +1243,9 @@ impl Component for Model {
                                 }
                                 grammars.remove(&parent);
                                 grammars.remove(&next_col);
+                                for c in next_col_coord.clone() {
+                                    grammars.remove(&c);
+                                }
                                 grammars.insert(
                                     parent,
                                     Grammar {
@@ -1169,15 +1256,9 @@ impl Component for Model {
                                 );
                                 break;
                             }
-                        } else {
-                            for c in (0..col_coords1.len()).rev() {
-                                grammars.insert(col_coords1[c].clone(), temp[u].clone());
-                                u += 1;
-                            }
-                            u = 0;
                         }
 
-                        col_coords1 = col_coords2.clone();
+                        cur_col_coord = next_col_coord.clone();
                         next_col = right_coord;
                     }
                     self.get_session_mut().grammars = grammars;
@@ -1488,6 +1569,7 @@ where
 
 fn focus_on_cell(c: &Coordinate) {
     let cell_id = format! {"cell-{}", c.to_string()};
+    info!("cell_id {:?}", cell_id.clone());   
     js! {
         try {
             let element = document.getElementById(@{cell_id.clone()});
