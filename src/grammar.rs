@@ -143,7 +143,6 @@ impl Grammar {
     where
         S: Into<String>,
     {
-
         Grammar {
             name: name.into(),
             style: Style::default(),

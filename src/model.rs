@@ -20,9 +20,10 @@ use crate::grammar_map::*;
 use crate::session::Session;
 use crate::style::Style;
 use crate::util::{move_grammar, non_zero_u32_tuple, resize, resize_diff};
-use crate::view::{view_context_menu, view_grammar, view_menu_bar, view_side_nav, view_tab_bar};
+use crate::view::{
+    view_context_menu, view_file_popup, view_grammar, view_menu_bar, view_side_nav, view_tab_bar,
+};
 use crate::{coord, coord_col, coord_row, g, grid, row_col_vec};
-
 
 #[derive(Parser)]
 #[grammar = "coordinate.pest"]
@@ -55,6 +56,8 @@ pub struct Model {
 
     // - `zoom` is the value that corresponds to how "zoomed" the sheet is
     pub zoom: f32,
+    // - 'file-popup' bool to ask for file name and location when saving
+    pub file_popup: bool,
 
     // - `meta_suggestions` contains a map of the name of suggestions to the
     //   suggested grammars stored in coord_col!("meta", "A")
@@ -158,6 +161,8 @@ pub enum Action {
     ),
 
     SetActiveMenu(Option<i32>),
+
+    AskFileName(),
 
     ReadSession(/* filename: */ File),
 
@@ -283,12 +288,16 @@ impl Model {
             })
             .collect()
     }
-    fn reassign(&mut self, coord: Coordinate, mut grammars: HashMap<Coordinate, Grammar>, i: i32) -> HashMap<Coordinate, Grammar> {
-
+    fn reassign(
+        &mut self,
+        coord: Coordinate,
+        mut grammars: HashMap<Coordinate, Grammar>,
+        i: i32,
+    ) -> HashMap<Coordinate, Grammar> {
         // let mut grammars = self.get_session_mut().grammars.clone();
         let new_parent: Coordinate;
-        if coord.col().get() == 1 || coord.row().get() == 1{
-            return grammars
+        if coord.col().get() == 1 || coord.row().get() == 1 {
+            return grammars;
         }
         // height and width initial value
         // let mut tmp_heigth = 30.0;
@@ -299,12 +308,22 @@ impl Model {
             name: _,
             style: _,
         }) = &mut grammars.get(&coord.clone())
-        {    
-            match i{
-                0 => {new_parent = Coordinate::child_of(&coord.parent().unwrap(), ( NonZeroU32::new(coord.row().get() - 1).unwrap(), coord.col() ) )}
-                _ => {new_parent = Coordinate::child_of(&coord.parent().unwrap(), ( coord.row(), NonZeroU32::new(coord.col().get() - 1).unwrap() ) )}
+        {
+            match i {
+                0 => {
+                    new_parent = Coordinate::child_of(
+                        &coord.parent().unwrap(),
+                        (NonZeroU32::new(coord.row().get() - 1).unwrap(), coord.col()),
+                    )
+                }
+                _ => {
+                    new_parent = Coordinate::child_of(
+                        &coord.parent().unwrap(),
+                        (coord.row(), NonZeroU32::new(coord.col().get() - 1).unwrap()),
+                    )
+                }
             }
-            
+
             // take old parent coord to copy its grammar into the new_parent coordinate for each sub_coordinates
             let mut grammar_copy = grammars.clone();
             // let current_width = grammar_copy[&coord.clone()].style.width;
@@ -325,10 +344,16 @@ impl Model {
             // let mut cols = 0;
 
             for child_ in sub_coords {
-                
                 let old_coord = Coordinate::child_of(&coord, *child_);
                 let new_coord = Coordinate::child_of(&new_parent, *child_);
-                grammar_copy.insert(new_coord.clone(), grammar_copy.get(&old_coord.clone()).clone().unwrap().clone());
+                grammar_copy.insert(
+                    new_coord.clone(),
+                    grammar_copy
+                        .get(&old_coord.clone())
+                        .clone()
+                        .unwrap()
+                        .clone(),
+                );
                 grammar_copy.remove(&old_coord);
 
                 // if child_.0.get() > rows{
@@ -343,7 +368,7 @@ impl Model {
                     name: _,
                     style: _,
                 }) = &mut grammars.get(&old_coord.clone())
-                { 
+                {
                     grammar_copy = self.reassign(old_coord.clone(), grammar_copy.clone(), i);
                 }
             }
@@ -357,7 +382,7 @@ impl Model {
             // );
             grammars = grammar_copy;
         }
-        
+
         grammars
     }
 }
@@ -410,6 +435,7 @@ impl Component for Model {
             min_select_cell: None,
             max_select_cell: None,
             zoom: 1.0,
+            file_popup: false,
 
             sessions: vec![Session {
                 title: "my session".to_string(),
@@ -768,9 +794,11 @@ impl Component for Model {
 
             Action::ReadSession(file) => {
                 info!("in here");
-                
-                self.tasks.push(self.reader.read_file(file, 
-                    self.link.callback(Action::LoadSession)));
+
+                self.tasks.push(
+                    self.reader
+                        .read_file(file, self.link.callback(Action::LoadSession)),
+                );
                 info!("task");
                 false
             }
@@ -783,14 +811,16 @@ impl Component for Model {
                 self.load_session(session);
                 true
             }
+            Action::AskFileName() => {
+                self.file_popup = !self.file_popup;
+                true
+            }
+
             Action::SaveSession() => {
                 // TODO: uncomment when this is working
+                use js_sys::{Function, JsString};
                 use node_sys::fs as node_fs;
                 use node_sys::Buffer;
-                use js_sys::{
-                    JsString,
-                    Function
-                };
                 let current_session = self.to_session();
                 let j = serde_json::to_string(&current_session.clone());
                 let filename = current_session.title.to_string() + ".json";
@@ -798,8 +828,9 @@ impl Component for Model {
                 let jsbuffer = Buffer::from_string(&JsString::from(j.unwrap()), None);
                 let jscallback = Function::new_no_args("{}");
                 node_fs::append_file(&jsfilename, &jsbuffer, None, &jscallback);
-                
-                false
+                self.update(Action::AskFileName());
+
+                true
             }
 
             Action::SetSessionTitle(name) => {
@@ -1184,11 +1215,12 @@ impl Component for Model {
                         if temp.len() != 0 {
                             // for loop for reassignment
                             for c in (0..cur_row_coord.len()).rev() {
-                                grammars = self.reassign(cur_row_coord[c].clone(), grammars.clone(), 0);
-                                grammars.insert(cur_row_coord[c].clone(), temp[u].clone());                                
+                                grammars =
+                                    self.reassign(cur_row_coord[c].clone(), grammars.clone(), 0);
+                                grammars.insert(cur_row_coord[c].clone(), temp[u].clone());
                                 u += 1;
                             }
-                            u = 0;       
+                            u = 0;
                         } else {
                             let parent = next_row.parent().unwrap();
                             if let Some(Grammar {
@@ -1278,14 +1310,14 @@ impl Component for Model {
                             u = 0;
                         }
                         if temp.len() != 0 {
-                            
-                                for c in (0..cur_col_coord.len()).rev() {
-                                    grammars = self.reassign(cur_col_coord[c].clone(), grammars.clone(), 1);
-                                    grammars.insert(cur_col_coord[c].clone(), temp[u].clone());
-                                    u += 1;
-                                }
-                                u = 0;
-                        }else{
+                            for c in (0..cur_col_coord.len()).rev() {
+                                grammars =
+                                    self.reassign(cur_col_coord[c].clone(), grammars.clone(), 1);
+                                grammars.insert(cur_col_coord[c].clone(), temp[u].clone());
+                                u += 1;
+                            }
+                            u = 0;
+                        } else {
                             let parent = next_col.parent().unwrap();
                             if let Some(Grammar {
                                 kind: Kind::Grid(sub_coords),
@@ -1536,6 +1568,7 @@ impl Component for Model {
             onclick=self.link.callback(move |e: ClickEvent| {
                 Action::HideContextMenu
             })>
+                { view_file_popup(&self) }
 
                 { view_side_nav(&self) }
 
