@@ -59,7 +59,7 @@ pub fn non_zero_u32_tuple(val: (u32, u32)) -> (NonZeroU32, NonZeroU32) {
 
 pub fn row_col_to_string((row, col): (u32, u32)) -> String {
     let row_str = row.to_string();
-    let col_str = from_u32(col + 64).unwrap();
+    let col_str = column_name_from_number((col-1) as usize);
     format! {"{}{}", col_str, row_str}
 }
 
@@ -83,6 +83,33 @@ pub fn coord_show(row_cols: Vec<(u32, u32)>) -> Option<String> {
         }
         _ => None,
     }
+}
+
+pub fn column_name_from_number(num: usize) -> String {
+    const ALPHABET_LEN: usize = 26;
+    // usize::MAX is "GKGWBYLWRXTLPP" with a length of 15 characters
+    const MAX_LEN: usize = 15;
+
+    #[inline(always)]
+    fn u8_to_char(input: u8) -> u8 {
+        'A' as u8 + input
+    }
+
+    let mut result = [0;MAX_LEN + 1];
+    let mut multiple_of_alphabet = num / ALPHABET_LEN;
+    let mut character_count = 0;
+
+    while multiple_of_alphabet != 0 && character_count < MAX_LEN {
+        let remainder = (multiple_of_alphabet - 1) % ALPHABET_LEN;
+        result[(MAX_LEN - 1) - character_count] = u8_to_char(remainder as u8);
+        character_count += 1;
+        multiple_of_alphabet = (multiple_of_alphabet - 1) / ALPHABET_LEN;
+    }
+
+    result[MAX_LEN] = u8_to_char((num % ALPHABET_LEN) as u8);
+    let zeroed_characters = MAX_LEN.saturating_sub(character_count);
+    let slice = &result[zeroed_characters..];
+    unsafe { ::std::str::from_utf8_unchecked(slice) }.to_string()
 }
 
 pub fn apply_definition_grammar(m: &mut Model, root_coord: Coordinate) {

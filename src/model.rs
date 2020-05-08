@@ -468,40 +468,7 @@ impl Component for Model {
                             )]
                         ],
                     );
-                    build_grammar_map(
-                        &mut map,
-                        coord!("meta-A6"),
-                        grid![
-                            [
-                                g!(Grammar {
-                                    name: "defn_label".to_string(),
-                                    style: {
-                                        let mut s = Style::default();
-                                        s.font_weight = 600;
-                                        s
-                                    },
-                                    kind: Kind::Text("Define Grammar".to_string()),
-                                }),
-                                g!(Grammar {
-                                    name: "defn_name".to_string(),
-                                    style: Style::default(),
-                                    kind: Kind::Input(String::new()),
-                                })
-                            ],
-                            [grid![
-                                [
-                                    g!(Grammar::input("rule_name", "")),
-                                    g!(Grammar::input("rule_grammar", ""))
-                                ],
-                                [
-                                    g!(Grammar::input("rule_name", "")),
-                                    g!(Grammar::input("rule_grammar", ""))
-                                ]
-                            ]]
-                        ],
-                    );
                     assert!(map.contains_key(&(coord!("root"))));
-                    assert!(map.contains_key(&(coord!("meta-A6-A1"))));
                     map
                 },
             }],
@@ -911,15 +878,7 @@ impl Component for Model {
                         console.log("cannot find cell with ID ", @{cell_id});
                     }
                 };
-                // if let Some(
-                //     g @ Grammar {
-                //         kind: Kind::Input(_),
-                //         ..
-                //     },
-                // ) = self.get_session_mut().grammars.get_mut(&dest_coord)
-                // {
-                //     g.kind = Kind::Input("".to_string());
-                // }
+
                 true
             }
 

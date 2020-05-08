@@ -361,9 +361,10 @@ pub fn view_tab_bar(m: &Model) -> Html {
 pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
     let is_active = m.active_cell.clone() == Some(coord.clone());
     if let Some(grammar) = m.get_session().grammars.get(&coord) {
+        if is_active { info! {"current grammar: {:?}",  grammar} }
         // account for merged cells with have been hidden via their Style.display property.
         if grammar.clone().style.display == false {
-            return html! {<> </>};
+            return html! { <></> };
         }
         match grammar.kind.clone() {
             Kind::Text(value) => view_text_grammar(m, &coord, value, is_active),
@@ -375,7 +376,6 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
                         SuggestionType::Completion(name, _) => {
                             // filter suggestions by query and scoping via namespace delimiter "::"
                             let mut path = name.split("::").collect::<Vec<&str>>();
-                            // info! {"{:?}", path}
                             let slot_name = path.pop().unwrap_or("");
                             path.join("::") /* parent grammar path */ == grammar.name
                                 && slot_name.contains(value.deref())
