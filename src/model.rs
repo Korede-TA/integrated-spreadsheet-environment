@@ -231,6 +231,7 @@ impl Model {
     }
 
     fn load_session(&mut self, session: Session) {
+        // self.get_session_mut().title = session.title;
         self.get_session_mut().root = session.root;
         self.get_session_mut().meta = session.meta;
         self.get_session_mut().grammars = session.grammars;
@@ -804,9 +805,11 @@ impl Component for Model {
             }
 
             Action::LoadSession(file_data) => {
-                info!("file data: {:?}", file_data);
-                let session: Session =
-                    serde_json::from_str(format! {"{:?}", file_data.content}.deref()).unwrap();
+                use std::str;
+                let data = str::from_utf8(&file_data.content).unwrap();
+                info!("file data: {:?}", data );
+                let session: Session =  serde_json::from_str(data).unwrap();
+                // serde_json::from_str(data.unwrap()).unwrap();
                 info!(" LOADSESSION");
                 self.load_session(session);
                 true

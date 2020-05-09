@@ -41,14 +41,20 @@ impl Style {
     pub fn to_string(&self) -> String {
         format! {
         "/* border: 1px; NOTE: ignoring Style::border_* for now */
-border-collapse: {};
-font-weight: {};
-color: {};
-\n",
+        border-collapse: {};
+        font-weight: {};
+        color: {};
+        col_span: {};
+        row_span: {};
+        display: {};
+        \n",
         // self.border_color,
         if self.border_collapse { "collapse" } else { "inherit" },
         self.font_weight,
         self.font_color,
+        format!("({}, {})", self.col_span.0.to_string(), self.col_span.1.to_string()),
+        format!("({}, {})", self.row_span.0.to_string(), self.row_span.1.to_string()),
+        self.display,
         }
     }
 }

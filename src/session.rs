@@ -47,6 +47,9 @@ impl Serialize for Style {
         state.serialize_field("border_collapse", &self.border_collapse)?;
         state.serialize_field("font_weight", &self.font_weight)?;
         state.serialize_field("font_color", &self.font_color)?;
+        state.serialize_field("col_span", &self.col_span)?;
+        state.serialize_field("row_span", &self.row_span)?;
+        state.serialize_field("display", &self.display)?;
         state.end()
     }
 }
@@ -59,7 +62,7 @@ impl Serialize for Grammar {
         let mut state = serializer.serialize_struct("Grammar", 3)?;
         state.serialize_field("name", &self.name)?;
         state.serialize_field("style", &self.style)?;
-        state.serialize_field("kind", &self.kind)?;
+        state.serialize_field("Kind", &self.kind)?;
         state.end()
     }
 }
@@ -133,6 +136,13 @@ impl Serialize for Kind {
                 sv.serialize_field("rules", rules)?;
                 sv.end()
             }
+            // Kind(s, v) => {
+            //     let mut seq = serializer.serialize_seq(Some(self.len()))?;
+            //     for e in self.clone() {
+            //         seq.serialize_element(e)?;
+            //     }
+            //     seq.end()
+            // }
         }
     }
 }
