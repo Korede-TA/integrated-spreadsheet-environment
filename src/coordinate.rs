@@ -144,7 +144,7 @@ impl Coordinate {
     // Optinoally returns: Some(N) if true (including N=0 if sibling),
     // or None if false
     // Korede Check this
-    fn is_n_parent(&self, other: &Self) -> Option<i32> {
+    pub fn is_n_parent(&self, other: &Self) -> Option<i32> {
         if self.row_cols.len() > other.row_cols.len() {
             return None;
         }

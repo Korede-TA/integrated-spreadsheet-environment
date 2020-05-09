@@ -693,7 +693,6 @@ pub fn view_input_grammar(
     let tab_coord = coord.clone();
     let focus_coord = coord.clone();
     let drag_coord = coord.clone();
-    let onchange_coord = coord.clone();
     let shift_key_pressed = m.shift_key_pressed;
     let new_selected_cell = coord.clone();
     let cell_classes =
@@ -784,16 +783,9 @@ pub fn view_input_grammar(
             id=format!{"cell-{}", coord.to_string()}
             // style={ get_style(&m, &coord) }>
             style={ get_style(m.get_session().grammars.get(&coord).expect("no grammar with this coordinate"), &m.col_widths, &m.row_heights,  &coord) }
-            onchange=m.link.callback(move |e : ChangeData| {
-                info!("change data");
-                if !shift_key_pressed {
-                    Action::SetActiveCell(onchange_coord.clone())
-                } else {
-                    Action::Noop
-                }
-            })
             >
             <div contenteditable=true
+
                 class=cell_data_classes
                 onkeydown=keydownhandler
                 onkeypress=m.link.callback(move |e : KeyPressEvent| {
