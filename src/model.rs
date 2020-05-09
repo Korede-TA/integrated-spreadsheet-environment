@@ -1177,7 +1177,7 @@ impl Component for Model {
             // }
 
             Action::DeleteRow => {
-                
+                        
                 if let Some(active_coord) = self.active_cell.clone() {
                     let active_coord_parent = active_coord.parent();
                     let current_hashmap = self.get_session().grammars.clone();
@@ -1187,15 +1187,53 @@ impl Component for Model {
                     }
 
                     for coord in current_hashmap.keys() {
-                        if coord.parent() == active_coord_parent && coord.row().get() == active_coord.row().get() {
-                            for sub_coord in current_hashmap.clone().keys() {
-                                if sub_coord.row_cols.starts_with(&coord.row_cols.clone()) {
-                                    self.get_session_mut().grammars.remove(&sub_coord);
+                        if coord.parent() == active_coord_parent {
+                            if coord.row().get() == active_coord.row().get() {
+                                for sub_coord in current_hashmap.clone().keys() {
+                                    if sub_coord.row_cols.starts_with(&coord.row_cols.clone()) {
+                                        self.get_session_mut().grammars.remove(&sub_coord);
+                                    }
+                                }
+                            }
+                           
+                        }
+                    }
+                    for c in self.get_session().grammars.keys() {
+                        if c.to_string().contains("root-") {
+                            info!("key {:?}", c.clone());
+                        }         
+                    } 
+
+                    for coord in current_hashmap.keys() {
+                        if coord.parent() == active_coord_parent {
+                            if coord.row().get() > active_coord.row().get() {
+                                
+                                for (sub_coord, sub_grammar) in  current_hashmap.iter() {
+                                    if sub_coord.row_cols.starts_with(&coord.row_cols.clone()) {
+                                        info!("sub_coord {:?}", sub_coord.clone());
+                                        let mut new_coord = sub_coord.clone();
+                                        if let Some(last) = new_coord.row_cols.last_mut() {
+                                            *last = (
+                                                /* row */ NonZeroU32::new(last.0.get() - 1).unwrap(),
+                                                /* column */ last.1,
+                                            );
+                                        }
+                                        info!("new_coord {:?}", new_coord.clone());
+                                        self.get_session_mut().grammars.remove(&sub_coord);
+                                        self.get_session_mut().grammars.insert(new_coord.clone(), sub_grammar.clone());                                  
+                                    }
+                                   
                                 }
                             }
                         }
-                    }                 
+                    }
+                            
                 }
+                for c in self.get_session().grammars.keys() {
+                    if c.to_string().contains("root-") {
+                        info!("key {:?}", c.clone());
+                    }         
+                } 
                 true
             }
 
