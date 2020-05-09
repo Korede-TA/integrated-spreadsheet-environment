@@ -300,7 +300,6 @@ impl Model {
             // take old parent coord to copy its grammar into the new_parent coordinate for each sub_coordinates
             let mut grammar_copy = grammars.clone();
             for child_ in sub_coords {
-                
                 let old_coord = Coordinate::child_of(&Coord, *child_);
                 // info!("Old {:?}", old_coord);
                 let new_coord = Coordinate::child_of(&new_parent, *child_);
@@ -316,6 +315,7 @@ impl Model {
                     grammar_copy = self.Reassign(old_coord.clone(), grammar_copy.clone(), i);
                 }
             }
+            
             grammars = grammar_copy;
         }
         

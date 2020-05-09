@@ -147,9 +147,7 @@ pub fn resize(m: &mut Model, coord: Coordinate, row_height: f64, col_width: f64)
             row_height_diff = new_row_height - *old_row_height;
             *old_row_height = new_row_height;
         }
-        info!("new col_width {:?}", col_width.clone());
         if let Some(old_col_width) = m.col_widths.get_mut(&coord.full_col()) {
-            info!("old_col_width {:?}", old_col_width.clone());
             if col_width != *old_col_width {
                 // In case for the addnested col is different with the old one
                 new_col_width = col_width + /* vertiacl border height */ 2.0;
@@ -174,7 +172,6 @@ pub fn resize(m: &mut Model, coord: Coordinate, row_height: f64, col_width: f64)
                     }
                     if c.col().get() == current_coord.col().get() {
                         g.style.width = new_col_width;
-                        info!("style col_width {:?}", new_col_width.clone());
                     }
                 }
             }
