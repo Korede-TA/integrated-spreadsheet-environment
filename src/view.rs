@@ -171,7 +171,11 @@ pub fn view_menu_bar(m: &Model) -> Html {
             })     
         >
             { "Nest Grid  " }
-            <input
+        </button>
+    };
+
+    let nest_row_input = html! {
+        <input
                 class="active-cell-indicator"
                 placeholder="Row"
                 size="3"
@@ -185,24 +189,26 @@ pub fn view_menu_bar(m: &Model) -> Html {
                 onclick=m.link.callback(|e: ClickEvent| { e.prevent_default(); Action::Noop })
                 value={default_row}>
             </input>
-            <input
-                class="active-cell-indicator"
-                placeholder="Col"
-                size="3"
-                onchange=m.link.callback(move |e: ChangeData| {
-                    if let ChangeData::Value(value) = e {
-                        if let Ok (col) = value.parse::<i32>() {
-                            return Action::ChangeDefaultNestedGrid(
-                                non_zero_u32_tuple((default_row, (col as u32)))
-                            );
-                        }
+    };
+
+    let nest_col_input = html! {
+        <input
+            class="active-cell-indicator"
+            placeholder="Col"
+            size="3"
+            onchange=m.link.callback(move |e: ChangeData| {
+                if let ChangeData::Value(value) = e {
+                    if let Ok (col) = value.parse::<i32>() {
+                        return Action::ChangeDefaultNestedGrid(
+                            non_zero_u32_tuple((default_row, (col as u32)))
+                        );
                     }
-                    Action::Noop
-                })
-                onclick=m.link.callback(|e: ClickEvent| { e.prevent_default(); Action::Noop })
-                value={default_col}>
-            </input>
-        </button>
+                }
+                Action::Noop
+            })
+            onclick=m.link.callback(|e: ClickEvent| { e.prevent_default(); Action::Noop })
+            value={default_col}>
+        </input>
     };
 
     let add_definition_button = {
@@ -341,6 +347,7 @@ pub fn view_menu_bar(m: &Model) -> Html {
             //<>
                 { nest_grid_button }
             //</>
+                { nest_row_input } { nest_col_input }
             <button id="InsertRow" class="menu-bar-button" onclick=m.link.callback(|_| Action::InsertRow)>
                 { "Insert Row" }
             </button>

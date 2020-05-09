@@ -302,9 +302,9 @@ impl Model {
             for child_ in sub_coords {
                 
                 let old_coord = Coordinate::child_of(&Coord, *child_);
-                info!("Old {:?}", old_coord);
+                // info!("Old {:?}", old_coord);
                 let new_coord = Coordinate::child_of(&new_parent, *child_);
-                info!("New {:?}", new_coord);
+                // info!("New {:?}", new_coord);
                 grammar_copy.insert(new_coord.clone(), grammar_copy.get(&old_coord.clone()).clone().unwrap().clone());
                 grammar_copy.remove(&old_coord);
                 if let Some(Grammar {
@@ -1146,6 +1146,8 @@ impl Component for Model {
                                         }
                                     }
                                 }
+                                info!("Parent delete {:?}", parent.clone());
+                                info!("next_row {:?}", next_row.clone());
                                 grammars.remove(&parent);
                                 grammars.remove(&next_row);
                                 for i in next_row_coord.clone() {
@@ -1170,6 +1172,17 @@ impl Component for Model {
                 }
                 true
             }
+
+            // Action::DeleteRow => {
+            //     //Taking Active cell
+            //     if let Some(active_coord) = self.active_cell.clone() {
+            //         //Have to initialize many things for them to work in loop
+            //         let active_coord_parent = active_coord.parent();
+                    
+            //     }
+            //     true
+            // }
+
             Action::DeleteCol => {
                 //Taking Active cell
                 if let Some(coord) = self.active_cell.clone() {
@@ -1568,8 +1581,7 @@ where
 }
 
 fn focus_on_cell(c: &Coordinate) {
-    let cell_id = format! {"cell-{}", c.to_string()};
-    info!("cell_id {:?}", cell_id.clone());   
+    let cell_id = format! {"cell-{}", c.to_string()};   
     js! {
         try {
             let element = document.getElementById(@{cell_id.clone()});
