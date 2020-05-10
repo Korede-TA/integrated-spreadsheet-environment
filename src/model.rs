@@ -37,6 +37,7 @@ pub struct Model {
 
     // - `active_cell`
     pub active_cell: Option<Coordinate>,
+    pub focus_cell: Option<Coordinate>,
 
     // - `first_select_cell` is the top-leftmost cell in a selection
     // - `last_select_cell` is the bottom-rightmost cell in a selection
@@ -364,6 +365,7 @@ impl Component for Model {
             console: ConsoleService::new(),
             reader: ReaderService::new(),
 
+            focus_cell: None,
             first_select_cell: None,
             last_select_cell: None,
 
@@ -542,6 +544,7 @@ impl Component for Model {
 
             Action::SetActiveCell(coord) => {
                 self.active_cell = Some(coord.clone());
+                self.focus_cell = Some(coord.clone());
                 focus_on_cell(&coord);
                 true
             }
@@ -900,8 +903,8 @@ impl Component for Model {
             }
 
             Action::AddNestedGrid(coord, (rows, cols)) => {
-                if self.active_cell.is_none() {
-                    info!("Expect a cell is active");
+                if self.active_cell.is_none() || self.focus_cell.is_none() {
+                    info!("Expect a cell is select");
                     return false;
                 }
 
@@ -1176,87 +1179,94 @@ impl Component for Model {
             //     true
             // }
 
-            Action::DeleteRow => {
-                        
-                if let Some(active_coord) = self.active_cell.clone() {
-                    let active_coord_parent = active_coord.parent();
+            Action::DeleteRow => {            
+                if let Some(focus_coord) = self.focus_cell.clone() {
+
+                    let focus_coord_parent = focus_coord.parent();
                     let current_hashmap = self.get_session().grammars.clone();
-                    if current_hashmap.is_empty() {
-                        info!("Grammar is empty now");
-                        return false;
-                    }
+                    let focus_depth = focus_coord.row_cols.len();
 
                     for coord in current_hashmap.keys() {
-                        if coord.parent() == active_coord_parent {
-                            if coord.row().get() == active_coord.row().get() {
+                        if coord.parent() == focus_coord_parent {
+                            if coord.row().get() == focus_coord.row().get() {
                                 for sub_coord in current_hashmap.clone().keys() {
                                     if sub_coord.row_cols.starts_with(&coord.row_cols.clone()) {
                                         self.get_session_mut().grammars.remove(&sub_coord);
                                     }
                                 }
                             }
-                           
                         }
                     }
-                    for c in self.get_session().grammars.keys() {
-                        if c.to_string().contains("root-") {
-                            info!("key {:?}", c.clone());
-                        }         
-                    } 
+
+                    let mut temp_grammas: HashMap<Coordinate, Grammar> = HashMap::new();
 
                     for coord in current_hashmap.keys() {
-                        if coord.parent() == active_coord_parent {
-                            if coord.row().get() > active_coord.row().get() {
-                                
-                                for (sub_coord, sub_grammar) in  current_hashmap.iter() {
-                                    if sub_coord.row_cols.starts_with(&coord.row_cols.clone()) {
-                                        info!("sub_coord {:?}", sub_coord.clone());
-                                        let mut new_coord = sub_coord.clone();
-                                        if let Some(last) = new_coord.row_cols.last_mut() {
-                                            *last = (
-                                                /* row */ NonZeroU32::new(last.0.get() - 1).unwrap(),
-                                                /* column */ last.1,
-                                            );
-                                        }
-                                        info!("new_coord {:?}", new_coord.clone());
-                                        self.get_session_mut().grammars.remove(&sub_coord);
-                                        self.get_session_mut().grammars.insert(new_coord.clone(), sub_grammar.clone());                                  
-                                    }
-                                   
+                        if coord.row().get() > focus_coord.row().get() && coord.parent() == focus_coord_parent  { 
+                            for (sub_coord, sub_grammar) in current_hashmap.iter() {
+                                if sub_coord.row_cols.starts_with(&coord.row_cols.clone()) {
+                                    let sub_coord_depth = sub_coord.row_cols.len();
+                                    let mut new_coord = sub_coord.clone();
+                                    let c_row = new_coord.row_cols[focus_depth - 1].0;
+                                    new_coord.row_cols[focus_depth - 1].0 = NonZeroU32::new(c_row.get() - 1).unwrap();
+                                    self.get_session_mut().grammars.remove(&sub_coord);
+                                    temp_grammas.insert(new_coord.clone(), sub_grammar.clone());                                                                                 
                                 }
+                               
                             }
                         }
                     }
-                            
+
+                    for (c, g) in temp_grammas.iter() {
+                        self.get_session_mut().grammars.insert(c.clone(), g.clone());
+                    }
+                               
                 }
-                for c in self.get_session().grammars.keys() {
-                    if c.to_string().contains("root-") {
-                        info!("key {:?}", c.clone());
-                    }         
-                } 
+                self.focus_cell = None;
                 true
             }
 
             Action::DeleteCol => {
-                
-                if let Some(active_coord) = self.active_cell.clone() {
-                    let active_coord_parent = active_coord.parent();
+                if let Some(focus_coord) = self.focus_cell.clone() {
+                    
+                    let focus_coord_parent = focus_coord.parent();
                     let current_hashmap = self.get_session().grammars.clone();
-                    if current_hashmap.is_empty() {
-                        info!("Grammar is empty now");
-                        return false;
-                    }
+                    let focus_depth = focus_coord.row_cols.len();
 
                     for coord in current_hashmap.keys() {
-                        if coord.parent() == active_coord_parent && coord.col().get() == active_coord.col().get() {
-                            for sub_coord in current_hashmap.clone().keys() {
-                                if sub_coord.row_cols.starts_with(&coord.row_cols.clone()) {
-                                    self.get_session_mut().grammars.remove(&sub_coord);
+                        if coord.parent() == focus_coord_parent {
+                            if coord.col().get() == focus_coord.col().get() {
+                                for sub_coord in current_hashmap.clone().keys() {
+                                    if sub_coord.row_cols.starts_with(&coord.row_cols.clone()) {
+                                        self.get_session_mut().grammars.remove(&sub_coord);
+                                    }
                                 }
                             }
                         }
-                    }                 
+                    }
+
+                    let mut temp_grammas: HashMap<Coordinate, Grammar> = HashMap::new();
+
+                    for coord in current_hashmap.keys() {
+                        if coord.col().get() > focus_coord.col().get() && coord.parent() == focus_coord_parent  { 
+                            for (sub_coord, sub_grammar) in current_hashmap.iter() {
+                                if sub_coord.row_cols.starts_with(&coord.row_cols.clone()) {
+                                    let mut new_coord = sub_coord.clone();
+                                    let c_col = new_coord.row_cols[focus_depth - 1].1;
+                                    new_coord.row_cols[focus_depth - 1].1 = NonZeroU32::new(c_col.get() - 1).unwrap();
+                                    self.get_session_mut().grammars.remove(&sub_coord);
+                                    temp_grammas.insert(new_coord.clone(), sub_grammar.clone());                                                                                 
+                                }
+                               
+                            }
+                        }
+                    }
+
+                    for (c, g) in temp_grammas.iter() {
+                        self.get_session_mut().grammars.insert(c.clone(), g.clone());
+                    }
+                                       
                 }
+                self.focus_cell = None;  
                 true
             }
 
@@ -1665,18 +1675,6 @@ fn focus_on_cell(c: &Coordinate) {
             element.firstChild.focus();
         } catch (e) {
             console.log("cannot focus cell with coordinate ", @{cell_id.to_string()});
-        }
-    };
-}
-
-fn clear_cell_content(c: &Coordinate) {
-    let cell_id = format! {"cell-{}", c.to_string()};   
-    js! {
-        try {
-            let element = document.getElementById(@{cell_id.clone()});
-            element.firstChild.val = "";
-        } catch (e) {
-            console.log("cannot clear content cell with coordinate ", @{cell_id.to_string()});
         }
     };
 }
