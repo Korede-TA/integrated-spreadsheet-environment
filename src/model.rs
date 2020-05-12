@@ -539,7 +539,7 @@ impl Component for Model {
                     }
                 }
                 
-                true
+                false
             }
 
             Action::SetActiveCell(coord) => {
