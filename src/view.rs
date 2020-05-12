@@ -847,7 +847,7 @@ pub fn view_input_grammar(
                         Action::Noop
                     }
                 })>
-                { value }
+                // { value }
             </div>
             { suggestions }
         </div>
