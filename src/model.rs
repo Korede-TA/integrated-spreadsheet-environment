@@ -470,10 +470,10 @@ impl Component for Model {
                         coord!("meta"),
                         grid![
                             [g!(Grammar::input("", "A1"))],
-                            [g!(Grammar::input("", "A2"))],
-                            [g!(Grammar::default_button())],
-                            [g!(Grammar::default_slider())],
-                            [g!(Grammar::default_toggle())]
+                            [g!(Grammar::input("", "A2"))]
+                            // [g!(Grammar::default_button())],
+                            // [g!(Grammar::default_slider())],
+                            // [g!(Grammar::default_toggle())]
                         ],
                     );
                     build_grammar_map(
@@ -807,6 +807,17 @@ impl Component for Model {
             Action::LoadSession(file_data) => {
                 use std::str;
                 let data = str::from_utf8(&file_data.content).unwrap();
+                // extern crate regex;
+                // use regex::Regex;
+                // let re = Regex::new(r"\[(\s?\([1-9],\s?[1-9]\)\s?,?)*\]").unwrap();
+                // let v = serde_json::from_str(data);
+                // for context in v{
+                //     for grammar in context{
+                //         if re.is_match(grammar.kind){
+                //             grammar.kind = Kind::Grid(grammar.kind)
+                //         } 
+                //     }
+                // }
                 info!("file data: {:?}", data );
                 let session: Session =  serde_json::from_str(data).unwrap();
                 // serde_json::from_str(data.unwrap()).unwrap();

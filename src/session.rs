@@ -1,6 +1,6 @@
 use serde::{
     ser::{SerializeSeq, SerializeStruct, SerializeStructVariant, Serializer},
-    Deserialize, Serialize,
+    de::Error, Deserialize, Deserializer, Serialize,
 };
 use std::collections::HashMap;
 use std::option::Option;
@@ -8,6 +8,7 @@ use std::option::Option;
 use crate::coordinate::Coordinate;
 use crate::grammar::{Grammar, Interactive, Kind};
 use crate::style::Style;
+use crate::{coord};
 
 // Session encapsulates the serializable state of the application that gets stored to disk
 // in a .ise file (which is just a JSON file)
@@ -20,6 +21,7 @@ pub struct Session {
 }
 js_serializable!(Session);
 js_deserializable!(Session);
+
 
 impl Serialize for Session {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -34,6 +36,42 @@ impl Serialize for Session {
         state.end()
     }
 }
+
+#[derive(Parser)]
+#[grammar = "coordinate.pest"]
+pub struct CoordinateParser;
+use pest::Parser;
+use std::num::NonZeroU32;
+use std::panic;
+use crate::util::{non_zero_u32_tuple};
+
+impl<'de> Deserialize<'de> for Coordinate {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: &str = Deserialize::deserialize(deserializer)?;
+        
+        // let tmp = s;
+        Ok(coord!(s))
+        // std::result::Result<,  D::Error>
+        
+    }
+}
+
+// impl<'de> Deserialize<'de> for Interactive {
+//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+//     where
+//         D: Deserializer<'de>,
+//     {
+//         let s: &str = Deserialize::deserialize(deserializer)?;
+        
+//         // let tmp = s;
+//         Ok(coord!(s))
+//         // std::result::Result<,  D::Error>
+        
+//     }
+// }
 
 impl Serialize for Style {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -62,7 +100,12 @@ impl Serialize for Grammar {
         let mut state = serializer.serialize_struct("Grammar", 3)?;
         state.serialize_field("name", &self.name)?;
         state.serialize_field("style", &self.style)?;
-        state.serialize_field("Kind", &self.kind)?;
+        // if type_of(self.kind) == "std::vec::Vec<(std::num::NonZeroU32, std::num::NonZeroU32)>" {
+            
+        // }else{
+            
+        // }
+        state.serialize_field("kind", &self.kind)?;
         state.end()
     }
 }
@@ -74,8 +117,8 @@ impl Serialize for Interactive {
     {
         match &self {
             Interactive::Button() => {
-                let mut sv = serializer.serialize_struct_variant("Interactive", 0, "Button", 1)?;
-                sv.serialize_field("button", &())?;
+                let mut sv = serializer.serialize_struct("Interactive", 0)?;
+                sv.serialize_field("Button", &())?;
                 sv.end()
             }
             Interactive::Slider(val, min, max) => {
@@ -86,7 +129,7 @@ impl Serialize for Interactive {
                 sv.end()
             }
             Interactive::Toggle(b) => {
-                let mut sv = serializer.serialize_struct_variant("Interactive", 2, "Toggle", 1)?;
+                let mut sv = serializer.serialize_struct("Interactive", 1)?;
                 sv.serialize_field("toggle_state", b)?;
                 sv.end()
             }
@@ -94,55 +137,48 @@ impl Serialize for Interactive {
     }
 }
 
+
 impl Serialize for Kind {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: Serializer,
+        S: Serializer, 
     {
+
         match &self {
             Kind::Text(s) => {
-                let mut sv = serializer.serialize_struct_variant("Kind", 0, "Text", 1)?;
-                sv.serialize_field("text", s)?;
+                let mut sv = serializer.serialize_struct("kind", 1)?;
+                sv.serialize_field("Text", s)?;
                 sv.end()
             }
             Kind::Input(s) => {
-                let mut sv = serializer.serialize_struct_variant("Kind", 1, "Input", 1)?;
-                sv.serialize_field("input", s)?;
+                let mut sv = serializer.serialize_struct("kind", 1)?;
+                sv.serialize_field("Input", s)?;
                 sv.end()
             }
             Kind::Interactive(s, x) => {
-                let mut sv = serializer.serialize_struct_variant("Kind", 2, "Interactive", 2)?;
+                let mut sv = serializer.serialize_struct_variant("kind", 0, "Interactive", 2)?;
                 sv.serialize_field("name", s)?;
                 sv.serialize_field("interactive", x)?;
                 sv.end()
             }
             Kind::Grid(v) => {
-                let mut seq = serializer.serialize_seq(Some(v.len()))?;
-                for e in v {
-                    seq.serialize_element(e)?;
-                }
-                seq.end()
+                let mut sv = serializer.serialize_struct("kind", 1)?;
+                sv.serialize_field("Grid", v)?;
+                sv.end()
             }
             Kind::Lookup(s, x) => {
-                let mut sv = serializer.serialize_struct_variant("Kind", 3, "Lookup", 2)?;
+                let mut sv = serializer.serialize_struct_variant("kind", 1, "Lookup", 2)?;
                 sv.serialize_field("raw_value", s)?;
                 sv.serialize_field("lookup", x)?;
                 sv.end()
             }
             Kind::Defn(s, c, rules) => {
-                let mut sv = serializer.serialize_struct_variant("Kind", 4, "Defn", 3)?;
+                let mut sv = serializer.serialize_struct_variant("kind", 2, "Defn", 3)?;
                 sv.serialize_field("name", s)?;
                 sv.serialize_field("coordinate", c)?;
                 sv.serialize_field("rules", rules)?;
                 sv.end()
             }
-            // Kind(s, v) => {
-            //     let mut seq = serializer.serialize_seq(Some(self.len()))?;
-            //     for e in self.clone() {
-            //         seq.serialize_element(e)?;
-            //     }
-            //     seq.end()
-            // }
         }
     }
 }
@@ -152,20 +188,8 @@ impl Serialize for Coordinate {
     where
         S: Serializer,
     {
-        /*
-        let mut seq = serializer.serialize_seq(Some(self.row_cols.len()))?;
-        for e in self.row_cols.clone() {
-            let (a, b) = e;
-            let s = format!("{}-{}",&a,&b);
-            seq.serialize_element(&s)?;
-        }
-        seq.end()
-        */
-        // let s = "";
-        // for e in self.row_cols.clone() {
-        //     let (a, b) = e;
-        //     let _s = format!("{}-{}-{}", s, &a, &b);
-        // }
-        serializer.serialize_str(&self.to_string())
+            serializer.serialize_str(&self.to_string())
+        
     }
+    
 }

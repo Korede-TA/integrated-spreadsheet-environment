@@ -48,6 +48,7 @@ pub enum Kind {
         /* definition coord */ Coordinate,
         /* rule names and coordinates */ Vec<(String, Coordinate)>,
     ),
+
 }
 js_serializable!(Kind);
 js_deserializable!(Kind);
