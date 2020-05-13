@@ -10,9 +10,11 @@ use std::ops::Deref;
 use std::option::Option;
 use stdweb::traits::IEvent;
 use stdweb::unstable::TryInto;
+use stdweb::web::event::{
+    ContextMenuEvent, IKeyboardEvent, KeyDownEvent, KeyPressEvent, KeyUpEvent,
+};
 use stdweb::web::{document, IElement, INode, IParentNode};
 use wasm_bindgen::JsValue;
-use yew::events::{KeyDownEvent, KeyPressEvent, KeyUpEvent};
 use yew::prelude::*;
 use yew::services::reader::{File, FileData, ReaderService, ReaderTask};
 use yew::services::ConsoleService;
@@ -58,9 +60,8 @@ pub struct Model {
     // - `zoom` is the value that corresponds to how "zoomed" the sheet is
     pub zoom: f32,
 
-    // - `meta_suggestions` contains a map of the name of suggestions to the
-    //   suggested grammars stored in coord_col!("meta", "A")
-    pub meta_suggestions: Vec<(String, Coordinate)>,
+    // - `suggestion` contains a list of either Completion, Binding or Command suggestions
+    pub suggestions: Vec<SuggestionType>,
 
     // - `lookups` represent an ordered list of coordinates that have lookups corresponding
     // to them. the indexes are used to generate correspoding color coding for each lookup
@@ -105,6 +106,9 @@ pub struct Model {
     // - `mouse_cursor` corresponds to the appearance of the mouse cursor
     pub mouse_cursor: CursorType,
 
+    // - `current_cursor_position` preserves the cursor on the focused input grammar while typing
+    pub current_cursor_position: u32,
+
     // - `console` and `reader` are used to access native browser APIs for the
     //    dev console and FileReader respectively
     console: ConsoleService,
@@ -112,6 +116,13 @@ pub struct Model {
 
     // - `tasks` are used to store asynchronous requests to read/load files
     pub tasks: Vec<ReaderTask>,
+}
+
+#[derive(Clone, Debug)]
+pub enum SuggestionType {
+    Completion(String, Coordinate),
+    Binding(String, Coordinate),
+    Command(String, Action),
 }
 
 #[derive(Debug)]
@@ -122,6 +133,7 @@ pub struct SideMenu {
 
 // SUBACTIONS
 // Sub-actions for resize-related operations
+#[derive(Clone, Debug)]
 pub enum ResizeMsg {
     Start(Coordinate),
     X(f64),
@@ -130,20 +142,22 @@ pub enum ResizeMsg {
 }
 
 // Sub-actions for adjusting the current look of the cursor
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum CursorType {
     NS,
     EW,
     Default,
 }
 
+#[derive(Clone, Debug)]
 pub enum SelectMsg {
     Start(Coordinate),
     End(Coordinate),
 }
 
 // ACTIONS
-// Trigridered in the view, sent to update function
+// Triggered in the view, sent to update function
+#[derive(Clone, Debug)]
 pub enum Action {
     // Do nothing
     Noop,
@@ -202,7 +216,16 @@ pub enum Action {
     // SetCurrentParentGrammar(Coordinate),
     ToggleLookup(Coordinate),
 
-    AddDefinition(Coordinate, /* name */ String),
+    AddDefinition(Coordinate, /* name */ String, /* staging */ bool),
+    StageDefinition(
+        /* definition coord */ Coordinate,
+        /* name */ String,
+    ),
+    BindDefinition(
+        /* definition coord */ Coordinate,
+        /* binding coord */ Coordinate,
+        /* name */ String,
+    ),
 
     TogridleShiftKey(bool),
 
@@ -324,10 +347,10 @@ impl Component for Model {
                coord_row!("meta","1") => 180.0,
             },
             active_cell: Some(coord!("root-A1")),
-            meta_suggestions: vec![
-                ("js_grammar".to_string(), coord!("meta-A1")),
-                ("java_grammar".to_string(), coord!("meta-A2")),
-                ("defn".to_string(), coord!("meta-A3")),
+            suggestions: vec![
+                SuggestionType::Completion("js_grammar".to_string(), coord!("meta-A1")),
+                SuggestionType::Completion("java_grammar".to_string(), coord!("meta-A2")),
+                SuggestionType::Completion("defn".to_string(), coord!("meta-A3")),
             ],
 
             console: ConsoleService::new(),
@@ -353,32 +376,99 @@ impl Component for Model {
                         coord!("root"),
                         grid![
                             [
-                                g!(Grammar::input("", "A1")),
-                                g!(Grammar::input("", "B1")),
-                                g!(Grammar::input("", "C1"))
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", ""))
                             ],
                             [
-                                g!(Grammar::input("", "A2")),
-                                g!(Grammar::input("", "B2")),
-                                g!(Grammar::input("", "C2"))
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", ""))
                             ],
                             [
-                                g!(Grammar::input("", "A3")),
-                                g!(Grammar::input("", "B3")),
-                                g!(Grammar::input("", "C3"))
-                                // grid![
-                                //     [
-                                //         g!(Grammar::input("", "C3-A1")),
-                                //         g!(Grammar::input("", "C3-B1"))
-                                //     ],
-                                //     [
-                                //         g!(Grammar::input("", "C3-A2")),
-                                //         g!(Grammar::input("", "C3-B2"))
-                                //     ]
-                                // ]
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", ""))
+                            ],
+                            [
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", ""))
+                            ],
+                            [
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", ""))
+                            ],
+                            [
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", "")),
+                                g!(Grammar::input("", ""))
                             ]
                         ],
                     );
+                    build_grammar_map(
+                        &mut map,
+                        coord!("meta"),
+                        grid![
+                            [g!(Grammar::input("", "A1"))],
+                            [g!(Grammar::input("", "A2"))],
+                            [g!(Grammar::default_button())],
+                            [g!(Grammar::default_slider())],
+                            [g!(Grammar::default_toggle())],
+                            [grid!("js".to_string(), [[g!(Grammar::input("", ""))]])],
+                            [grid!(
+                                "js::var".to_string(),
+                                [[
+                                    g!(Grammar::text("", "var")),
+                                    g!(Grammar::input("", "")),
+                                    g!(Grammar::text("", "=")),
+                                    g!(Grammar::input("", ""))
+                                ]]
+                            )],
+                            [grid!(
+                                "js::assn".to_string(),
+                                [[
+                                    g!(Grammar::input("", "")),
+                                    g!(Grammar::text("", "=")),
+                                    g!(Grammar::input("", ""))
+                                ]]
+                            )],
+                            [grid!(
+                                "js::function".to_string(),
+                                [
+                                    [
+                                        g!(Grammar::text("function", "")),
+                                        g!(Grammar::text("", "(")),
+                                        g!(Grammar::input("", "")),
+                                        g!(Grammar::text("", ")")),
+                                        g!(Grammar::text("", "{"))
+                                    ],
+                                    [g!(Grammar::input("", ""))],
+                                    [g!(Grammar::text("", "}"))]
+                                ]
+                            )]
+                        ],
+                    );
+                    assert!(map.contains_key(&(coord!("root"))));
                     map
                 },
             }],
@@ -423,20 +513,38 @@ impl Component for Model {
 
             mouse_cursor: CursorType::Default,
 
+            current_cursor_position: 0,
+
             lookups: vec![],
         };
-        // load suggestions from
-        m.meta_suggestions = m
+        // load suggestions from meta
+        // regular suggestions exist in column meta-A
+        m.suggestions = m
             .query_col(coord_col!("meta", "A"))
             .iter()
             .filter_map(|coord| {
                 if let Some(name) = m.get_session().grammars.get(coord).map(|g| g.name.clone()) {
-                    Some((name, coord.clone()))
+                    Some(SuggestionType::Completion(name, coord.clone()))
                 } else {
                     None
                 }
             })
             .collect();
+        // staged definitions, that have not yet been bound exist in column meta-B
+        m.suggestions.append(
+            &mut m
+                .query_col(coord_col!("meta", "B"))
+                .iter()
+                .filter_map(|coord| {
+                    if let Some(name) = m.get_session().grammars.get(coord).map(|g| g.name.clone())
+                    {
+                        Some(SuggestionType::Binding(name, coord.clone()))
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+        );
         m
     }
 
@@ -453,6 +561,19 @@ impl Component for Model {
             }
 
             Action::ChangeInput(coord, new_value) => {
+                // i'm using this hack to preserve the cursor
+                // position in the current input grammar
+                let cursor_position: u32 = js! {
+                    let selObj = window.getSelection();
+                    let range = selObj.getRangeAt(0);
+                    if (range.startContainer == range.endContainer) {
+                        return range.startOffset;
+                    }
+                    return 0;
+                }
+                .try_into()
+                .unwrap();
+                self.current_cursor_position = cursor_position;
                 if let Some(g) = self.get_session_mut().grammars.get_mut(&coord) {
                     match g {
                         Grammar {
@@ -470,7 +591,8 @@ impl Component for Model {
                         _ => (),
                     }
                 }
-                false
+                // NOTE: setting this to false messes with
+                true
             }
 
             Action::SetActiveCell(coord) => {
@@ -487,7 +609,7 @@ impl Component for Model {
                         let element = document.getElementById(@{next_suggestion_id.clone()});
                         element.focus();
                     } catch (e) {
-                        console.log("cannot focus on next suggestion");
+                        console.log("cannot focus on next suggestion ", @{coord.to_string()}, @{index});
                     }
                 };
                 true
@@ -497,8 +619,9 @@ impl Component for Model {
                 let upload_callback = self.link.callback(move |file_data: FileData| {
                     Action::LoadCSVFile(file_data.clone(), coord.clone())
                 });
-                let task = self.reader.read_file(file, upload_callback.clone());
-                self.tasks.push(task);
+                if let Ok(task) = self.reader.read_file(file, upload_callback.clone()) {
+                    self.tasks.push(task);
+                }
                 false
             }
 
@@ -515,7 +638,6 @@ impl Component for Model {
                     header_row.push(headers_csv.get(header_usize).unwrap().to_string());
                 }
                 grid.push(header_row);
-
                 for row in reader.records() {
                     let mut grid_row = Vec::new();
                     let row = row.unwrap();
@@ -526,11 +648,9 @@ impl Component for Model {
                     }
                     grid.push(grid_row);
                 }
-                let num_rows = grid.len();
-                let num_cols = grid[0].len();
-
-                self.update(Action::AddNestedGrid(coordinate.clone(), (num_rows as u32, num_cols as u32)));
-                
+                let num_rows = grid.len() as u32;
+                let num_cols = grid[0].len() as u32;
+                self.update(Action::AddNestedGrid(coordinate.clone(), (num_rows, num_cols)));
                 let parent = coordinate.parent().unwrap();
                 if let Some(Grammar {
                     kind: Kind::Grid(sub_coords),
@@ -549,7 +669,6 @@ impl Component for Model {
                      };
                      self.get_session_mut().grammars = grammar;
                  }
-                 
                 true
             }
 
@@ -745,6 +864,21 @@ impl Component for Model {
 
             Action::DoCompletion(source_coord, dest_coord) => {
                 move_grammar(self, source_coord, dest_coord.clone());
+
+                // HACK to prevent VDOM update error where the text of the completion
+                // query isn't cleared and distorts how the completed grammar looks
+                let cell_id = format! {"cell-{}", dest_coord.to_string()};
+                js! {
+                    try {
+                        let element = document.getElementById(@{cell_id.clone()} + "-A1");
+                        if (element.firstChild && element.firstChild.nodeType == Node.TEXT_NODE) {
+                            element.firstChild.remove();
+                        }
+                    } catch (e) {
+                        console.log("cannot find cell with ID ", @{cell_id});
+                    }
+                };
+
                 true
             }
 
@@ -755,8 +889,9 @@ impl Component for Model {
 
             Action::ReadSession(file) => {
                 let callback = self.link.callback(Action::LoadSession);
-                let task = self.reader.read_file(file, callback);
-                self.tasks.push(task);
+                if let Ok(task) = self.reader.read_file(file, callback) {
+                    self.tasks.push(task);
+                }
                 false
             }
 
@@ -767,20 +902,19 @@ impl Component for Model {
                 true
             }
             Action::SaveSession() => {
-                /* TODO: uncomment when this is working
-                use node_sys::fs as node_fs;
-                use node_sys::Buffer;
-                use js_sys::{
-                    JsString,
-                    Function
-                };
+                /* TODO: new approach to saving session, should work better but there's still some
+                 * compile errors to be handled later
                 let session = self.to_session();
-                let j = serde_json::to_string(&session.clone());
-                let filename = session.title.to_string();
-                let jsfilename = JsString::from(filename);
-                let jsbuffer = Buffer::from_string(&JsString::from(j.unwrap()), None);
-                let jscallback = Function::new_no_args("{}");
-                node_fs::append_file(&jsfilename, &jsbuffer, None, &jscallback);
+                let json = serde_json::to_string(&session.clone());
+                let filename = format! {"{}.json", session.title.to_string()};
+                let _ = js! {
+                    let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(@{&json}));
+                    let dlAnchorElem = document.getElementById("downloadAnchorElem");
+                    dlAnchorElem.setAttribute("href", dataStr);
+                    dlAnchorElem.setAttribute("download", @{&filename});
+                    dlAnchorElem.click();
+                    return 0;
+                };
                 */
                 false
             }
@@ -902,16 +1036,19 @@ impl Component for Model {
                     .link
                     .callback(|file_data| Action::UploadDriverMiscFile(file_data));
                 for file in misc_files {
-                    let task = self.reader.read_file(file, upload_callback.clone());
-                    self.tasks.push(task);
+                    if let Ok(task) = self.reader.read_file(file, upload_callback.clone()) {
+                        self.tasks.push(task);
+                    }
                 }
 
                 // Load main driver file. After this task has been scheduled and executed, the
                 // driver is ready for use.
-                self.tasks.push(
-                    self.reader
-                        .read_file(main_file, self.link.callback(Action::LoadDriverMainFile)),
-                );
+                if let Ok(task) = self
+                    .reader
+                    .read_file(main_file, self.link.callback(Action::LoadDriverMainFile))
+                {
+                    self.tasks.push(task);
+                }
 
                 false
             }
@@ -924,10 +1061,9 @@ impl Component for Model {
                 //   https://www.tutorialspoint.com/electron/electron_inter_process_communication.htm
                 // And here, for the documentation for the electon_sys Rust bindings for electron.ipcRenderer:
                 //   https://docs.rs/electron-sys/0.4.0/electron_sys/struct.IpcRenderer.html
-
                 let args: [JsValue; 2] = [
                     JsValue::from_str(file_data.name.deref()),
-                    JsValue::from_str(std::str::from_utf8(&file_data.content).unwrap()),
+                    JsValue::from_str(std::str::from_utf8(&file_data.content).unwrap_or("")),
                 ];
                 ipc_renderer.send_sync("upload-driver-misc-file", Box::new(args));
                 false
@@ -1500,32 +1636,131 @@ impl Component for Model {
              * 3) Defining how grammars connect with respective drivers and have values evaluated
              *    and passed back to the interface.
              */
-            Action::AddDefinition(coord, defn_name) => {
+            Action::AddDefinition(coord, defn_name, staging) => {
                 // adds a new grammar or sub-grammar to the meta
-                let max_a_row =
-                    self.query_col(coord_col!("meta", "A"))
-                        .iter()
-                        .fold(1, |max_a_row, c| {
-                            if c.col().get() == 1 && c.row().get() > max_a_row {
-                                c.row().get()
-                            } else {
-                                max_a_row
-                            }
-                        });
+                let query_col = if staging {
+                    coord_col!("meta", "B")
+                } else {
+                    coord_col!("meta", "A")
+                };
+                let query_col_index = query_col.1.get();
+                let max_query_row = self
+                    .query_col(query_col)
+                    .iter()
+                    .fold(1, |max_query_row, c| {
+                        if c.col().get() == query_col_index && c.row().get() > max_query_row {
+                            c.row().get()
+                        } else {
+                            max_query_row
+                        }
+                    });
                 // add new sub_coord to coord!("meta") grid
-                let defn_meta_sub_coord = non_zero_u32_tuple((max_a_row + 1, 1));
+                let defn_meta_sub_coord = non_zero_u32_tuple((max_query_row + 1, query_col_index));
                 if let Kind::Grid(sub_coords) = &mut self.get_session_mut().meta.kind {
                     sub_coords.push(defn_meta_sub_coord.clone());
                 }
                 let defn_coord = Coordinate::child_of(&(coord!("meta")), defn_meta_sub_coord);
                 info! {"Adding Definition: {} to {}", coord.to_string(), defn_coord.to_string()};
-
-                move_grammar(self, coord, defn_coord.clone());
+                move_grammar(self, coord.clone(), defn_coord.clone());
                 // give moved grammar name {defn_name} as specified in "Add Definition" button
+                // clear previously staged grammar from meta-B
+                if !staging {
+                    if let Some(g) = self.get_session_mut().grammars.get_mut(&coord) {
+                        *g = Grammar::default();
+                    }
+                }
                 if let Some(g) = self.get_session_mut().grammars.get_mut(&defn_coord) {
                     g.name = defn_name;
                 }
                 true
+            }
+
+            Action::StageDefinition(coord, defn_name) => {
+                // determine the bottom-most entry in the staging area column meta-B
+                let query_col = coord_col!("meta", "B");
+                let query_col_index = query_col.1.get();
+                let max_query_row = self
+                    .query_col(query_col)
+                    .iter()
+                    .fold(1, |max_query_row, c| {
+                        if c.col().get() == query_col_index && c.row().get() > max_query_row {
+                            c.row().get()
+                        } else {
+                            max_query_row
+                        }
+                    });
+                // add new sub_coord to coord!("meta") grid, under column B
+                let defn_meta_sub_coord = non_zero_u32_tuple((max_query_row + 1, query_col_index));
+                if let Kind::Grid(sub_coords) = &mut self.get_session_mut().meta.kind {
+                    sub_coords.push(defn_meta_sub_coord.clone());
+                }
+                // copy definition from the coordinate it's being staged from, to the cell
+                let defn_coord = Coordinate::child_of(&(coord!("meta")), defn_meta_sub_coord);
+                info! {"staging definition: {} to {}", coord.to_string(), defn_coord.to_string()};
+                move_grammar(self, coord.clone(), defn_coord.clone());
+                // rename the definition grammar to the definition name in the menu bar
+                if let Some(g) = self.get_session_mut().grammars.get_mut(&defn_coord) {
+                    g.name = defn_name;
+                }
+                true
+            }
+
+            // we can take created definitions and bind them inside other grammars
+            // this works by namespacing the sub-grammar name, and giving the same name to the slot in the parent
+            // where it can be completed to.
+            Action::BindDefinition(defn_coord, binding_coord, binding_name) => {
+                info!("binding");
+                let mut grammars = &mut self.get_session_mut().grammars;
+                if let Some(Grammar {
+                    name: defn_name, ..
+                }) = grammars.get_mut(
+                    &defn_coord
+                        .parent()
+                        .expect("[Action::BindDefinition]: defn_coord should have parent"),
+                ) {
+                    // namespace the binding name by giving it
+                    let full_binding_name = if defn_name != "" {
+                        format! {"{}::{}", defn_name.clone(), binding_name}
+                    } else {
+                        // if there's no parent grammar, just use regular binding name
+                        binding_name
+                    };
+                    info!("binding grammar: {}", full_binding_name.clone());
+                    // give moved grammar name {defn_name} as specified in "Add Definition" button
+                    if let Some(g) = grammars.get_mut(&defn_coord) {
+                        g.name = full_binding_name.clone();
+                    }
+                    if let Some(g) = grammars.get_mut(&binding_coord) {
+                        g.name = full_binding_name.clone();
+                    }
+                    // determine the bottom-most entry in the DEFINITION area column meta-A
+                    let query_col = coord_col!("meta", "A");
+                    let query_col_index = query_col.1.get();
+                    let max_query_row =
+                        self.query_col(query_col)
+                            .iter()
+                            .fold(1, |max_query_row, c| {
+                                if c.col().get() == query_col_index && c.row().get() > max_query_row
+                                {
+                                    c.row().get()
+                                } else {
+                                    max_query_row
+                                }
+                            });
+                    // add new sub_coord to coord!("meta") grid, under column A
+                    let defn_meta_sub_coord =
+                        non_zero_u32_tuple((max_query_row + 1, query_col_index));
+                    if let Kind::Grid(sub_coords) = &mut self.get_session_mut().meta.kind {
+                        sub_coords.push(defn_meta_sub_coord.clone());
+                    }
+                    // copy definition from the coordinate it's being staged from, to the cell
+                    let defn_coord = Coordinate::child_of(&(coord!("meta")), defn_meta_sub_coord);
+                    info! {"binding {} to defn {}", binding_coord.to_string(), defn_coord.to_string()};
+                    move_grammar(self, binding_coord.clone(), defn_coord.clone());
+                    true
+                } else {
+                    false
+                }
             }
 
             Action::TogridleShiftKey(togridle) => {
@@ -1539,7 +1774,6 @@ impl Component for Model {
             }
 
             Action::ShowContextMenu(pos) => {
-                info! {"context menu"}
                 self.context_menu_position = Some(pos);
                 true
             }
@@ -1555,7 +1789,7 @@ impl Component for Model {
             }
         };
 
-        self.meta_suggestions = self
+        self.suggestions = self
             .query_col(coord_col!("meta", "A"))
             .iter()
             .filter_map(|coord| {
@@ -1565,17 +1799,58 @@ impl Component for Model {
                     .get(coord)
                     .map(|g| g.name.clone())
                 {
-                    Some((name, coord.clone()))
+                    Some(SuggestionType::Completion(name, coord.clone()))
                 } else {
                     None
                 }
             })
             .collect();
+        self.suggestions.append(
+            &mut self
+                .query_col(coord_col!("meta", "B"))
+                .iter()
+                .filter_map(|coord| {
+                    if let Some(name) = self
+                        .get_session()
+                        .grammars
+                        .get(coord)
+                        .map(|g| g.name.clone())
+                    {
+                        Some(SuggestionType::Binding(name, coord.clone()))
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+        );
 
-            
-            
+        info! {"all suggestions: {:?}", self.suggestions};
 
         should_render
+    }
+
+    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
+        if let Some(coord) = self.active_cell.clone() {
+            let pos = self.current_cursor_position;
+            let active_cell_id = format! {"cell-{}", coord.to_string()};
+            // This is meant to help us maintain the position of the cursor in the input
+            // consider it a temporary fix
+            js! {
+                let startNode = document.getElementById(@{active_cell_id.clone()});
+                let endNode = startNode;
+                let startOffset = @{pos};
+                let endOffset = startOffset;
+                var rangeobj = document.createRange();
+                var selectobj = window.getSelection();
+                rangeobj.setStart(startNode, startOffset);
+                rangeobj.setEnd(endNode, endOffset);
+                rangeobj.collapse(true);
+                selectobj.removeAllRanges();
+                selectobj.addRange(rangeobj);
+            };
+        }
+
+        false
     }
 
     fn view(&self) -> Html {
@@ -1667,6 +1942,8 @@ impl Component for Model {
                     </div>
                 </div>
                 <input id="integration-test-model-dump" style="width: 0;height: 0;">{serialized_model}</input>
+
+                <a id="downloadAnchorElem" style="display:none"></a>
 
             </div>
         }

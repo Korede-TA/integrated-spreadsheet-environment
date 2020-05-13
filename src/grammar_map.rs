@@ -20,7 +20,7 @@ pub struct GrammarMap(HashMap<Coordinate, Grammar>);
 pub enum MapEntry {
     G(Grammar),
     // using `Box` here is necessary so Rust can infer a proper size of enum
-    Grid(Vec<Vec<Box<MapEntry>>>),
+    Grid(String /* name */, Vec<Vec<Box<MapEntry>>>),
 }
 
 pub fn build_grammar_map(
@@ -32,7 +32,7 @@ pub fn build_grammar_map(
         MapEntry::G(grammar) => {
             map.insert(root_coord, grammar);
         }
-        MapEntry::Grid(entry_table) => {
+        MapEntry::Grid(name, entry_table) => {
             let mut sub_coords = vec![];
             let mut num_rows = 0;
             let mut num_cols = 0;
@@ -53,7 +53,7 @@ pub fn build_grammar_map(
             map.insert(
                 root_coord,
                 Grammar {
-                    name: String::new(),
+                    name,
                     style: {
                         let mut s = Style::default();
                         s.width = 90.0 * (num_cols as f64);
@@ -77,12 +77,20 @@ macro_rules! g {
 #[macro_export]
 macro_rules! grid {
     [ $( [ $( $d:expr ),* ] ),* ] => {
-        MapEntry::Grid(vec![
+        MapEntry::Grid(String::new(), vec![
             $(
                 vec![$(Box::new($d)),*],
             )*
         ])
-    }
+    };
+
+    ($name:expr, [ $( [ $( $d:expr ),* ] ),* ]) => {
+        MapEntry::Grid($name, vec![
+            $(
+                vec![$(Box::new($d)),*],
+            )*
+        ])
+    };
 }
 
 // #[cfg(test)]
