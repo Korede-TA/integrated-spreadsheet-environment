@@ -6,6 +6,7 @@ use std::option::Option;
 use std::panic;
 
 use crate::coord;
+use crate::coordinate;
 use crate::util::{coord_show, non_zero_u32_tuple};
 
 #[derive(Parser)]
@@ -24,6 +25,8 @@ impl Coordinate {
     pub fn child_of(parent: &Self, child_coord: (NonZeroU32, NonZeroU32)) -> Coordinate {
         let mut new_row_col = parent.clone().row_cols;
         new_row_col.push(child_coord);
+        info!("pareb = {:?}, child_coord = {:?}", parent, child_coord);
+
         Coordinate {
             row_cols: new_row_col,
         }
@@ -330,33 +333,69 @@ mod tests {
     #[test]
     fn test_row() {
         assert_eq!(coord!("root-A1-B2-B3").row().get(), 3);
+        assert_ne!(coord!("root-A1-B2-B3").row().get(), 2);
     }
 
     #[test]
-    // - parent.row_cols.len() == result.row_cols.len() - 1
     fn test_child_of() {
-        // let param = coord!().row_cols.len();
-        // assert_eq!(
-        //     coord!("root-A1-B2-B3").child_of().len(),
-        //     coord!("root-A1-B2-B3").len() + 1
-        // )
-        unimplemented!();
+        assert_eq!(
+            coordinate::Coordinate::child_of(
+                &coord!("root"),
+                non_zero_u32_tuple((1 as u32, 1 as u32)),
+            )
+            .row_cols
+            .len(),
+            coord!("root").row_cols.len() + 1
+        );
+
+        assert_ne!(
+            coordinate::Coordinate::child_of(
+                &coord!("root"),
+                non_zero_u32_tuple((1 as u32, 1 as u32)),
+            )
+            .row_cols
+            .len(),
+            coord!("root").row_cols.len() - 1
+        );
+
+        assert_ne!(
+            coordinate::Coordinate::child_of(
+                &coord!("root"),
+                non_zero_u32_tuple((1 as u32, 1 as u32)),
+            )
+            .row_cols
+            .len(),
+            coord!("root").row_cols.len()
+        );
     }
 
     #[test]
     fn test_parent() {
         assert_eq!(coord!("root").parent(), None);
         assert_eq!(coord!("meta").parent(), None);
+        assert_ne!(coord!("root").parent(), coord!("root-A1-A1").parent());
+        assert_ne!(coord!("meta").parent(), coord!("root-A1-A1").parent());
     }
 
     #[test]
     fn test_to_string() {
         assert_eq!(coord!("root-A1-B2-B3").to_string(), "root-A1-B2-B3");
+        assert_ne!(
+            coord!("root-A1-B2-B3").to_string(),
+            String::from("root-A1-B2-B4")
+        );
     }
 
     #[test]
     fn test_row_mut() {
-        unimplemented!()
+        assert_eq!(
+            coord!("root-A1-B2-B3").row_mut(),
+            &mut NonZeroU32::new(3).unwrap()
+        );
+        assert_ne!(
+            coord!("root-A1-B2-B3").row_mut(),
+            &mut NonZeroU32::new(4).unwrap()
+        );
     }
 
     #[test]

@@ -27,6 +27,15 @@ npm install
 # Debugging electron with VS code
 Create lauch.json and add "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/electron" to the file.
 
+# Testing
+- Unit Testing
+```
+npm run test
+```
+- Integration Testing
+```
+npm run test-mocha
+```
 
 # Documentation
 
