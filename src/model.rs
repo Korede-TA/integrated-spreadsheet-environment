@@ -470,10 +470,10 @@ impl Component for Model {
                         coord!("meta"),
                         grid![
                             [g!(Grammar::input("", "A1"))],
-                            [g!(Grammar::input("", "A2"))]
-                            // [g!(Grammar::default_button())],
-                            // [g!(Grammar::default_slider())],
-                            // [g!(Grammar::default_toggle())]
+                            [g!(Grammar::input("", "A2"))],
+                            [g!(Grammar::default_button())],
+                            [g!(Grammar::default_slider())],
+                            [g!(Grammar::default_toggle())]
                         ],
                     );
                     build_grammar_map(
@@ -815,11 +815,11 @@ impl Component for Model {
                 //     for grammar in context{
                 //         if re.is_match(grammar.kind){
                 //             grammar.kind = Kind::Grid(grammar.kind)
-                //         } 
+                //         }
                 //     }
                 // }
-                info!("file data: {:?}", data );
-                let session: Session =  serde_json::from_str(data).unwrap();
+                info!("file data: {:?}", data);
+                let session: Session = serde_json::from_str(data).unwrap();
                 // serde_json::from_str(data.unwrap()).unwrap();
                 info!(" LOADSESSION");
                 self.load_session(session);
@@ -842,7 +842,9 @@ impl Component for Model {
                 let jsbuffer = Buffer::from_string(&JsString::from(j.unwrap()), None);
                 let jscallback = Function::new_no_args("{}");
                 node_fs::append_file(&jsfilename, &jsbuffer, None, &jscallback);
-                self.update(Action::AskFileName());
+                if self.file_popup {
+                    self.update(Action::AskFileName());
+                };
 
                 true
             }

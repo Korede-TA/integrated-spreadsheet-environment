@@ -1,14 +1,15 @@
 use serde::{
-    ser::{SerializeSeq, SerializeStruct, SerializeStructVariant, Serializer},
-    de::Error, Deserialize, Deserializer, Serialize,
+    de::Error,
+    ser::{SerializeStruct, SerializeStructVariant, SerializeTupleVariant, Serializer},
+    Deserialize, Deserializer, Serialize,
 };
 use std::collections::HashMap;
 use std::option::Option;
 
+use crate::coord;
 use crate::coordinate::Coordinate;
 use crate::grammar::{Grammar, Interactive, Kind};
 use crate::style::Style;
-use crate::{coord};
 
 // Session encapsulates the serializable state of the application that gets stored to disk
 // in a .ise file (which is just a JSON file)
@@ -22,7 +23,7 @@ pub struct Session {
 js_serializable!(Session);
 js_deserializable!(Session);
 
-
+// Session Custom Serialization
 impl Serialize for Session {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -37,42 +38,28 @@ impl Serialize for Session {
     }
 }
 
+// Need coordinateParser and its derive for creating a coordinate during deserialization
 #[derive(Parser)]
 #[grammar = "coordinate.pest"]
 pub struct CoordinateParser;
-use pest::Parser;
-use std::num::NonZeroU32;
-use std::panic;
-use crate::util::{non_zero_u32_tuple};
-
+// Coordinate Custom Deserialization
 impl<'de> Deserialize<'de> for Coordinate {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
+        // Imports for the Macro coord! inn this scope
+        use crate::util::non_zero_u32_tuple;
+        use pest::Parser;
+        use std::num::NonZeroU32;
+        use std::panic;
+
         let s: &str = Deserialize::deserialize(deserializer)?;
-        
-        // let tmp = s;
         Ok(coord!(s))
-        // std::result::Result<,  D::Error>
-        
     }
 }
 
-// impl<'de> Deserialize<'de> for Interactive {
-//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-//     where
-//         D: Deserializer<'de>,
-//     {
-//         let s: &str = Deserialize::deserialize(deserializer)?;
-        
-//         // let tmp = s;
-//         Ok(coord!(s))
-//         // std::result::Result<,  D::Error>
-        
-//     }
-// }
-
+// Style Custom Serialization
 impl Serialize for Style {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -92,6 +79,7 @@ impl Serialize for Style {
     }
 }
 
+// Grammar Custom Serialization
 impl Serialize for Grammar {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -100,16 +88,12 @@ impl Serialize for Grammar {
         let mut state = serializer.serialize_struct("Grammar", 3)?;
         state.serialize_field("name", &self.name)?;
         state.serialize_field("style", &self.style)?;
-        // if type_of(self.kind) == "std::vec::Vec<(std::num::NonZeroU32, std::num::NonZeroU32)>" {
-            
-        // }else{
-            
-        // }
         state.serialize_field("kind", &self.kind)?;
         state.end()
     }
 }
 
+// Interactive Custom Serialization
 impl Serialize for Interactive {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -117,33 +101,31 @@ impl Serialize for Interactive {
     {
         match &self {
             Interactive::Button() => {
-                let mut sv = serializer.serialize_struct("Interactive", 0)?;
-                sv.serialize_field("Button", &())?;
+                let mut sv = serializer.serialize_tuple_variant("Interactive", 0, "Button", 0)?;
                 sv.end()
             }
             Interactive::Slider(val, min, max) => {
-                let mut sv = serializer.serialize_struct_variant("Interactive", 1, "Slider", 3)?;
-                sv.serialize_field("slider_value", val)?;
-                sv.serialize_field("slider_min", min)?;
-                sv.serialize_field("slider_max", max)?;
+                let mut sv = serializer.serialize_tuple_variant("Interactive", 1, "Slider", 3)?;
+                sv.serialize_field(val)?;
+                sv.serialize_field(min)?;
+                sv.serialize_field(max)?;
                 sv.end()
             }
             Interactive::Toggle(b) => {
                 let mut sv = serializer.serialize_struct("Interactive", 1)?;
-                sv.serialize_field("toggle_state", b)?;
+                sv.serialize_field("Toggle", b)?;
                 sv.end()
             }
         }
     }
 }
 
-
+// kind Custom Serialization
 impl Serialize for Kind {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: Serializer, 
+        S: Serializer,
     {
-
         match &self {
             Kind::Text(s) => {
                 let mut sv = serializer.serialize_struct("kind", 1)?;
@@ -156,9 +138,9 @@ impl Serialize for Kind {
                 sv.end()
             }
             Kind::Interactive(s, x) => {
-                let mut sv = serializer.serialize_struct_variant("kind", 0, "Interactive", 2)?;
-                sv.serialize_field("name", s)?;
-                sv.serialize_field("interactive", x)?;
+                let mut sv = serializer.serialize_tuple_variant("kind", 0, "Interactive", 2)?;
+                sv.serialize_field(s)?;
+                sv.serialize_field(x)?;
                 sv.end()
             }
             Kind::Grid(v) => {
@@ -183,13 +165,12 @@ impl Serialize for Kind {
     }
 }
 
+// Coordinate Custom Serialization
 impl Serialize for Coordinate {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-            serializer.serialize_str(&self.to_string())
-        
+        serializer.serialize_str(&self.to_string())
     }
-    
 }
