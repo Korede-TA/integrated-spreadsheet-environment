@@ -1,10 +1,12 @@
 use serde::{
-    ser::{SerializeSeq, SerializeStruct, SerializeStructVariant, Serializer},
-    Deserialize, Serialize,
+    de::Error,
+    ser::{SerializeStruct, SerializeStructVariant, SerializeTupleVariant, Serializer},
+    Deserialize, Deserializer, Serialize,
 };
 use std::collections::HashMap;
 use std::option::Option;
 
+use crate::coord;
 use crate::coordinate::Coordinate;
 use crate::grammar::{Grammar, Interactive, Kind};
 use crate::style::Style;
@@ -21,6 +23,7 @@ pub struct Session {
 js_serializable!(Session);
 js_deserializable!(Session);
 
+// Session Custom Serialization
 impl Serialize for Session {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -35,6 +38,28 @@ impl Serialize for Session {
     }
 }
 
+// Need coordinateParser and its derive for creating a coordinate during deserialization
+#[derive(Parser)]
+#[grammar = "coordinate.pest"]
+pub struct CoordinateParser;
+// Coordinate Custom Deserialization
+impl<'de> Deserialize<'de> for Coordinate {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        // Imports for the Macro coord! inn this scope
+        use crate::util::non_zero_u32_tuple;
+        use pest::Parser;
+        use std::num::NonZeroU32;
+        use std::panic;
+
+        let s: &str = Deserialize::deserialize(deserializer)?;
+        Ok(coord!(s))
+    }
+}
+
+// Style Custom Serialization
 impl Serialize for Style {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -47,10 +72,14 @@ impl Serialize for Style {
         state.serialize_field("border_collapse", &self.border_collapse)?;
         state.serialize_field("font_weight", &self.font_weight)?;
         state.serialize_field("font_color", &self.font_color)?;
+        state.serialize_field("col_span", &self.col_span)?;
+        state.serialize_field("row_span", &self.row_span)?;
+        state.serialize_field("display", &self.display)?;
         state.end()
     }
 }
 
+// Grammar Custom Serialization
 impl Serialize for Grammar {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -64,6 +93,7 @@ impl Serialize for Grammar {
     }
 }
 
+// Interactive Custom Serialization
 impl Serialize for Interactive {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -71,26 +101,26 @@ impl Serialize for Interactive {
     {
         match &self {
             Interactive::Button() => {
-                let mut sv = serializer.serialize_struct_variant("Interactive", 0, "Button", 1)?;
-                sv.serialize_field("button", &())?;
+                let mut sv = serializer.serialize_tuple_variant("Interactive", 0, "Button", 0)?;
                 sv.end()
             }
             Interactive::Slider(val, min, max) => {
-                let mut sv = serializer.serialize_struct_variant("Interactive", 1, "Slider", 3)?;
-                sv.serialize_field("slider_value", val)?;
-                sv.serialize_field("slider_min", min)?;
-                sv.serialize_field("slider_max", max)?;
+                let mut sv = serializer.serialize_tuple_variant("Interactive", 1, "Slider", 3)?;
+                sv.serialize_field(val)?;
+                sv.serialize_field(min)?;
+                sv.serialize_field(max)?;
                 sv.end()
             }
             Interactive::Toggle(b) => {
-                let mut sv = serializer.serialize_struct_variant("Interactive", 2, "Toggle", 1)?;
-                sv.serialize_field("toggle_state", b)?;
+                let mut sv = serializer.serialize_struct("Interactive", 1)?;
+                sv.serialize_field("Toggle", b)?;
                 sv.end()
             }
         }
     }
 }
 
+// kind Custom Serialization
 impl Serialize for Kind {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -98,36 +128,34 @@ impl Serialize for Kind {
     {
         match &self {
             Kind::Text(s) => {
-                let mut sv = serializer.serialize_struct_variant("Kind", 0, "Text", 1)?;
-                sv.serialize_field("text", s)?;
+                let mut sv = serializer.serialize_struct("kind", 1)?;
+                sv.serialize_field("Text", s)?;
                 sv.end()
             }
             Kind::Input(s) => {
-                let mut sv = serializer.serialize_struct_variant("Kind", 1, "Input", 1)?;
-                sv.serialize_field("input", s)?;
+                let mut sv = serializer.serialize_struct("kind", 1)?;
+                sv.serialize_field("Input", s)?;
                 sv.end()
             }
             Kind::Interactive(s, x) => {
-                let mut sv = serializer.serialize_struct_variant("Kind", 2, "Interactive", 2)?;
-                sv.serialize_field("name", s)?;
-                sv.serialize_field("interactive", x)?;
+                let mut sv = serializer.serialize_tuple_variant("kind", 0, "Interactive", 2)?;
+                sv.serialize_field(s)?;
+                sv.serialize_field(x)?;
                 sv.end()
             }
             Kind::Grid(v) => {
-                let mut seq = serializer.serialize_seq(Some(v.len()))?;
-                for e in v {
-                    seq.serialize_element(e)?;
-                }
-                seq.end()
+                let mut sv = serializer.serialize_struct("kind", 1)?;
+                sv.serialize_field("Grid", v)?;
+                sv.end()
             }
             Kind::Lookup(s, x) => {
-                let mut sv = serializer.serialize_struct_variant("Kind", 3, "Lookup", 2)?;
+                let mut sv = serializer.serialize_struct_variant("kind", 1, "Lookup", 2)?;
                 sv.serialize_field("raw_value", s)?;
                 sv.serialize_field("lookup", x)?;
                 sv.end()
             }
             Kind::Defn(s, c, rules) => {
-                let mut sv = serializer.serialize_struct_variant("Kind", 4, "Defn", 3)?;
+                let mut sv = serializer.serialize_struct_variant("kind", 2, "Defn", 3)?;
                 sv.serialize_field("name", s)?;
                 sv.serialize_field("coordinate", c)?;
                 sv.serialize_field("rules", rules)?;
@@ -137,6 +165,7 @@ impl Serialize for Kind {
     }
 }
 
+// Coordinate Custom Serialization
 impl Serialize for Coordinate {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

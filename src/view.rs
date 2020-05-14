@@ -26,7 +26,7 @@ pub fn view_side_nav(m: &Model) -> Html {
             side_menu_nodes.add_child(html! {
                 <button class="active-menu" onclick=m.link.callback(|e| Action::SetActiveMenu(None))>
                     <img src={side_menu.icon_path.clone()} 
-                         width="40px" alt={side_menu.name.clone()}>
+                            width="40px" alt={side_menu.name.clone()}>
                     </img>
                 </button>
             });
@@ -50,6 +50,43 @@ pub fn view_side_nav(m: &Model) -> Html {
 
             { side_menu_section }
         </div>
+    }
+}
+pub fn view_file_popup(m: &Model) -> Html {
+    let mut popup = html! { <></> };
+
+    if m.file_popup {
+        popup = html! {
+            <div class="hover_popup">
+                <span class="helper"></span>
+                <div class="_popup">
+                    <div class="popupCloseButton" onclick=m.link.callback(|e| Action::AskFileName())>{"X"}</div>
+                    // Path input under work
+                    /* <label for="path">{"Path"}</label>
+                        <input type="text" name="path" value=m.path onchange=m.link.callback(|v| {
+                            if let ChangeData::Value(s) = v {
+                                return Action::SetPath(s);
+                            }
+                            Action::Noop
+                        })>
+                        </input>*/
+                    <label for="path">{"Name"}</label>
+                    <input type="text" name="name" value=m.get_session().title onchange=m.link.callback(|v| {
+                        if let ChangeData::Value(s) = v {
+                            return Action::SetSessionTitle(s);
+                        }
+                        Action::Noop
+                    })>
+                    </input>
+
+                    <input type="button" value="Save" onclick=m.link.callback(|_| Action::SaveSession()) />
+                </div>
+            </div>
+        };
+    }
+
+    html! {
+        {popup}
     }
 }
 
@@ -155,8 +192,8 @@ pub fn view_menu_bar(m: &Model) -> Html {
     // SPECIAL MENU BAR ITEMS
     let nest_grid_button = html! {
         /* the "Nest Grid" button is special because
-         * it contains fields for the variable size of the button
-         */
+            * it contains fields for the variable size of the button
+            */
         <button class="menu-bar-button" id="nest" onclick=m.link.callback(move |_| {
             if let Some(current) = &active_cell {
                 Action::AddNestedGrid(current.clone(), (default_row, default_col))
@@ -310,7 +347,7 @@ pub fn view_menu_bar(m: &Model) -> Html {
                     }
                 }>
             </input>
-            <button id="SaveSession" class="menu-bar-button" onclick=m.link.callback(|_| Action::SaveSession()) >
+            <button id="SaveSession" class="menu-bar-button" onclick=m.link.callback(|_| Action::AskFileName()) >
                 { "Save" }
             </button>
             <button class="menu-bar-button">
@@ -586,7 +623,7 @@ pub fn view_lookup_grammar(
                 class=format!{
                         "cell-data {}",
                         if is_active { "cell-active" } else { "cell-inactive" },
-                      }
+                        }
                 placeholder="coordinate"
                 ref={
                     if is_active {
@@ -794,10 +831,10 @@ pub fn view_input_grammar(
                     }
                 })
                 /*
-                 * RESIZING
-                 * - onmouseover: handle cursor change
-                 * - onmousedown/up: handle resize events
-                 */
+                    * RESIZING
+                    * - onmouseover: handle cursor change
+                    * - onmousedown/up: handle resize events
+                    */
                 onmouseover=m.link.callback(move |e: MouseOverEvent| {
                     let (offset_x, offset_y) = {
                         // compute the distance from the right & bottom borders that resizing is allowed
@@ -932,7 +969,8 @@ pub fn view_context_menu(m: &Model) -> Html {
             true,
             0,
         ),
-        ("Save", m.link.callback(|_| Action::SaveSession()), true, 3),
+
+        ("Save", m.link.callback(|_| Action::AskFileName()), true, 3),
         ("Reset", m.link.callback(|_| Action::Recreate), true, 3),
         ("Merge", m.link.callback(|_| Action::MergeCells()), false, 3),
     ];

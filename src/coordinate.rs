@@ -14,7 +14,7 @@ use crate::util::{coord_show, non_zero_u32_tuple};
 pub struct CoordinateParser;
 
 // Coordinate specifies the nested coordinate structure
-#[derive(Deserialize, PartialEq, Eq, Debug, Hash, Clone, Default)]
+#[derive(PartialEq, Eq, Debug, Hash, Clone, Default)]
 pub struct Coordinate {
     pub row_cols: Vec<(NonZeroU32, NonZeroU32)>, // TEST: should never be empty list
 }
