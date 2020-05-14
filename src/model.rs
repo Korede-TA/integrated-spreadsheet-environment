@@ -792,59 +792,45 @@ impl Component for Model {
                 self.open_side_menu = active_menu;
                 true
             }
-
+            // Read File and Adds Task
             Action::ReadSession(file) => {
-                info!("in here");
-
                 self.tasks.push(
                     self.reader
                         .read_file(file, self.link.callback(Action::LoadSession)),
                 );
-                info!("task");
                 false
             }
 
+            // Deserialize and Loads Session
             Action::LoadSession(file_data) => {
                 use std::str;
-                let data = str::from_utf8(&file_data.content).unwrap();
-                // extern crate regex;
-                // use regex::Regex;
-                // let re = Regex::new(r"\[(\s?\([1-9],\s?[1-9]\)\s?,?)*\]").unwrap();
-                // let v = serde_json::from_str(data);
-                // for context in v{
-                //     for grammar in context{
-                //         if re.is_match(grammar.kind){
-                //             grammar.kind = Kind::Grid(grammar.kind)
-                //         }
-                //     }
-                // }
-                info!("file data: {:?}", data);
-                let session: Session = serde_json::from_str(data).unwrap();
-                // serde_json::from_str(data.unwrap()).unwrap();
-                info!(" LOADSESSION");
+                let session: Session =  serde_json::from_str(str::from_utf8(&file_data.content).unwrap()).unwrap();
                 self.load_session(session);
                 true
             }
+            // Popup file name
             Action::AskFileName() => {
                 self.file_popup = !self.file_popup;
                 true
             }
-
+            // File Saving
             Action::SaveSession() => {
-                // TODO: uncomment when this is working
+                // Imports
                 use js_sys::{Function, JsString};
                 use node_sys::fs as node_fs;
                 use node_sys::Buffer;
+                // Session Copy
                 let current_session = self.to_session();
+                // File naming
                 let j = serde_json::to_string(&current_session.clone());
                 let filename = current_session.title.to_string() + ".json";
                 let jsfilename = JsString::from(filename);
                 let jsbuffer = Buffer::from_string(&JsString::from(j.unwrap()), None);
                 let jscallback = Function::new_no_args("{}");
+                // File append
                 node_fs::append_file(&jsfilename, &jsbuffer, None, &jscallback);
-                if self.file_popup {
-                    self.update(Action::AskFileName());
-                };
+                // Conditionnal Closing
+                if self.file_popup {self.update(Action::AskFileName());};
 
                 true
             }
