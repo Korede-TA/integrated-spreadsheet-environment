@@ -1,4 +1,5 @@
 #![recursion_limit = "1024"]
+use pest::Parser;
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use stdweb::traits::IEvent;
@@ -18,6 +19,11 @@ use crate::grammar::{Grammar, Interactive, Kind, Lookup};
 use crate::model::{Action, CursorType, Model, ResizeMsg, SelectMsg, SideMenu};
 use crate::style::get_style;
 use crate::util::non_zero_u32_tuple;
+use crate::{coord};
+
+#[derive(Parser)]
+#[grammar = "coordinate.pest"]
+pub struct CoordinateParser;
 
 pub fn view_side_nav(m: &Model) -> Html {
     let mut side_menu_nodes = VList::new();
@@ -349,6 +355,9 @@ pub fn view_menu_bar(m: &Model) -> Html {
             </button>
             <button id="NewEditor" class="menu-bar-button" onclick=m.link.callback(|_| Action::NewEditor)>
                 { "New Editor" }
+            </button>
+            <button id="RunPython" class="menu-bar-button" onclick=m.link.callback(|_| Action::RunPython("import sys\nsys.version\nprint(1+2)".to_string(), coord!("root-A1")))>
+                { "Run Python" }
             </button>
             //<>
                 { add_definition_button }

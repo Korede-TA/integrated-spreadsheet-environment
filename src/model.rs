@@ -1,4 +1,3 @@
-#![recursion_limit = "1024"]
 use electron_sys::ipc_renderer;
 use pest::Parser;
 use std::collections::{HashMap, HashSet};
@@ -219,7 +218,7 @@ pub enum Action {
 
     RunPython(
         String, /* TODO: pass in sheet as well */
-        /* output_coord */ Coordinate,
+        Coordinate /* output_coord */
     ),
 }
 
@@ -1584,13 +1583,24 @@ impl Component for Model {
                 true
             }
 
-            Action::RunPython(code, output_coord) => {
-                // TODO: find a way to return data after execution by Pyodide
-                js! {
-                    languagePluginLoader.then(() => {
-                        console.log(pyodide.runPython(@{code}));
-                    });
+            Action::RunPython(__code, output_coord) => {
+                let editor_id = format! {
+                    "codemirror-{}",
+                    self.active_cell.clone().map(|c| c.to_string()).unwrap_or(String::new()),
                 };
+                // TODO: find a way to return data after execution by Pyodide
+                let return_value : String = js! {
+                    let editorEl = document.getElementById(@{editor_id.clone()});
+                    let code = editorEl.value;
+                    return pyodide.runPython(code);
+                }.try_into().unwrap();
+                if let Some(g @ Grammar {
+                            kind: Kind::Input(_),
+                            ..
+                        }) = self.get_session_mut().grammars.get_mut(&output_coord) {
+                            g.kind = Kind::Input(return_value);
+                    }
+
                 false
             }
         };
@@ -1611,9 +1621,6 @@ impl Component for Model {
                 }
             })
             .collect();
-
-            
-            
 
         should_render
     }
