@@ -2,6 +2,7 @@ use pest::Parser;
 use serde::{Deserialize, Serialize};
 use std::char::from_u32;
 use std::num::NonZeroU32;
+use std::ops::Deref;
 use std::option::Option;
 use std::panic;
 
