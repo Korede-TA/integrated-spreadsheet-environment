@@ -92,6 +92,9 @@ pub struct Model {
     //    so actions can be chained, for instance
     pub link: ComponentLink<Model>,
 
+    // Observing Changes in referenced cells
+    observers: HashMap<Coordinate, Vec<Coordinate>>,
+
     // - `default_nested_row_cols` shows the default number of rows and columns
     //   created by Ctrl+G or the "Nest Grid" button
     // - `default_definition_name` shows the default name of the grammar created
@@ -183,6 +186,7 @@ pub enum Action {
     ZoomIn,
     ZoomOut,
     ZoomReset,
+    ChangeEvent(Coordinate, ChangeEventMsg),
 
     Resize(ResizeMsg),
     SetCursorType(CursorType),
@@ -215,6 +219,16 @@ pub enum Action {
     ReadCSVFile(File, Coordinate),
     LoadCSVFile(FileData, Coordinate),
 }
+
+//Change event Catalog
+pub enum ChangeEventMsg {
+    ChangeInput,
+    InsertRow,
+    InsertCol,
+    DeleteCol,
+    DeleteRow,
+    AddNestedTable,
+  }
 
 impl Model {
     pub fn get_session(&self) -> &Session {
@@ -1309,44 +1323,6 @@ impl Component for Model {
                 true
             }
             
-            // Action::Recreate => {
-            //     self.get_session_mut().grammars = hashmap! {
-            //         coord!("root")    => self.get_session_mut().root.clone(),
-            //         coord!("root-A1") => Grammar::default(),
-            //         coord!("root-A2") => Grammar::default(),
-            //         coord!("root-A3") => Grammar::default(),
-            //         coord!("root-B1") => Grammar::default(),
-            //         coord!("root-B2") => Grammar::default(),
-            //         coord!("root-B3") => Grammar::default(),
-            //         coord!("meta")    => self.get_session_mut().meta.clone(),
-            //         coord!("meta-A1") => Grammar::text("js grammar".to_string(), "This is js".to_string()),
-            //         coord!("meta-A2") => Grammar::text("java grammar".to_string(), "This is java".to_string()),
-            //         coord!("meta-A3") => Grammar {
-            //             name: "defn".to_string(),
-            //             style: Style::default(),
-            //             kind: Kind::Defn(
-            //                 "".to_string(),
-            //                 coord!("meta-A3"),
-            //                 vec![
-            //                     ("".to_string(), coord!("meta-A3-B1")),
-            //                 ],
-            //             ),
-            //         },
-            //         coord!("meta-A4") => Grammar::default_button(),
-            //         coord!("meta-A5") => Grammar::default_slider(),
-            //         coord!("meta-A6") => Grammar::default_toggle(),
-            //         coord!("meta-A3-A1")    => Grammar::default(),
-            //         coord!("meta-A3-B1")    => Grammar {
-            //             name: "root".to_string(),
-            //             style: Style::default(),
-            //             kind: Kind::Grid(row_col_vec![ (1,1), (2,1), (1,2), (2,2) ]),
-            //         },
-            //         coord!("meta-A3-B1-A1") => Grammar::input("".to_string(), "sub-grammar name".to_string()),
-            //         coord!("meta-A3-B1-B1") => Grammar::text("".to_string(), "+".to_string()),
-            //         coord!("meta-A3-B1-C1") => Grammar::default(),
-            //     };
-            //     true
-            // }
 
             Action::Recreate => {
                 self.get_session_mut().grammars = {
@@ -1423,6 +1399,33 @@ impl Component for Model {
             }
             
             
+            Action::ChangeEvent(current_coord, msg) => {
+                match msg {
+                    ChangeEventMsg::ChangeInput => {
+                        let action = Action::ChangeInput;
+                    }
+                    ChangeEventMsg::AddNestedTable => {
+                        let action = Action::AddNestedTable;
+                    }
+                    ChangeEventMsg::InsertCol => {
+                        let action = Action::InsertCol;
+                    }
+                    ChangeEventMsg::InsertRow => {
+                        let action = Action::InsertRow;
+                    }
+                    ChangeEventMsg::DeleteCol => {
+                        let action = Action::DeleteCol;
+                    }
+                    ChangeEventMsg::DeleteRow => {
+                        let action = Action::DeleteRow;
+                    }
+                }
+                for observer_coord in self.observers.get(current_coord).unwrap() {
+                    self.active_cell = current_coord;
+                    self.update(action)
+                }
+                true
+            }
 
             Action::Resize(msg) => {
                 match msg {

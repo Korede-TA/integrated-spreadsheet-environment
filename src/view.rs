@@ -471,6 +471,7 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
             Kind::Defn(name, defn_coord, sub_grammars) => {
                 view_defn_grammar(m, &coord, &defn_coord, name, sub_grammars)
             }
+            // Kind::Lookup(content) => view_editor_grammar(m, &coord),
         }
     } else {
         html! { <></> }
