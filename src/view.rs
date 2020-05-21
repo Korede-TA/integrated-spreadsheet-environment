@@ -203,22 +203,6 @@ pub fn view_menu_bar(m: &Model) -> Html {
     // SPECIAL MENU BAR ITEMS
     let nest_grid_button = html! {
         /* the "Nest Grid" button is special because
-<<<<<<< HEAD
-         * it contains fields for the variable size of the button
-         */
-        <button class="menu-bar-button" id="nest" 
-            onmousedown=m.link.callback(move |e : MouseDownEvent| {
-                if let Some(current) = &active_cell {
-                    Action::AddNestedGrid(current.clone(), (default_row, default_col))            
-                } else { Action::Noop }
-            })
-            onmouseup=m.link.callback(move |e : MouseUpEvent| {
-                if let Some(current) = &nest_active_cell.clone() {
-                    Action::SetActiveCell(current.clone())            
-                } else { Action::Noop }
-            })     
-        >
-=======
             * it contains fields for the variable size of the button
             */
         <button class="menu-bar-button" id="nest" onclick=m.link.callback(move |_| {
@@ -226,7 +210,6 @@ pub fn view_menu_bar(m: &Model) -> Html {
                 Action::AddNestedGrid(current.clone(), (default_row, default_col))
             } else { Action::Noop }
         })>
->>>>>>> d000f71cb66fc48c6150ca946f0c3b0003b81f62
             { "Nest Grid  " }
         </button>
     };
@@ -659,13 +642,8 @@ pub fn view_lookup_grammar(
             <div contenteditable=true
                 class=format!{
                         "cell-data {}",
-<<<<<<< HEAD
-                        if is_active { "cell-active " } else { "cell-inactive" },
-                      }
-=======
                         if is_active { "cell-active" } else { "cell-inactive" },
                         }
->>>>>>> d000f71cb66fc48c6150ca946f0c3b0003b81f62
                 placeholder="coordinate"
                 ref={
                     if is_active {

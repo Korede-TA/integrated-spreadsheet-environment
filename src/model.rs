@@ -1192,10 +1192,6 @@ impl Component for Model {
                             }
                         }
                     }
-<<<<<<< HEAD
-
-=======
->>>>>>> d000f71cb66fc48c6150ca946f0c3b0003b81f62
                 }
                 if current_grammar.style.row_span.0 != 0 || current_grammar.style.col_span.0 != 0 {
                     grammar.style.row_span = current_grammar.style.row_span.clone();
