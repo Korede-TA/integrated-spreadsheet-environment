@@ -133,6 +133,11 @@ impl Serialize for Kind {
                 sv.serialize_field("rules", rules)?;
                 sv.end()
             }
+            Kind::Editor(s) => {
+                let mut sv = serializer.serialize_struct_variant("Kind", 0, "Editor", 1)?;
+                sv.serialize_field("content", s)?;
+                sv.end()
+            }
         }
     }
 }
