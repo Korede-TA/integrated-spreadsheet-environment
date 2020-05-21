@@ -639,6 +639,7 @@ pub fn view_input_grammar(
             return html! { <> </> };
         }
     }
+
     // load the suggestion values, including the completion callbacks
     // and parse them into DOM nodes
     let suggestions_len = if value.clone() != "" && is_active {

@@ -520,7 +520,7 @@ impl Component for Model {
             }
 
             Action::ChangeInput(coord, new_value) => {
-                // set_data_cell(&coord.clone(), new_value.clone().to_string());
+                set_data_cell(&coord.clone(), new_value.clone().to_string());
                 if let Some(g) = self.get_session_mut().grammars.get_mut(&coord) {
                     match g {
                         Grammar {
@@ -1498,11 +1498,18 @@ fn focus_on_cell(c: &Coordinate) {
 }
 
 fn set_data_cell(c: &Coordinate, value: String) {
-    let cell_id = format! {"cell-{}", c.to_string()}; 
+    let cell_id = format! {"cell-{}", c.clone().to_string()}; 
     js! {
         try {
-            let element = document.getElementById(@{cell_id.clone()}).firstChild;
-            element.innerHTML = @{value} ;
+            let js_value = @{value.clone()};
+            let element = document.getElementById(@{cell_id.clone()}).firstChild;           
+            if (js_value != "") {
+                element.value = "";
+                element.focus();
+            } else {
+                element.innerHTML = "";
+            }
+            // console.log( @{cell_id.to_string()});
         } catch (e) {
             console.log("cannot clear data on coordinate ", @{cell_id.to_string()});
         }
