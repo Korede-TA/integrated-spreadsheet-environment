@@ -23,6 +23,7 @@ pub mod session;
 pub mod style;
 pub mod util;
 pub mod view;
+pub mod codemirror;
 
 use crate::model::Model;
 

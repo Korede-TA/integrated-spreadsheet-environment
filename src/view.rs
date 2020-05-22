@@ -1,4 +1,5 @@
 #![recursion_limit = "1024"]
+use pest::Parser;
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use stdweb::traits::IEvent;
@@ -12,11 +13,17 @@ use yew::services::reader::File;
 use yew::virtual_dom::vlist::VList;
 use yew::{html, ChangeData, Html, InputData};
 
+use crate::codemirror::CodeMirror;
 use crate::coordinate::Coordinate;
 use crate::grammar::{Grammar, Interactive, Kind, Lookup};
 use crate::model::{Action, CursorType, Model, ResizeMsg, SelectMsg, SideMenu};
 use crate::style::get_style;
 use crate::util::non_zero_u32_tuple;
+use crate::{coord};
+
+#[derive(Parser)]
+#[grammar = "coordinate.pest"]
+pub struct CoordinateParser;
 
 pub fn view_side_nav(m: &Model) -> Html {
     let mut side_menu_nodes = VList::new();
@@ -346,6 +353,12 @@ pub fn view_menu_bar(m: &Model) -> Html {
             <button id="DeleteCol" class="menu-bar-button" onclick=m.link.callback(|_| Action::DeleteCol)>
                 { "Delete Column" }
             </button>
+            <button id="NewEditor" class="menu-bar-button" onclick=m.link.callback(|_| Action::NewEditor)>
+                { "New Editor" }
+            </button>
+            <button id="RunPython" class="menu-bar-button" onclick=m.link.callback(|_| Action::RunPython("import sys\nsys.version\nprint(1+2)".to_string(), coord!("root-A1")))>
+                { "Run Python" }
+            </button>
             //<>
                 { add_definition_button }
             //</>
@@ -471,9 +484,17 @@ pub fn view_grammar(m: &Model, coord: Coordinate) -> Html {
             Kind::Defn(name, defn_coord, sub_grammars) => {
                 view_defn_grammar(m, &coord, &defn_coord, name, sub_grammars)
             }
+            Kind::Editor(content) => view_editor_grammar(m, &coord, content),
         }
     } else {
         html! { <></> }
+    }
+}
+
+pub fn view_editor_grammar(m: &Model, coord: &Coordinate, content: String) -> Html {
+    html! {
+        <CodeMirror content={content} coordinate={coord.clone()}>
+        </CodeMirror>
     }
 }
 

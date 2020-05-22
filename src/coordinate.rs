@@ -2,6 +2,7 @@ use pest::Parser;
 use serde::{Deserialize, Serialize};
 use std::char::from_u32;
 use std::num::NonZeroU32;
+use std::ops::Deref;
 use std::option::Option;
 use std::panic;
 
@@ -25,7 +26,6 @@ impl Coordinate {
     pub fn child_of(parent: &Self, child_coord: (NonZeroU32, NonZeroU32)) -> Coordinate {
         let mut new_row_col = parent.clone().row_cols;
         new_row_col.push(child_coord);
-        info!("pareb = {:?}, child_coord = {:?}", parent, child_coord);
 
         Coordinate {
             row_cols: new_row_col,
