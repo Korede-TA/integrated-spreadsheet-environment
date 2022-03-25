@@ -22,7 +22,7 @@
   },
   "homepage": "https://github.com/Korede-TA/integrated-spreadsheet-environment#readme",
   "dependencies": {
-    "electron": "^7.1.2"
+    "electron": "^13.6.6"
   },
   "devDependencies": {
     "@wasm-tool/wasm-pack-plugin": "^1.0.1",
